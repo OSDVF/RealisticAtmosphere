@@ -9,8 +9,7 @@
 
  // Utils for working with resources (shaders, meshes..)
 #include "bgfx_utils.h"
-
-#include "TestCube.h"
+#include "ScreenSpaceQuad.h"
 
 #define HANDLE_OF_DEFALUT_WINDOW entry::WindowHandle{ 0 }
 
@@ -28,9 +27,17 @@ namespace RealisticAtmosphere
 		uint32_t _resetFlags;
 		entry::MouseState _mouseState;
 
-		bgfx::VertexBufferHandle _vertexBuffer;
-		bgfx::IndexBufferHandle _indexBuffer;
-		bgfx::ProgramHandle _shaderProgram;
+		bgfx::TextureHandle _raytracerRenderTexture; /**< Used only when using compute-shader variant */
+		bgfx::UniformHandle _raytracerOutputSampler;
+
+		bgfx::ProgramHandle _computShaderProgram;
+		bgfx::ProgramHandle _displayingShaderProgram; /**< This program displays output from compute-shader raytracer */
+
+		bgfx::ProgramHandle _raytracerShaderProgram; /**< This program includes full raytracer as fragment shader */
+
+		ScreenSpaceQuad _screenSpaceQuad;/**< Output of raytracer (both the compute-shader variant and fragment-shader variant) */
+
+		bool _useComputeShader = true;
 
 		// The Entry library will call this method after setting up window manager
 		void init(int32_t argc, const char* const* argv, uint32_t width, uint32_t height) override
@@ -63,34 +70,27 @@ namespace RealisticAtmosphere
 			bgfx::setDebug(_debugFlags);
 
 			// Set view 0 clear state.
-			bgfx::setViewClear(0
-				, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH
-				, 0x303030ff
-				, 1.0f
-				, 0
-			);
+			bgfx::setViewClear(0, BGFX_CLEAR_NONE);//We don't need to clear anything, because whole screen covers screenSpaceQuad
 
 			//
 			// Setup Resources
 			//
 
-			// Create vertex stream declaration.
-			TestCube::PosColorVertex::init();
+			_screenSpaceQuad = ScreenSpaceQuad(_windowWidth, _windowHeight);
 
-			// Create static vertex buffer.
-			_vertexBuffer = bgfx::createVertexBuffer(
-				// Static data can be passed with bgfx::makeRef
-				bgfx::makeRef(TestCube::s_cubeVertices, sizeof(TestCube::s_cubeVertices))
-				, TestCube::PosColorVertex::ms_layout
-			);
+			_displayingShaderProgram = loadProgram("rt_display.vert", "rt_display.frag");
+			_raytracerShaderProgram = loadProgram("normal_render.vert", "normal_render.frag");
+			_computShaderProgram = bgfx::createProgram(loadShader("compute_render.comp"));
 
-			// Create static index buffer for triangle list rendering.
-			_indexBuffer = bgfx::createIndexBuffer(
-				// Static data can be passed with bgfx::makeRef
-				bgfx::makeRef(TestCube::s_cubeTriList, sizeof(TestCube::s_cubeTriList))
-			);
+			_raytracerRenderTexture = bgfx::createTexture2D(
+				uint16_t(_windowWidth)
+				, uint16_t(_windowHeight)
+				, false
+				, 1
+				, bgfx::TextureFormat::RGBA8
+				, BGFX_TEXTURE_RT_WRITE_ONLY);
 
-			_shaderProgram = loadProgram("raytracing.vert","raytracing.frag");
+			_raytracerOutputSampler = bgfx::createUniform("computeShaderOutput", bgfx::UniformType::Sampler);
 
 			// Create Immediate GUI graphics context
 			imguiCreate();
@@ -102,9 +102,12 @@ namespace RealisticAtmosphere
 			imguiDestroy();
 
 			// Shutdown bgfx.
-			bgfx::destroy(_indexBuffer);
-			bgfx::destroy(_vertexBuffer);
-			bgfx::destroy(_shaderProgram);
+			_screenSpaceQuad.destroy();
+			bgfx::destroy(_computShaderProgram);
+			bgfx::destroy(_displayingShaderProgram);
+			bgfx::destroy(_raytracerShaderProgram);
+
+			bgfx::destroy(_raytracerRenderTexture);
 			bgfx::shutdown();
 
 			return 0;
@@ -140,13 +143,6 @@ namespace RealisticAtmosphere
 				// Graphics actions
 				// 
 
-				// Set view 0 default viewport.
-				bgfx::setViewRect(0, 0, 0, uint16_t(_windowWidth), uint16_t(_windowHeight));
-
-				// This dummy draw call is here to make sure that view 0 is cleared
-				// if no other draw calls are submitted to view 0.
-				bgfx::touch(0);
-
 				bgfx::dbgTextPrintf(0, 1, 0x0f, "Color can be changed with ANSI \x1b[9;me\x1b[10;ms\x1b[11;mc\x1b[12;ma\x1b[13;mp\x1b[14;me\x1b[0m code too.");
 
 				bgfx::dbgTextPrintf(80, 1, 0x0f, "\x1b[;0m    \x1b[;1m    \x1b[; 2m    \x1b[; 3m    \x1b[; 4m    \x1b[; 5m    \x1b[; 6m    \x1b[; 7m    \x1b[0m");
@@ -160,26 +156,16 @@ namespace RealisticAtmosphere
 					, stats->textHeight
 				);
 
-				const bx::Vec3 at = { 0.0f, 0.0f,   0.0f };
-				const bx::Vec3 eye = { 0.0f, 0.0f, -35.0f };
+				bgfx::setState(BGFX_STATE_WRITE_RGB);
 
-				// Set view and projection matrix for view 0.
+				if (_useComputeShader)
 				{
-					float view[16];
-					bx::mtxLookAt(view, eye, at);
-
-					float proj[16];
-					bx::mtxProj(proj, 60.0f, float(_windowWidth) / float(_windowHeight), 0.1f, 100.0f, bgfx::getCaps()->homogeneousDepth);
-					bgfx::setViewTransform(0, view, proj);
-
-					// Set view 0 default viewport.
-					bgfx::setViewRect(0, 0, 0, uint16_t(_windowWidth), uint16_t(_windowHeight));
+					computeShaderRaytracer();
 				}
-
-				bgfx::setVertexBuffer(0, _vertexBuffer);
-				bgfx::setIndexBuffer(_indexBuffer);
-
-				bgfx::submit(0, _shaderProgram);
+				else
+				{
+					fragmentShaderRaytracer();
+				}
 
 				// Advance to next frame. Rendering thread will be kicked to
 				// process submitted rendering primitives.
@@ -189,6 +175,32 @@ namespace RealisticAtmosphere
 			}
 			// update() should return false when we want the application to exit
 			return false;
+		}
+		void fragmentShaderRaytracer()
+		{
+			_screenSpaceQuad.draw();//Draw screen space quad with our shader program
+			bgfx::submit(0, _raytracerShaderProgram);
+		}
+		void computeShaderRaytracer()
+		{
+			bgfx::setImage(0, _raytracerRenderTexture, 0, bgfx::Access::Write);
+			bgfx::dispatch(0, _computShaderProgram);
+
+			bgfx::setTexture(0, _raytracerOutputSampler, _raytracerRenderTexture);
+			_screenSpaceQuad.draw();//Draw screen space quad with our shader program
+			bgfx::submit(0, _displayingShaderProgram);
+		}
+
+		/**
+		 * This function is not used because it will set viewport which is already the default viewport
+		 */
+		void viewportActions()
+		{
+			float proj[16];
+			bx::mtxOrtho(proj, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 100.0f, 0.0f, bgfx::getCaps()->homogeneousDepth);
+
+			// Set view 0 default viewport.
+			bgfx::setViewTransform(0, NULL, proj);
 		}
 	};
 

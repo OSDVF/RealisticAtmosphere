@@ -106,8 +106,7 @@
     </CustomBuildStep>
     <CustomBuildStep />
     <PreBuildEvent>
-      <Command>bgfx\.build\win32_vs2017\bin\shadercRelease -f raytracing.vert -o shaders/glsl/raytracing.vert.bin --raw --type v --platform windows --profile 440
-bgfx\.build\win32_vs2017\bin\shadercRelease -f raytracing.frag -o shaders/glsl/raytracing.frag.bin --raw --type f --platform windows --profile 440</Command>
+      <Command>powershell -File .\shaders\scripts\shaderc32debug.ps1</Command>
       <Message>Building Shaders</Message>
     </PreBuildEvent>
   </ItemDefinitionGroup>
@@ -139,8 +138,7 @@ bgfx\.build\win32_vs2017\bin\shadercRelease -f raytracing.frag -o shaders/glsl/r
     </CustomBuildStep>
     <CustomBuildStep />
     <PreBuildEvent>
-      <Command>bgfx\.build\win32_vs2017\bin\shadercRelease -f raytracing.vert -o shaders/glsl/raytracing.vert.bin --raw --type v --platform windows --profile 440
-bgfx\.build\win32_vs2017\bin\shadercRelease -f raytracing.frag -o shaders/glsl/raytracing.frag.bin --raw --type f --platform windows --profile 440</Command>
+      <Command>powershell -File .\shaders\scripts\shaderc32release.ps1</Command>
       <Message>Building Shaders</Message>
     </PreBuildEvent>
   </ItemDefinitionGroup>
@@ -168,8 +166,7 @@ bgfx\.build\win32_vs2017\bin\shadercRelease -f raytracing.frag -o shaders/glsl/r
     </CustomBuildStep>
     <CustomBuildStep />
     <PreBuildEvent>
-      <Command>bgfx\.build\win32_vs2017\bin\shadercRelease -f raytracing.vert -o shaders/glsl/raytracing.vert.bin --raw --type v --platform windows --profile 440
-bgfx\.build\win32_vs2017\bin\shadercRelease -f raytracing.frag -o shaders/glsl/raytracing.frag.bin --raw --type f --platform windows --profile 440</Command>
+      <Command>powershell -File .\shaders\scripts\shaderc64debug.ps1</Command>
       <Message>Building Shaders</Message>
     </PreBuildEvent>
   </ItemDefinitionGroup>
@@ -201,13 +198,13 @@ bgfx\.build\win32_vs2017\bin\shadercRelease -f raytracing.frag -o shaders/glsl/r
     </CustomBuildStep>
     <CustomBuildStep />
     <PreBuildEvent>
-      <Command>bgfx\.build\win32_vs2017\bin\shadercRelease -f raytracing.vert -o shaders/glsl/raytracing.vert.bin --raw --type v --platform windows --profile 440
-bgfx\.build\win32_vs2017\bin\shadercRelease -f raytracing.frag -o shaders/glsl/raytracing.frag.bin --raw --type f --platform windows --profile 440</Command>
+      <Command>powershell -File .\shaders\scripts\shaderc64release.ps1</Command>
       <Message>Building Shaders</Message>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="ScreenSpaceQuad.cpp" />
     <ClCompile Include="TestCube.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -231,17 +228,31 @@ bgfx\.build\win32_vs2017\bin\shadercRelease -f raytracing.frag -o shaders/glsl/r
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <Text Include="raytracing.vert">
+    <Text Include="ComputeRender\rt_display.vert">
       <DeploymentContent>true</DeploymentContent>
     </Text>
   </ItemGroup>
   <ItemGroup>
-    <None Include="raytracing.frag">
+    <None Include="ComputeRender\rt_display.frag">
       <DeploymentContent>true</DeploymentContent>
     </None>
+    <None Include="ComputeRender\compute_render.comp" />
+    <None Include="normal_render.frag" />
+    <None Include="normal_render.vert" />
+    <None Include="shaders\scripts\shaderc32debug.ps1" />
+    <None Include="shaders\scripts\shaderc32release.ps1" />
+    <None Include="ComputeRender\varying.def.sc" />
+    <None Include="shaders\scripts\shaderc64debug.ps1" />
+    <None Include="shaders\scripts\shaderc64release.ps1" />
     <None Include="varying.def.sc" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="PosColorTexCoordVertex.h" />
+    <ClInclude Include="PosColorVertex.h" />
+    <ClInclude Include="PosNormalTangentTexcoordVertex.h" />
+    <ClInclude Include="PosTexCoordVertex.h" />
+    <ClInclude Include="PosVertex.h" />
+    <ClInclude Include="ScreenSpaceQuad.h" />
     <ClInclude Include="TestCube.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

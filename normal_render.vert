@@ -1,3 +1,4 @@
+#version 440
 in vec3 a_position;
 in vec3 a_color0;
 out vec3 v_color0;
