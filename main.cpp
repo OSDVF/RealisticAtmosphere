@@ -27,10 +27,10 @@ namespace RealisticAtmosphere
 		uint32_t _resetFlags;
 		entry::MouseState _mouseState;
 
-		bgfx::TextureHandle _raytracerRenderTexture; /**< Used only when using compute-shader variant */
+		bgfx::TextureHandle _raytracerOutputTexture; /**< Used only when using compute-shader variant */
 		bgfx::UniformHandle _raytracerOutputSampler;
 
-		bgfx::ProgramHandle _computShaderProgram;
+		bgfx::ProgramHandle _computeShaderProgram;
 		bgfx::ProgramHandle _displayingShaderProgram; /**< This program displays output from compute-shader raytracer */
 
 		bgfx::ProgramHandle _raytracerShaderProgram; /**< This program includes full raytracer as fragment shader */
@@ -70,25 +70,25 @@ namespace RealisticAtmosphere
 			bgfx::setDebug(_debugFlags);
 
 			// Set view 0 clear state.
-			bgfx::setViewClear(0, BGFX_CLEAR_NONE);//We don't need to clear anything, because whole screen covers screenSpaceQuad
+			bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH);
 
 			//
 			// Setup Resources
 			//
 
-			_screenSpaceQuad = ScreenSpaceQuad(_windowWidth, _windowHeight);
+			_screenSpaceQuad = ScreenSpaceQuad((float)_windowWidth, (float)_windowHeight);//Init internal vertex layout
 
 			_displayingShaderProgram = loadProgram("rt_display.vert", "rt_display.frag");
 			_raytracerShaderProgram = loadProgram("normal_render.vert", "normal_render.frag");
-			_computShaderProgram = bgfx::createProgram(loadShader("compute_render.comp"));
+			_computeShaderProgram = bgfx::createProgram(loadShader("compute_render.comp"));
 
-			_raytracerRenderTexture = bgfx::createTexture2D(
+			_raytracerOutputTexture = bgfx::createTexture2D(
 				uint16_t(_windowWidth)
 				, uint16_t(_windowHeight)
 				, false
 				, 1
 				, bgfx::TextureFormat::RGBA8
-				, BGFX_TEXTURE_RT_WRITE_ONLY);
+				, BGFX_TEXTURE_COMPUTE_WRITE);
 
 			_raytracerOutputSampler = bgfx::createUniform("computeShaderOutput", bgfx::UniformType::Sampler);
 
@@ -101,13 +101,16 @@ namespace RealisticAtmosphere
 			// Destroy Immediate GUI graphics context
 			imguiDestroy();
 
-			// Shutdown bgfx.
-			_screenSpaceQuad.destroy();
-			bgfx::destroy(_computShaderProgram);
+			//Destroy resources
+			bgfx::destroy(_raytracerOutputTexture);
+			bgfx::destroy(_raytracerOutputSampler);
+			bgfx::destroy(_computeShaderProgram);
 			bgfx::destroy(_displayingShaderProgram);
 			bgfx::destroy(_raytracerShaderProgram);
 
-			bgfx::destroy(_raytracerRenderTexture);
+			_screenSpaceQuad.destroy();
+
+			// Shutdown bgfx.
 			bgfx::shutdown();
 
 			return 0;
@@ -156,7 +159,7 @@ namespace RealisticAtmosphere
 					, stats->textHeight
 				);
 
-				bgfx::setState(BGFX_STATE_WRITE_RGB);
+				viewportActions();
 
 				if (_useComputeShader)
 				{
@@ -179,28 +182,34 @@ namespace RealisticAtmosphere
 		void fragmentShaderRaytracer()
 		{
 			_screenSpaceQuad.draw();//Draw screen space quad with our shader program
+			bgfx::setState(BGFX_STATE_DEFAULT);
 			bgfx::submit(0, _raytracerShaderProgram);
 		}
 		void computeShaderRaytracer()
 		{
-			bgfx::setImage(0, _raytracerRenderTexture, 0, bgfx::Access::Write);
-			bgfx::dispatch(0, _computShaderProgram);
+			bgfx::setImage(0, _raytracerOutputTexture, 0, bgfx::Access::Write);
+			bgfx::dispatch(0, _computeShaderProgram, _windowWidth / 16, _windowHeight / 16);
 
-			bgfx::setTexture(0, _raytracerOutputSampler, _raytracerRenderTexture);
+			/** We cannot do a blit into backbuffer - not implemented in BGFX
+			  * e.g. bgfx::blit(0, BGFX_INVALID_HANDLE, 0, 0, _raytracerOutputTexture, 0, 0, _windowWidth, _windowHeight);
+			  */
+
+			bgfx::setTexture(0, _raytracerOutputSampler, _raytracerOutputTexture);
 			_screenSpaceQuad.draw();//Draw screen space quad with our shader program
+
+			bgfx::setState(BGFX_STATE_DEFAULT);
 			bgfx::submit(0, _displayingShaderProgram);
+			bgfx::touch(0);
 		}
 
-		/**
-		 * This function is not used because it will set viewport which is already the default viewport
-		 */
 		void viewportActions()
 		{
 			float proj[16];
-			bx::mtxOrtho(proj, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 100.0f, 0.0f, bgfx::getCaps()->homogeneousDepth);
+			bx::mtxOrtho(proj, 0.0f, 1.0f, 0.0f, 1.0f, -1.0f, 100.0f, 0.0f, bgfx::getCaps()->homogeneousDepth);
 
 			// Set view 0 default viewport.
 			bgfx::setViewTransform(0, NULL, proj);
+			bgfx::setViewRect(0, 0, 0, uint16_t(_windowWidth), uint16_t(_windowHeight));
 		}
 	};
 

@@ -1,8 +1,7 @@
 #version 440
-layout(rgba8, binding=0) uniform highp image2DArray s_texColor;
-uniform vec4 u_time;
+layout(local_size_x=16, local_size_y=16, local_size_z = 1) in;
+layout(rgba8, binding=0) uniform image2DArray computeShaderOutput;
 
-layout(local_size_x=16, local_size_y=16) in;
 void main()
 {
 	vec3 colors[] =
@@ -17,8 +16,8 @@ void main()
 
 	for (int face = 0; face < 6; face++)
 	{
-		vec3 color = colors[face]*0.75 + sin(u_time.x*4.0)*0.25;
+		vec3 color = colors[face]*0.75;
 		ivec3 dest = ivec3(gl_GlobalInvocationID.xy, face);
-		imageStore(s_texColor, dest, vec4(color, 1.0) );
+		imageStore(computeShaderOutput, dest, vec4(color, 1.0) );
 	}
 }

@@ -106,7 +106,7 @@
     </CustomBuildStep>
     <CustomBuildStep />
     <PreBuildEvent>
-      <Command>powershell -File .\shaders\scripts\shaderc32debug.ps1</Command>
+      <Command>powershell -ExecutionPolicy Bypass -File .\shaders\scripts\shaderc32debug.ps1</Command>
       <Message>Building Shaders</Message>
     </PreBuildEvent>
   </ItemDefinitionGroup>
@@ -138,7 +138,7 @@
     </CustomBuildStep>
     <CustomBuildStep />
     <PreBuildEvent>
-      <Command>powershell -File .\shaders\scripts\shaderc32release.ps1</Command>
+      <Command>powershell -ExecutionPolicy Bypass -File .\shaders\scripts\shaderc32release.ps1</Command>
       <Message>Building Shaders</Message>
     </PreBuildEvent>
   </ItemDefinitionGroup>
@@ -166,7 +166,7 @@
     </CustomBuildStep>
     <CustomBuildStep />
     <PreBuildEvent>
-      <Command>powershell -File .\shaders\scripts\shaderc64debug.ps1</Command>
+      <Command>powershell -ExecutionPolicy Bypass -File .\shaders\scripts\shaderc64debug.ps1</Command>
       <Message>Building Shaders</Message>
     </PreBuildEvent>
   </ItemDefinitionGroup>
@@ -198,7 +198,7 @@
     </CustomBuildStep>
     <CustomBuildStep />
     <PreBuildEvent>
-      <Command>powershell -File .\shaders\scripts\shaderc64release.ps1</Command>
+      <Command>powershell -ExecutionPolicy Bypass -File .\shaders\scripts\shaderc64release.ps1</Command>
       <Message>Building Shaders</Message>
     </PreBuildEvent>
   </ItemDefinitionGroup>
