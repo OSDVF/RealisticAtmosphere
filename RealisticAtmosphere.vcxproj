@@ -72,15 +72,22 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
+    <ExtensionsToDeleteOnClean>*.vert.bin;*.frag.bin;*.comp.bin;$(ExtensionsToDeleteOnClean)</ExtensionsToDeleteOnClean>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
+    <ExtensionsToDeleteOnClean>*.vert.bin;*.frag.bin;*.comp.bin;$(ExtensionsToDeleteOnClean)</ExtensionsToDeleteOnClean>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
+    <PreBuildEventUseInBuild>true</PreBuildEventUseInBuild>
+    <CustomBuildBeforeTargets>
+    </CustomBuildBeforeTargets>
+    <ExtensionsToDeleteOnClean>*.vert.bin;*.frag.bin;*.comp.bin;$(ExtensionsToDeleteOnClean)</ExtensionsToDeleteOnClean>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
+    <ExtensionsToDeleteOnClean>*.vert.bin;*.frag.bin;*.comp.bin;$(ExtensionsToDeleteOnClean)</ExtensionsToDeleteOnClean>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -228,14 +235,14 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <Text Include="ComputeRender\rt_display.vert">
-      <DeploymentContent>true</DeploymentContent>
-    </Text>
+    <UpToDateCheckInput Include="**\*.frag" />
+    <UpToDateCheckInput Include="**\*.vert" />
+    <UpToDateCheckInput Include="**\*.comp" />
+    <UpToDateCheckInput Include="**\*.sc" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="ComputeRender\rt_display.frag">
-      <DeploymentContent>true</DeploymentContent>
-    </None>
+    <None Include="ComputeRender\rt_display.vert" />
+    <None Include="ComputeRender\rt_display.frag" />
     <None Include="ComputeRender\compute_render.comp" />
     <None Include="normal_render.frag" />
     <None Include="normal_render.vert" />

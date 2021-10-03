@@ -68,6 +68,7 @@ namespace RealisticAtmosphere
 
 			// Enable debug text.
 			bgfx::setDebug(_debugFlags);
+			_useComputeShader = !!(bgfx::getCaps()->supported & BGFX_CAPS_COMPUTE);
 
 			// Set view 0 clear state.
 			bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH);
@@ -140,24 +141,15 @@ namespace RealisticAtmosphere
 
 				// Displays/Updates an innner dialog with debug and profiler information
 				showDebugDialog(this);
+				drawSettingsDialog();
+
 				imguiEndFrame();
 
 				//
 				// Graphics actions
 				// 
 
-				bgfx::dbgTextPrintf(0, 1, 0x0f, "Color can be changed with ANSI \x1b[9;me\x1b[10;ms\x1b[11;mc\x1b[12;ma\x1b[13;mp\x1b[14;me\x1b[0m code too.");
-
-				bgfx::dbgTextPrintf(80, 1, 0x0f, "\x1b[;0m    \x1b[;1m    \x1b[; 2m    \x1b[; 3m    \x1b[; 4m    \x1b[; 5m    \x1b[; 6m    \x1b[; 7m    \x1b[0m");
-				bgfx::dbgTextPrintf(80, 2, 0x0f, "\x1b[;8m    \x1b[;9m    \x1b[;10m    \x1b[;11m    \x1b[;12m    \x1b[;13m    \x1b[;14m    \x1b[;15m    \x1b[0m");
-
-				const bgfx::Stats* stats = bgfx::getStats();
-				bgfx::dbgTextPrintf(0, 2, 0x0f, "Backbuffer %dW x %dH in pixels, debug text %dW x %dH in characters."
-					, stats->width
-					, stats->height
-					, stats->textWidth
-					, stats->textHeight
-				);
+				drawDebugInfo();
 
 				viewportActions();
 
@@ -179,6 +171,21 @@ namespace RealisticAtmosphere
 			// update() should return false when we want the application to exit
 			return false;
 		}
+		void drawDebugInfo()
+		{
+			bgfx::dbgTextPrintf(0, 1, 0x0f, "Color can be changed with ANSI \x1b[9;me\x1b[10;ms\x1b[11;mc\x1b[12;ma\x1b[13;mp\x1b[14;me\x1b[0m code too.");
+
+			bgfx::dbgTextPrintf(80, 1, 0x0f, "\x1b[;0m    \x1b[;1m    \x1b[; 2m    \x1b[; 3m    \x1b[; 4m    \x1b[; 5m    \x1b[; 6m    \x1b[; 7m    \x1b[0m");
+			bgfx::dbgTextPrintf(80, 2, 0x0f, "\x1b[;8m    \x1b[;9m    \x1b[;10m    \x1b[;11m    \x1b[;12m    \x1b[;13m    \x1b[;14m    \x1b[;15m    \x1b[0m");
+
+			const bgfx::Stats* stats = bgfx::getStats();
+			bgfx::dbgTextPrintf(0, 2, 0x0f, "Backbuffer %dW x %dH in pixels, debug text %dW x %dH in characters."
+				, stats->width
+				, stats->height
+				, stats->textWidth
+				, stats->textHeight
+			);
+		}
 		void fragmentShaderRaytracer()
 		{
 			_screenSpaceQuad.draw();//Draw screen space quad with our shader program
@@ -188,7 +195,7 @@ namespace RealisticAtmosphere
 		void computeShaderRaytracer()
 		{
 			bgfx::setImage(0, _raytracerOutputTexture, 0, bgfx::Access::Write);
-			bgfx::dispatch(0, _computeShaderProgram, _windowWidth / 16, _windowHeight / 16);
+			bgfx::dispatch(0, _computeShaderProgram, bx::ceil(_windowWidth / 16.0f), bx::ceil(_windowHeight / 16.0f));
 
 			/** We cannot do a blit into backbuffer - not implemented in BGFX
 			  * e.g. bgfx::blit(0, BGFX_INVALID_HANDLE, 0, 0, _raytracerOutputTexture, 0, 0, _windowWidth, _windowHeight);
@@ -210,6 +217,22 @@ namespace RealisticAtmosphere
 			// Set view 0 default viewport.
 			bgfx::setViewTransform(0, NULL, proj);
 			bgfx::setViewRect(0, 0, 0, uint16_t(_windowWidth), uint16_t(_windowHeight));
+		}
+
+		void drawSettingsDialog()
+		{
+			ImGui::SetNextWindowPos(
+				ImVec2(_windowWidth - _windowHeight / 5.0f - 10.0f, 10.0f)
+				, ImGuiCond_FirstUseEver
+			);
+			ImGui::SetNextWindowSize(
+				ImVec2(_windowWidth / 5.0f, _windowHeight / 3.5f)
+				, ImGuiCond_FirstUseEver
+			);
+			ImGui::Begin("Settings", NULL, 0);
+
+			ImGui::Checkbox("Use Compute Shader", &_useComputeShader);
+			ImGui::End();
 		}
 	};
 

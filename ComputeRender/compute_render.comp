@@ -4,20 +4,6 @@ layout(rgba8, binding=0) uniform image2DArray computeShaderOutput;
 
 void main()
 {
-	vec3 colors[] =
-	{
-		vec3(1.0, 0.0, 0.0),
-		vec3(1.0, 1.0, 0.0),
-		vec3(1.0, 0.0, 1.0),
-		vec3(0.0, 1.0, 0.0),
-		vec3(0.0, 1.0, 1.0),
-		vec3(0.0, 0.0, 1.0),
-	};
-
-	for (int face = 0; face < 6; face++)
-	{
-		vec3 color = colors[face]*0.75;
-		ivec3 dest = ivec3(gl_GlobalInvocationID.xy, face);
-		imageStore(computeShaderOutput, dest, vec4(color, 1.0) );
-	}
+	vec3 color = vec3(gl_GlobalInvocationID.xyz)/(gl_WorkGroupSize*gl_NumWorkGroups);
+	imageStore(computeShaderOutput, ivec3(gl_GlobalInvocationID.xyz), vec4(color, 1.0) );
 }
