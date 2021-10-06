@@ -8,7 +8,7 @@
 #endif
 
 #define SPACE_COLOR vec3(0.1,0.1,0.3)
-#define AMBIENT_LIGHT vec3(0.3,0.3,0.1)
+#define AMBIENT_LIGHT vec3(0)
 
 layout(std430, binding=1) readonly buffer ObjectBuffer
 {
@@ -25,12 +25,12 @@ layout(std430, binding=3) readonly buffer DirectionalLightBuffer
     DirectionalLight directionalLights[];
 };
 
-layout(std430, binding=5) readonly buffer PointLightBuffer
+layout(std430, binding=4) readonly buffer PointLightBuffer
 {
     PointLight pointLights[];
 };
 
-layout(std430, binding=6) readonly buffer SpotLightBuffer
+layout(std430, binding=5) readonly buffer SpotLightBuffer
 {
     SpotLight spotLights[];
 };
@@ -66,7 +66,9 @@ bool isIntersecting(Sphere sphere, Ray ray)
 
 bool getIntersection(Sphere sphere, Ray ray, out vec3 hitPosition, out vec3 normalAtHit)
 {
-    vec3 distanceOriginToCenter = ray.origin - sphere.position;
+    hitPosition = vec3(0,0,0);
+    normalAtHit = vec3(0,0,0);
+    vec3 distanceOriginToCenter = sphere.position - ray.origin;
     float distanceOriginToPerpendicular = dot(ray.direction, distanceOriginToCenter);
     if(distanceOriginToPerpendicular < 0)
         return false;
@@ -88,29 +90,29 @@ bool getIntersection(Sphere sphere, Ray ray, out vec3 hitPosition, out vec3 norm
 Hit findClosestHit(Ray ray)
 {
     float closestDistance = /*positive infinity*/ uintBitsToFloat(0x7F800000);
-    Sphere hitObject;
-    vec3 hitPosition = vec3(0,0,0);
-    vec3 normalAtHit = vec3(0,0,0);
+    uint hitObjectIndex;
+    vec3 hitPosition;
+    vec3 normalAtHit;
     for (int k = 0; k < objects.length(); ++k)
     {
         if (getIntersection(objects[k], ray, hitPosition, normalAtHit)) // Update hit position and normal
         {
             float lastDistance = distance(Camera_position, hitPosition);
             if (lastDistance < closestDistance) {
-                hitObject = objects[k];
+                hitObjectIndex = k;
                 closestDistance = lastDistance; // Update closest distance
             }
         }
     }
-
-    return Hit(hitPosition, normalAtHit, hitObject);
+    
+    return Hit(hitPosition, normalAtHit, hitObjectIndex);
 }
 
 vec3 computeColor(Hit hit)
 {
     if(DEBUG_NORMALS)
     {
-        return hit.position;
+        return hit.normalAtHit;
     }
     vec3 totalLightColor = AMBIENT_LIGHT;// Initially the object is only lightened up by ambient light
     // Compute illumination by casting 'shadow rays' into lights
@@ -123,21 +125,21 @@ vec3 computeColor(Hit hit)
         shadowRay.direction = normalize(-light.direction);
         bool inShadow = false;
         for (int k = 0; k < objects.length(); ++k) {
-            if (isIntersecting(objects[k], shadowRay)) {
+            if (k != hit.hitObjectIndex && isIntersecting(objects[k], shadowRay)) {
                 inShadow = true;
                 break;
             }
         }
-        
         totalLightColor += light.color;
     }
     
-    Material objMaterial = materials[hit.hitObject.materialIndex];
+    Material objMaterial = materials[objects[hit.hitObjectIndex].materialIndex];
     return (objMaterial.albedo.xyz * totalLightColor) + objMaterial.emission;
 }
 
 vec3 raytrace(vec2 fromPixel)
 {
+    vec3 resultColor;
     // Create primary ray with direction for this pixel
     Ray primaryRay = createCameraRay(fromPixel);
 
@@ -147,8 +149,9 @@ vec3 raytrace(vec2 fromPixel)
     // Return color of the object at the hit
     if (hit.position != vec3(0,0,0)) // The zero vector indicates no hit
     {
-        return computeColor(hit);
+        resultColor = computeColor(hit);
     }
-
-    return SPACE_COLOR;
+    else
+        resultColor = SPACE_COLOR;
+    return resultColor;
 }

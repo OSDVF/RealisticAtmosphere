@@ -25,14 +25,14 @@ const Material _materialBuffer[] = {
 
 const Sphere _objectBuffer[] = {
 	{
-		{0, 0, -15}, //Position
+		{1, 1, 20}, //Position
 		{5} //Radius
 	}
 };
 
 const DirectionalLight _directionalLightBuffer[] = {
 	{
-		{0.5, 0.5, 0.5},// direction
+		{0, 0, -1},// direction
 		{1,1,1}// color
 	}
 };
@@ -127,9 +127,9 @@ namespace RealisticAtmosphere
 			_computeShaderProgram = bgfx::createProgram(_computeShaderHandle);
 
 			// "general" buffers are called "dynamic index" buffers by BGFX. C'est la vie.
+			_objectBufferHandle = bgfx::createDynamicIndexBuffer(sizeof(_objectBuffer), BGFX_BUFFER_COMPUTE_READ | BGFX_BUFFER_ALLOW_RESIZE);
 			_materialBufferHandle = bgfx::createDynamicIndexBuffer(sizeof(_materialBuffer), BGFX_BUFFER_COMPUTE_READ | BGFX_BUFFER_ALLOW_RESIZE);
 			_directionalLightBufferHandle = bgfx::createDynamicIndexBuffer(sizeof(_directionalLightBuffer), BGFX_BUFFER_COMPUTE_READ | BGFX_BUFFER_ALLOW_RESIZE);
-			_objectBufferHandle = bgfx::createDynamicIndexBuffer(sizeof(_objectBuffer), BGFX_BUFFER_COMPUTE_READ | BGFX_BUFFER_ALLOW_RESIZE);
 
 			_raytracerOutputTexture = bgfx::createTexture2D(
 				uint16_t(_windowWidth)
@@ -305,7 +305,7 @@ namespace RealisticAtmosphere
 		void drawSettingsDialog()
 		{
 			ImGui::SetNextWindowPos(
-				ImVec2(_windowWidth - _windowHeight / 5.0f - 10.0f, 10.0f)
+				ImVec2(_windowWidth - _windowHeight / 3.0f , 10.0f)
 				, ImGuiCond_FirstUseEver
 			);
 			ImGui::SetNextWindowSize(
