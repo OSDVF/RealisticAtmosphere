@@ -72,22 +72,22 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <ExtensionsToDeleteOnClean>*.vert.bin;*.frag.bin;*.comp.bin;$(ExtensionsToDeleteOnClean)</ExtensionsToDeleteOnClean>
+    <ExtensionsToDeleteOnClean>*.vert.bin;*.frag.bin;*.comp.bin;*.glsl.bin;$(ExtensionsToDeleteOnClean)</ExtensionsToDeleteOnClean>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <ExtensionsToDeleteOnClean>*.vert.bin;*.frag.bin;*.comp.bin;$(ExtensionsToDeleteOnClean)</ExtensionsToDeleteOnClean>
+    <ExtensionsToDeleteOnClean>*.vert.bin;*.frag.bin;*.comp.bin;*.glsl.bin;$(ExtensionsToDeleteOnClean)</ExtensionsToDeleteOnClean>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
     <PreBuildEventUseInBuild>true</PreBuildEventUseInBuild>
     <CustomBuildBeforeTargets>
     </CustomBuildBeforeTargets>
-    <ExtensionsToDeleteOnClean>*.vert.bin;*.frag.bin;*.comp.bin;$(ExtensionsToDeleteOnClean)</ExtensionsToDeleteOnClean>
+    <ExtensionsToDeleteOnClean>*.vert.bin;*.frag.bin;*.comp.bin;*.glsl.bin;$(ExtensionsToDeleteOnClean)</ExtensionsToDeleteOnClean>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <ExtensionsToDeleteOnClean>*.vert.bin;*.frag.bin;*.comp.bin;$(ExtensionsToDeleteOnClean)</ExtensionsToDeleteOnClean>
+    <ExtensionsToDeleteOnClean>*.vert.bin;*.frag.bin;*.comp.bin;*.glsl.bin;$(ExtensionsToDeleteOnClean)</ExtensionsToDeleteOnClean>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -239,6 +239,7 @@
     <UpToDateCheckInput Include="**\*.vert" />
     <UpToDateCheckInput Include="**\*.comp" />
     <UpToDateCheckInput Include="**\*.sc" />
+    <UpToDateCheckInput Include="**\*.glsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="ComputeRender\rt_display.vert" />
@@ -246,6 +247,8 @@
     <None Include="ComputeRender\compute_render.comp" />
     <None Include="normal_render.frag" />
     <None Include="normal_render.vert" />
+    <None Include="raytracer.glsl" />
+    <None Include="SceneObjects.glsl" />
     <None Include="shaders\scripts\shaderc32debug.ps1" />
     <None Include="shaders\scripts\shaderc32release.ps1" />
     <None Include="ComputeRender\varying.def.sc" />
@@ -254,6 +257,8 @@
     <None Include="varying.def.sc" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="GLSLTypeCompatibility.h" />
+    <ClInclude Include="gl_utils.h" />
     <ClInclude Include="PosColorTexCoordVertex.h" />
     <ClInclude Include="PosColorVertex.h" />
     <ClInclude Include="PosNormalTangentTexcoordVertex.h" />
@@ -261,6 +266,7 @@
     <ClInclude Include="PosVertex.h" />
     <ClInclude Include="ScreenSpaceQuad.h" />
     <ClInclude Include="TestCube.h" />
+    <ClInclude Include="SceneObjects.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

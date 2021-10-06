@@ -6,12 +6,36 @@
  // Library for controlling aplication flow (init() and update() methods)
 #include "entry/entry.h"
 #include "imgui/imgui.h"
+#include "gl_utils.h"
 
  // Utils for working with resources (shaders, meshes..)
-#include "bgfx_utils.h"
 #include "ScreenSpaceQuad.h"
+#include "SceneObjects.h"
 
 #define HANDLE_OF_DEFALUT_WINDOW entry::WindowHandle{ 0 }
+
+const Material _materialBuffer[] = {
+	{// Only one material
+		{1, 0.5, 1 / 39, 1},// Orange albedo
+		{0.5},// Half Roughness
+		{0.5},// Half metalness
+		{0,0,0} // No emission
+	}
+};
+
+const Sphere _objectBuffer[] = {
+	{
+		{0, 0, -15}, //Position
+		{5} //Radius
+	}
+};
+
+const DirectionalLight _directionalLightBuffer[] = {
+	{
+		{0.5, 0.5, 0.5},// direction
+		{1,1,1}// color
+	}
+};
 
 namespace RealisticAtmosphere
 {
@@ -38,6 +62,21 @@ namespace RealisticAtmosphere
 		ScreenSpaceQuad _screenSpaceQuad;/**< Output of raytracer (both the compute-shader variant and fragment-shader variant) */
 
 		bool _useComputeShader = true;
+		bool _debugNormals = false;
+
+		bgfx::DynamicIndexBufferHandle _objectBufferHandle;
+		bgfx::DynamicIndexBufferHandle _materialBufferHandle;
+		bgfx::DynamicIndexBufferHandle _directionalLightBufferHandle;
+		bgfx::ShaderHandle _computeShaderHandle;
+
+		bgfx::UniformHandle _cameraHandle;
+#if _DEBUG
+		bgfx::UniformHandle _debugAttributesHandle;
+		vec4 _debugAttributesResult = vec4(0,0,0,0);
+#endif
+		float _tanFovY;
+		float _tanFovX;
+		float _fovY = 45;
 
 		// The Entry library will call this method after setting up window manager
 		void init(int32_t argc, const char* const* argv, uint32_t width, uint32_t height) override
@@ -78,10 +117,19 @@ namespace RealisticAtmosphere
 			//
 
 			_screenSpaceQuad = ScreenSpaceQuad((float)_windowWidth, (float)_windowHeight);//Init internal vertex layout
+			_cameraHandle = bgfx::createUniform("Camera", bgfx::UniformType::Vec4, 4);//It is an array of 4 vec4
+			_raytracerOutputSampler = bgfx::createUniform("computeShaderOutput", bgfx::UniformType::Sampler);
+			_debugAttributesHandle = bgfx::createUniform("debugAttributes", bgfx::UniformType::Vec4);
 
 			_displayingShaderProgram = loadProgram("rt_display.vert", "rt_display.frag");
 			_raytracerShaderProgram = loadProgram("normal_render.vert", "normal_render.frag");
-			_computeShaderProgram = bgfx::createProgram(loadShader("compute_render.comp"));
+			_computeShaderHandle = loadShader("compute_render.comp");
+			_computeShaderProgram = bgfx::createProgram(_computeShaderHandle);
+
+			// "general" buffers are called "dynamic index" buffers by BGFX. C'est la vie.
+			_materialBufferHandle = bgfx::createDynamicIndexBuffer(sizeof(_materialBuffer), BGFX_BUFFER_COMPUTE_READ | BGFX_BUFFER_ALLOW_RESIZE);
+			_directionalLightBufferHandle = bgfx::createDynamicIndexBuffer(sizeof(_directionalLightBuffer), BGFX_BUFFER_COMPUTE_READ | BGFX_BUFFER_ALLOW_RESIZE);
+			_objectBufferHandle = bgfx::createDynamicIndexBuffer(sizeof(_objectBuffer), BGFX_BUFFER_COMPUTE_READ | BGFX_BUFFER_ALLOW_RESIZE);
 
 			_raytracerOutputTexture = bgfx::createTexture2D(
 				uint16_t(_windowWidth)
@@ -91,7 +139,6 @@ namespace RealisticAtmosphere
 				, bgfx::TextureFormat::RGBA8
 				, BGFX_TEXTURE_COMPUTE_WRITE);
 
-			_raytracerOutputSampler = bgfx::createUniform("computeShaderOutput", bgfx::UniformType::Sampler);
 
 			// Create Immediate GUI graphics context
 			imguiCreate();
@@ -105,9 +152,15 @@ namespace RealisticAtmosphere
 			//Destroy resources
 			bgfx::destroy(_raytracerOutputTexture);
 			bgfx::destroy(_raytracerOutputSampler);
+			bgfx::destroy(_computeShaderHandle);
 			bgfx::destroy(_computeShaderProgram);
 			bgfx::destroy(_displayingShaderProgram);
 			bgfx::destroy(_raytracerShaderProgram);
+			bgfx::destroy(_materialBufferHandle);
+			bgfx::destroy(_directionalLightBufferHandle);
+			bgfx::destroy(_objectBufferHandle);
+			bgfx::destroy(_cameraHandle);
+			bgfx::destroy(_debugAttributesHandle);
 
 			_screenSpaceQuad.destroy();
 
@@ -153,6 +206,12 @@ namespace RealisticAtmosphere
 
 				viewportActions();
 
+				updateBuffers();
+
+#if _DEBUG
+				updateDebugUniforms();
+#endif
+
 				if (_useComputeShader)
 				{
 					computeShaderRaytracer();
@@ -186,6 +245,13 @@ namespace RealisticAtmosphere
 				, stats->textHeight
 			);
 		}
+
+		void updateDebugUniforms()
+		{
+			_debugAttributesResult = vec4(_debugNormals ? 1 : 0, 0, 0, 0);
+			bgfx::setUniform(_debugAttributesHandle, &_debugAttributesResult);
+		}
+
 		void fragmentShaderRaytracer()
 		{
 			_screenSpaceQuad.draw();//Draw screen space quad with our shader program
@@ -209,6 +275,17 @@ namespace RealisticAtmosphere
 			bgfx::touch(0);
 		}
 
+		void updateBuffers()
+		{
+			bgfx::update(_objectBufferHandle, 0, bgfx::makeRef((void*)_objectBuffer, sizeof(_objectBuffer)));
+			bgfx::update(_materialBufferHandle, 0, bgfx::makeRef((void*)_materialBuffer, sizeof(_materialBuffer)));
+			bgfx::update(_directionalLightBufferHandle, 0, bgfx::makeRef((void*)_directionalLightBuffer, sizeof(_directionalLightBuffer)));
+
+			bgfx::setBuffer(1, _objectBufferHandle, bgfx::Access::Read);
+			bgfx::setBuffer(2, _materialBufferHandle, bgfx::Access::Read);
+			bgfx::setBuffer(3, _directionalLightBufferHandle, bgfx::Access::Read);
+		}
+
 		void viewportActions()
 		{
 			float proj[16];
@@ -217,6 +294,12 @@ namespace RealisticAtmosphere
 			// Set view 0 default viewport.
 			bgfx::setViewTransform(0, NULL, proj);
 			bgfx::setViewRect(0, 0, 0, uint16_t(_windowWidth), uint16_t(_windowHeight));
+
+			_tanFovY = bx::tan(_fovY * bx::acos(-1) / 180.f / 2.0f);
+			_tanFovX = (static_cast<float>(_windowWidth) * _tanFovY) / static_cast<float>(_windowHeight);
+			Camera_fovX = _tanFovX;
+			Camera_fovY = _tanFovY;
+			bgfx::setUniform(_cameraHandle, Camera, 4);
 		}
 
 		void drawSettingsDialog()
@@ -226,12 +309,13 @@ namespace RealisticAtmosphere
 				, ImGuiCond_FirstUseEver
 			);
 			ImGui::SetNextWindowSize(
-				ImVec2(_windowWidth / 5.0f, _windowHeight / 3.5f)
+				ImVec2(_windowWidth / 6.0f, _windowHeight / 3.5f)
 				, ImGuiCond_FirstUseEver
 			);
 			ImGui::Begin("Settings", NULL, 0);
 
 			ImGui::Checkbox("Use Compute Shader", &_useComputeShader);
+			ImGui::Checkbox("Debug Normals", &_debugNormals);
 			ImGui::End();
 		}
 	};

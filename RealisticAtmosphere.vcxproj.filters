@@ -9,9 +9,6 @@
       <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
       <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
     </Filter>
-    <Filter Include="Vertex Types">
-      <UniqueIdentifier>{f54f71dc-9166-4cee-8fdb-6c0c1fbf9aa7}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Shader Programs">
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
@@ -21,6 +18,9 @@
     </Filter>
     <Filter Include="Shader Programs\Compute Render">
       <UniqueIdentifier>{b46bef74-eb81-4dca-b264-6239aa485556}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shader Programs\Vertex Types">
+      <UniqueIdentifier>{f54f71dc-9166-4cee-8fdb-6c0c1fbf9aa7}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -62,34 +62,49 @@
     <None Include="ComputeRender\varying.def.sc">
       <Filter>Shader Programs\Compute Render</Filter>
     </None>
-    <None Include="varying.def.sc" />
+    <None Include="raytracer.glsl">
+      <Filter>Shader Programs</Filter>
+    </None>
+    <None Include="varying.def.sc">
+      <Filter>Shader Programs</Filter>
+    </None>
+    <None Include="ComputeRender\rt_display.vert">
+      <Filter>Shader Programs\Compute Render</Filter>
+    </None>
+    <None Include="SceneObjects.glsl">
+      <Filter>Shader Programs</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="TestCube.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="PosVertex.h">
-      <Filter>Vertex Types</Filter>
+      <Filter>Shader Programs\Vertex Types</Filter>
     </ClInclude>
     <ClInclude Include="PosColorVertex.h">
-      <Filter>Vertex Types</Filter>
+      <Filter>Shader Programs\Vertex Types</Filter>
     </ClInclude>
     <ClInclude Include="PosTexCoordVertex.h">
-      <Filter>Vertex Types</Filter>
+      <Filter>Shader Programs\Vertex Types</Filter>
     </ClInclude>
     <ClInclude Include="PosNormalTangentTexcoordVertex.h">
-      <Filter>Vertex Types</Filter>
+      <Filter>Shader Programs\Vertex Types</Filter>
     </ClInclude>
     <ClInclude Include="PosColorTexCoordVertex.h">
-      <Filter>Vertex Types</Filter>
+      <Filter>Shader Programs\Vertex Types</Filter>
     </ClInclude>
     <ClInclude Include="ScreenSpaceQuad.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <Text Include="ComputeRender\rt_display.vert">
-      <Filter>Shader Programs\Compute Render</Filter>
-    </Text>
+    <ClInclude Include="SceneObjects.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GLSLTypeCompatibility.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="gl_utils.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

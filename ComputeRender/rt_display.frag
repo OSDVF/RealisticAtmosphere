@@ -1,4 +1,4 @@
-#version 440
+//!#version 440
 // This shader just displays output from raytracer in Compute shader
 
 in vec2 texCoord;
