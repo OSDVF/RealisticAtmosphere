@@ -121,7 +121,7 @@ vec3 computeColor(Hit hit)
     // Check for directional lights
     for(int i = 0; i < directionalLights.length(); i++)
     {
-        DirectionalLight light;
+        DirectionalLight light = directionalLights[i];
         shadowRay.direction = normalize(-light.direction);
         bool inShadow = false;
         for (int k = 0; k < objects.length(); ++k) {
@@ -130,7 +130,7 @@ vec3 computeColor(Hit hit)
                 break;
             }
         }
-        totalLightColor += light.color;
+        totalLightColor += light.color * dot(light.direction, hit.normalAtHit);
     }
     
     Material objMaterial = materials[objects[hit.hitObjectIndex].materialIndex];

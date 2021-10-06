@@ -32,7 +32,7 @@ const Sphere _objectBuffer[] = {
 
 const DirectionalLight _directionalLightBuffer[] = {
 	{
-		{0, 0, -1},// direction
+		{0, 1, -1},// direction
 		{1,1,1}// color
 	}
 };
@@ -224,7 +224,7 @@ namespace RealisticAtmosphere
 				// Advance to next frame. Rendering thread will be kicked to
 				// process submitted rendering primitives.
 				bgfx::frame();
-
+				
 				return true;
 			}
 			// update() should return false when we want the application to exit
@@ -327,6 +327,6 @@ ENTRY_IMPLEMENT_MAIN(
 	MainClass
 	, "Realistic Atmosphere"
 	, ""
-	, "https://github.com/OSDVF/RealisticAtmoshpere"
+	, "https://github.com/OSDVF/RealisticAtmosphere"
 );
 // Declares main() function
