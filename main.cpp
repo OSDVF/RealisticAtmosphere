@@ -15,25 +15,37 @@
 #define HANDLE_OF_DEFALUT_WINDOW entry::WindowHandle{ 0 }
 
 const Material _materialBuffer[] = {
-	{// Only one material
+	{
 		{1, 0.5, 1 / 39, 1},// Orange albedo
+		{0.5,0.5,0.5},// Half specular
 		{0.5},// Half Roughness
-		{0.5},// Half metalness
+		{0,0,0} // No emission
+	},
+	{
+		{0, 0.1, 1, 1},// Blue albedo
+		{0.5,0.5,0.5},// Half specular
+		{0.5},// Half Roughness
 		{0,0,0} // No emission
 	}
 };
 
 const Sphere _objectBuffer[] = {
 	{
-		{1, 1, 20}, //Position
-		{5} //Radius
-	}
+		{1, -1, 20}, //Position
+		{5}, //Radius
+		0, //Material index
+	},
+	{
+		{1, 5, 15}, //Position
+		{1}, //Radius
+		1 //Material index
+	},
 };
 
 const DirectionalLight _directionalLightBuffer[] = {
 	{
-		{0, 1, -1},// direction
-		{1,1,1}// color
+		vec4(0, 2, -1, 0).normalize(),// direction
+		{1, 1, 1, 1}// color
 	}
 };
 
@@ -72,7 +84,7 @@ namespace RealisticAtmosphere
 		bgfx::UniformHandle _cameraHandle;
 #if _DEBUG
 		bgfx::UniformHandle _debugAttributesHandle;
-		vec4 _debugAttributesResult = vec4(0,0,0,0);
+		vec4 _debugAttributesResult = vec4(0, 0, 0, 0);
 #endif
 		float _tanFovY;
 		float _tanFovX;
@@ -127,9 +139,9 @@ namespace RealisticAtmosphere
 			_computeShaderProgram = bgfx::createProgram(_computeShaderHandle);
 
 			// "general" buffers are called "dynamic index" buffers by BGFX. C'est la vie.
-			_objectBufferHandle = bgfx::createDynamicIndexBuffer(sizeof(_objectBuffer), BGFX_BUFFER_COMPUTE_READ | BGFX_BUFFER_ALLOW_RESIZE);
-			_materialBufferHandle = bgfx::createDynamicIndexBuffer(sizeof(_materialBuffer), BGFX_BUFFER_COMPUTE_READ | BGFX_BUFFER_ALLOW_RESIZE);
-			_directionalLightBufferHandle = bgfx::createDynamicIndexBuffer(sizeof(_directionalLightBuffer), BGFX_BUFFER_COMPUTE_READ | BGFX_BUFFER_ALLOW_RESIZE);
+			_objectBufferHandle = bgfx::createDynamicIndexBuffer((sizeof(_objectBuffer))/2 /* because BGFX expects 2-byte indices */, BGFX_BUFFER_COMPUTE_READ | BGFX_BUFFER_ALLOW_RESIZE);
+			_materialBufferHandle = bgfx::createDynamicIndexBuffer(sizeof(_materialBuffer)/2, BGFX_BUFFER_COMPUTE_READ | BGFX_BUFFER_ALLOW_RESIZE );
+			_directionalLightBufferHandle = bgfx::createDynamicIndexBuffer(sizeof(_directionalLightBuffer)/2, BGFX_BUFFER_COMPUTE_READ | BGFX_BUFFER_ALLOW_RESIZE);
 
 			_raytracerOutputTexture = bgfx::createTexture2D(
 				uint16_t(_windowWidth)
@@ -224,7 +236,7 @@ namespace RealisticAtmosphere
 				// Advance to next frame. Rendering thread will be kicked to
 				// process submitted rendering primitives.
 				bgfx::frame();
-				
+
 				return true;
 			}
 			// update() should return false when we want the application to exit
@@ -305,7 +317,7 @@ namespace RealisticAtmosphere
 		void drawSettingsDialog()
 		{
 			ImGui::SetNextWindowPos(
-				ImVec2(_windowWidth - _windowHeight / 3.0f , 10.0f)
+				ImVec2(_windowWidth - _windowHeight / 3.0f, 10.0f)
 				, ImGuiCond_FirstUseEver
 			);
 			ImGui::SetNextWindowSize(

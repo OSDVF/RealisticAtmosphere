@@ -53,14 +53,14 @@ Ray createCameraRay(vec2 fromPixel)
 }
 bool isIntersecting(Sphere sphere, Ray ray)
 {
-    vec3 distanceOriginToCenter = ray.origin - sphere.position;
+    vec3 distanceOriginToCenter = sphere.position - ray.origin;
     float distanceOriginToPerpendicular = dot(ray.direction, distanceOriginToCenter);
     if(distanceOriginToPerpendicular < 0)
         return false;
     float distanceCenterToSecular2 = dot(distanceOriginToCenter, distanceOriginToCenter) - distanceOriginToPerpendicular * distanceOriginToPerpendicular; 
     float radius2 = sphere.radius * sphere.radius;
     if (distanceCenterToSecular2 > radius2)
-        return false;  
+        return false; 
     return true; 
 }
 
@@ -93,6 +93,8 @@ Hit findClosestHit(Ray ray)
     uint hitObjectIndex;
     vec3 hitPosition;
     vec3 normalAtHit;
+    vec3 closesHitPosition = vec3(0, 0, 0);
+    vec3 closestNormalAtHit = vec3(0, 0, 0);
     for (int k = 0; k < objects.length(); ++k)
     {
         if (getIntersection(objects[k], ray, hitPosition, normalAtHit)) // Update hit position and normal
@@ -100,12 +102,14 @@ Hit findClosestHit(Ray ray)
             float lastDistance = distance(Camera_position, hitPosition);
             if (lastDistance < closestDistance) {
                 hitObjectIndex = k;
+                closesHitPosition = hitPosition;
+                closestNormalAtHit = normalAtHit;
                 closestDistance = lastDistance; // Update closest distance
             }
         }
     }
     
-    return Hit(hitPosition, normalAtHit, hitObjectIndex);
+    return Hit(closesHitPosition, closestNormalAtHit, hitObjectIndex);
 }
 
 vec3 computeColor(Hit hit)
@@ -116,21 +120,23 @@ vec3 computeColor(Hit hit)
     }
     vec3 totalLightColor = AMBIENT_LIGHT;// Initially the object is only lightened up by ambient light
     // Compute illumination by casting 'shadow rays' into lights
-    Ray shadowRay = Ray(hit.position, vec3(0,0,0));
 
     // Check for directional lights
     for(int i = 0; i < directionalLights.length(); i++)
     {
         DirectionalLight light = directionalLights[i];
-        shadowRay.direction = normalize(-light.direction);
         bool inShadow = false;
         for (int k = 0; k < objects.length(); ++k) {
-            if (k != hit.hitObjectIndex && isIntersecting(objects[k], shadowRay)) {
-                inShadow = true;
-                break;
+            if(k == hit.hitObjectIndex)
+            {
+                continue;
+            }
+            Ray shadowRay = Ray(hit.position, light.direction.xyz);
+            if (isIntersecting(objects[k], shadowRay)) {
+                return AMBIENT_LIGHT;
             }
         }
-        totalLightColor += light.color * dot(light.direction, hit.normalAtHit);
+        totalLightColor += light.color.xyz * dot(light.direction.xyz, hit.normalAtHit);
     }
     
     Material objMaterial = materials[objects[hit.hitObjectIndex].materialIndex];

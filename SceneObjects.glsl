@@ -33,8 +33,8 @@ struct Ray
 
 struct DirectionalLight
 {
-    vec3 direction;
-    vec3 color;
+    vec4 direction;
+    vec4 color;
 };
 
 struct SpotLight
@@ -57,6 +57,9 @@ struct Sphere
     vec3 position;
     float radius;
     uint materialIndex;
+    float _pad1;/*std430 memory padding to multiplies of vec4 */
+    float _pad2;
+    float _pad3;
 };
 
 struct Hit
@@ -71,7 +74,8 @@ struct Hit
  */
 struct Material {
     vec4 albedo;
+    vec3 specular;
     float smoothness;
-    float metalness;
     vec3 emission;
+    float occlusion;
 };
