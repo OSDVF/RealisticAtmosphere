@@ -1,5 +1,5 @@
-/*
- * Copyright 2021 Ond�ej Sabela
+﻿/*
+ * Copyright 2021 Ondřej Sabela
  */
 
 #include <bx/uint32_t.h>
@@ -29,15 +29,16 @@ const Material _materialBuffer[] = {
 	}
 };
 
+const float earthRadius = 6360; // cit. E. Bruneton page 3
 const Sphere _objectBuffer[] = {
 	{
-		{1, -1, 20}, //Position
-		{5}, //Radius
+		{0.001, earthRadius - 0.001, 30.020}, //Position
+		{0.005}, //Radius
 		0, //Material index
 	},
 	{
-		{1, 5, 15}, //Position
-		{1}, //Radius
+		{0.001, earthRadius + 0.005, 30.015}, //Position
+		{0.001}, //Radius
 		1 //Material index
 	},
 };
@@ -49,6 +50,27 @@ const DirectionalLight _directionalLightBuffer[] = {
 	}
 };
 
+//When rendering participating media, all the coeficients start with β
+/* Scattering coefficient for Rayleigh scattering βˢᵣ */
+const vec3 precomputedRayleighScatteringCoefficients = vec3(0.0000058, 0.0000135, 0.0000331);/*for wavelengths (680,550,440)nm (roughly R,G,B)*/
+/*Scattering coefficient for Mie scattering βˢₘ */
+const float precomputedMieScaterringCoefficient = 21e-6f;
+const float mieAssymetryFactor = 0.76;
+const Atmosphere _atmosphereBuffer[] = {
+	{
+		{0,0,0},//center
+		earthRadius,
+		6420 - earthRadius,//thickness
+		//These values are based on Nishita's measurements
+		//This means that atmospheric thickness of 60 Km covers troposphere, stratosphere and a bit of mezosphere
+		//I am usnure of the "completeness" of this model, but Nishita and Bruneton used this
+		precomputedRayleighScatteringCoefficients,
+		precomputedMieScaterringCoefficient,
+		mieAssymetryFactor,
+
+	}
+};
+
 namespace RealisticAtmosphere
 {
 	class RealisticAtmosphere : public entry::AppI // Entry point for our application
@@ -57,12 +79,15 @@ namespace RealisticAtmosphere
 		RealisticAtmosphere(const char* name, const char* description, const char* projectUrl)
 			: entry::AppI(name, description, projectUrl) {}
 
+		uint32_t _frame = 0;
 		uint32_t _windowWidth = 1024;
 		uint32_t _windowHeight = 600;
 		uint32_t _debugFlags;
 		uint32_t _resetFlags;
 		entry::MouseState _mouseState;
 
+		bgfx::UniformHandle _timeHandle;
+		bgfx::UniformHandle _multisamplingSettingsHandle;
 		bgfx::TextureHandle _raytracerOutputTexture; /**< Used only when using compute-shader variant */
 		bgfx::UniformHandle _raytracerOutputSampler;
 
@@ -93,6 +118,9 @@ namespace RealisticAtmosphere
 		// The Entry library will call this method after setting up window manager
 		void init(int32_t argc, const char* const* argv, uint32_t width, uint32_t height) override
 		{
+			Camera[0].y = earthRadius + 0.001;
+			Camera[0].z = 30.000;
+
 			entry::setWindowFlags(HANDLE_OF_DEFALUT_WINDOW, ENTRY_WINDOW_FLAG_ASPECT_RATIO, false);
 			entry::setWindowSize(HANDLE_OF_DEFALUT_WINDOW, 1024, 600);
 
@@ -132,6 +160,8 @@ namespace RealisticAtmosphere
 			_cameraHandle = bgfx::createUniform("Camera", bgfx::UniformType::Vec4, 4);//It is an array of 4 vec4
 			_raytracerOutputSampler = bgfx::createUniform("computeShaderOutput", bgfx::UniformType::Sampler);
 			_debugAttributesHandle = bgfx::createUniform("debugAttributes", bgfx::UniformType::Vec4);
+			_timeHandle = bgfx::createUniform("time", bgfx::UniformType::Vec4);
+			_multisamplingSettingsHandle = bgfx::createUniform("MultisamplingSettings", bgfx::UniformType::Vec4);
 
 			_displayingShaderProgram = loadProgram("rt_display.vert", "rt_display.frag");
 			_raytracerShaderProgram = loadProgram("normal_render.vert", "normal_render.frag");
@@ -139,9 +169,9 @@ namespace RealisticAtmosphere
 			_computeShaderProgram = bgfx::createProgram(_computeShaderHandle);
 
 			// "general" buffers are called "dynamic index" buffers by BGFX. C'est la vie.
-			_objectBufferHandle = bgfx::createDynamicIndexBuffer((sizeof(_objectBuffer))/2 /* because BGFX expects 2-byte indices */, BGFX_BUFFER_COMPUTE_READ | BGFX_BUFFER_ALLOW_RESIZE);
-			_materialBufferHandle = bgfx::createDynamicIndexBuffer(sizeof(_materialBuffer)/2, BGFX_BUFFER_COMPUTE_READ | BGFX_BUFFER_ALLOW_RESIZE );
-			_directionalLightBufferHandle = bgfx::createDynamicIndexBuffer(sizeof(_directionalLightBuffer)/2, BGFX_BUFFER_COMPUTE_READ | BGFX_BUFFER_ALLOW_RESIZE);
+			_objectBufferHandle = bgfx::createDynamicIndexBuffer((sizeof(_objectBuffer)) / 2 /* because BGFX expects 2-byte indices */, BGFX_BUFFER_COMPUTE_READ | BGFX_BUFFER_ALLOW_RESIZE);
+			_materialBufferHandle = bgfx::createDynamicIndexBuffer(sizeof(_materialBuffer) / 2, BGFX_BUFFER_COMPUTE_READ | BGFX_BUFFER_ALLOW_RESIZE);
+			_directionalLightBufferHandle = bgfx::createDynamicIndexBuffer(sizeof(_directionalLightBuffer) / 2, BGFX_BUFFER_COMPUTE_READ | BGFX_BUFFER_ALLOW_RESIZE);
 
 			_raytracerOutputTexture = bgfx::createTexture2D(
 				uint16_t(_windowWidth)
@@ -206,7 +236,7 @@ namespace RealisticAtmosphere
 
 				// Displays/Updates an innner dialog with debug and profiler information
 				showDebugDialog(this);
-				drawSettingsDialog();
+				drawSettingsDialogUI();
 
 				imguiEndFrame();
 
@@ -218,7 +248,7 @@ namespace RealisticAtmosphere
 
 				viewportActions();
 
-				updateBuffers();
+				updateBuffersAndUniforms();
 
 #if _DEBUG
 				updateDebugUniforms();
@@ -236,7 +266,7 @@ namespace RealisticAtmosphere
 				// Advance to next frame. Rendering thread will be kicked to
 				// process submitted rendering primitives.
 				bgfx::frame();
-
+				_frame++;
 				return true;
 			}
 			// update() should return false when we want the application to exit
@@ -287,7 +317,7 @@ namespace RealisticAtmosphere
 			bgfx::touch(0);
 		}
 
-		void updateBuffers()
+		void updateBuffersAndUniforms()
 		{
 			bgfx::update(_objectBufferHandle, 0, bgfx::makeRef((void*)_objectBuffer, sizeof(_objectBuffer)));
 			bgfx::update(_materialBufferHandle, 0, bgfx::makeRef((void*)_materialBuffer, sizeof(_materialBuffer)));
@@ -296,6 +326,9 @@ namespace RealisticAtmosphere
 			bgfx::setBuffer(1, _objectBufferHandle, bgfx::Access::Read);
 			bgfx::setBuffer(2, _materialBufferHandle, bgfx::Access::Read);
 			bgfx::setBuffer(3, _directionalLightBufferHandle, bgfx::Access::Read);
+			vec4 timeWrapper = vec4(_frame, 0, 0, 0);
+			bgfx::setUniform(_timeHandle, &timeWrapper);
+			bgfx::setUniform(_multisamplingSettingsHandle, &MultisamplingSettings);
 		}
 
 		void viewportActions()
@@ -314,20 +347,33 @@ namespace RealisticAtmosphere
 			bgfx::setUniform(_cameraHandle, Camera, 4);
 		}
 
-		void drawSettingsDialog()
+		void drawSettingsDialogUI()
 		{
 			ImGui::SetNextWindowPos(
-				ImVec2(_windowWidth - _windowHeight / 3.0f, 10.0f)
+				ImVec2(_windowWidth - 250, 10.0f)
 				, ImGuiCond_FirstUseEver
 			);
 			ImGui::SetNextWindowSize(
-				ImVec2(_windowWidth / 6.0f, _windowHeight / 3.5f)
+				ImVec2(250, _windowHeight / 3.4f)
 				, ImGuiCond_FirstUseEver
 			);
 			ImGui::Begin("Settings", NULL, 0);
 
 			ImGui::Checkbox("Use Compute Shader", &_useComputeShader);
 			ImGui::Checkbox("Debug Normals", &_debugNormals);
+			ImGui::PushItemWidth(90);
+
+			//We need to cast the values to int and back to float because BGFX does not recognize ivec4 uniforms
+			int perPixel = Multisampling_perPixel;
+			ImGui::InputInt("Pixel supersampling", &perPixel);
+			Multisampling_perPixel = perPixel;
+			int perAtmo = Multisampling_perAtmospherePixel;
+			ImGui::InputInt("Atmosphere supersampling", &perAtmo);
+			Multisampling_perAtmospherePixel = perAtmo;
+			int perLight = Multisampling_perLightRay;
+			ImGui::InputInt("Light ray supersampling", &perLight);
+			Multisampling_perLightRay = perLight;
+			ImGui::PopItemWidth();
 			ImGui::End();
 		}
 	};

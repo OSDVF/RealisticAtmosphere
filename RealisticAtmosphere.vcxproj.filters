@@ -22,6 +22,9 @@
     <Filter Include="Shader Programs\Vertex Types">
       <UniqueIdentifier>{f54f71dc-9166-4cee-8fdb-6c0c1fbf9aa7}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Shader Programs\Material Shaders">
+      <UniqueIdentifier>{47bb6430-e373-484d-8620-66b57912ff35}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -72,6 +75,15 @@
       <Filter>Shader Programs\Compute Render</Filter>
     </None>
     <None Include="SceneObjects.glsl">
+      <Filter>Shader Programs</Filter>
+    </None>
+    <None Include="Atmosphere.glsl">
+      <Filter>Shader Programs\Material Shaders</Filter>
+    </None>
+    <None Include="Intersections.glsl">
+      <Filter>Shader Programs</Filter>
+    </None>
+    <None Include="Random.glsl">
       <Filter>Shader Programs</Filter>
     </None>
   </ItemGroup>

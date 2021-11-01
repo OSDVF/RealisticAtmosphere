@@ -4,5 +4,5 @@
 
 void main()
 {
-	gl_FragColor = vec4(raytrace(vec2(gl_FragCoord.x, u_viewRect.w - gl_FragCoord.y)),1.0);
+	gl_FragColor = vec4(raytrace(vec2(gl_FragCoord.x - 0.5, u_viewRect.w - gl_FragCoord.y - 0.5)),1.0);
 }

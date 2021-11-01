@@ -8,22 +8,27 @@
 #ifdef BGFX_SHADER_LANGUAGE_GLSL
 uniform vec4 u_viewRect;
 uniform vec4 Camera[4];
+uniform vec4 MultisamplingSettings;
 #else
 vec4 Camera[] =
 {
-    vec4(0,0,0,1),
-    vec4(0,0,1,0),
-    vec4(0,1,0,0),
-    vec4(1,0,0,0)
-}
+    vec4(0,0,0,1),//Position
+    vec4(0,0,1,0),//Direction
+    vec4(0,1,0,0),//Up vector, fovY
+    vec4(1,0,0,0)//Right vector, fovX
+};
+vec4 MultisamplingSettings = {2,8,16,0};
 #endif
-;
 
 struct Ray
 {
     vec3 origin;
     vec3 direction;
 };
+#define Multisampling_perPixel MultisamplingSettings.x
+#define Multisampling_perLightRay MultisamplingSettings.y
+#define Multisampling_perAtmospherePixel MultisamplingSettings.z
+
 #define Camera_position (Camera[0].xyz)
 #define Camera_direction (Camera[1].xyz)
 #define Camera_up (Camera[2].xyz)
@@ -60,6 +65,16 @@ struct Sphere
     float _pad1;/*std430 memory padding to multiplies of vec4 */
     float _pad2;
     float _pad3;
+};
+
+struct Atmosphere
+{
+    vec3 center;
+    float startRadius;
+    float thickness;
+    vec3 rayleighCoefficients;
+    float mieCoefficient;
+    float mieAsymmetryFactor;
 };
 
 struct Hit

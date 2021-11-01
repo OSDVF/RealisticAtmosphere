@@ -27,3 +27,10 @@ struct vec2 {
 	}
 };
 using uint = uint32_t;
+
+struct ivec4 {
+	int x, y, z, w;
+	ivec4(int x, int y, int z, int w): x(x), y(y), z(z), w(w)
+	{
+	}
+};

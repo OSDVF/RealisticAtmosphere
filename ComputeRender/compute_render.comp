@@ -6,6 +6,6 @@ layout(rgba8, binding=0) writeonly uniform image2DArray computeShaderOutput;
 
 void main()
 {
-    vec3 raytracerOutputColor = raytrace(gl_GlobalInvocationID.xy + 0.5f);
+    vec3 raytracerOutputColor = raytrace(gl_GlobalInvocationID.xy);
 	imageStore(computeShaderOutput, ivec3(gl_GlobalInvocationID.xyz), vec4(raytracerOutputColor, 1.0) );
 }

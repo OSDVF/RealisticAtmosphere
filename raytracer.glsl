@@ -1,5 +1,7 @@
 //?#version 440
-#include "SceneObjects.glsl"
+#include "Intersections.glsl"
+#include "Random.glsl"
+
 #ifdef DEBUG
     uniform vec4 debugAttributes;
     #define DEBUG_NORMALS (debugAttributes.x == 1.0)
@@ -35,6 +37,11 @@ layout(std430, binding=5) readonly buffer SpotLightBuffer
     SpotLight spotLights[];
 };
 
+layout(std430, binding=6) readonly buffer AtmosphereBuffer
+{
+    Atmosphere atmosphere[];
+};
+
 // Create a primary ray for pixel x, y
 Ray createCameraRay(vec2 fromPixel)
 {
@@ -51,41 +58,6 @@ Ray createCameraRay(vec2 fromPixel)
                                             * and has the direction that corresponds to currently rendered pixel
                                             */
 }
-bool isIntersecting(Sphere sphere, Ray ray)
-{
-    vec3 distanceOriginToCenter = sphere.position - ray.origin;
-    float distanceOriginToPerpendicular = dot(ray.direction, distanceOriginToCenter);
-    if(distanceOriginToPerpendicular < 0)
-        return false;
-    float distanceCenterToSecular2 = dot(distanceOriginToCenter, distanceOriginToCenter) - distanceOriginToPerpendicular * distanceOriginToPerpendicular; 
-    float radius2 = sphere.radius * sphere.radius;
-    if (distanceCenterToSecular2 > radius2)
-        return false; 
-    return true; 
-}
-
-bool getIntersection(Sphere sphere, Ray ray, out vec3 hitPosition, out vec3 normalAtHit)
-{
-    hitPosition = vec3(0,0,0);
-    normalAtHit = vec3(0,0,0);
-    vec3 distanceOriginToCenter = sphere.position - ray.origin;
-    float distanceOriginToPerpendicular = dot(ray.direction, distanceOriginToCenter);
-    if(distanceOriginToPerpendicular < 0)
-        return false;
-    float distanceCenterToSecular2 = dot(distanceOriginToCenter, distanceOriginToCenter) - distanceOriginToPerpendicular * distanceOriginToPerpendicular; 
-    float radius2 = sphere.radius * sphere.radius;
-    if (distanceCenterToSecular2 > radius2)
-        return false; 
-    float distanceIntersectionToSecular = sqrt(radius2 - distanceCenterToSecular2); 
-    float t0 = distanceOriginToPerpendicular - distanceIntersectionToSecular; 
-    float t1 = distanceOriginToPerpendicular + distanceIntersectionToSecular;
-    if (t0 < 0) t0 = t1; 
-
-    vec3 hp = ray.origin + ray.direction * t0; // point of intersection 
-    hitPosition = hp;
-    normalAtHit = normalize(hp - sphere.position);
-    return true; 
-}
 
 Hit findClosestHit(Ray ray)
 {
@@ -97,7 +69,7 @@ Hit findClosestHit(Ray ray)
     vec3 closestNormalAtHit = vec3(0, 0, 0);
     for (int k = 0; k < objects.length(); ++k)
     {
-        if (getIntersection(objects[k], ray, hitPosition, normalAtHit)) // Update hit position and normal
+        if (getRaySphereIntersection(objects[k], ray, hitPosition, normalAtHit)) // Update hit position and normal
         {
             float lastDistance = distance(Camera_position, hitPosition);
             if (lastDistance < closestDistance) {
@@ -132,7 +104,8 @@ vec3 computeColor(Hit hit)
                 continue;
             }
             Ray shadowRay = Ray(hit.position, light.direction.xyz);
-            if (isIntersecting(objects[k], shadowRay)) {
+            float t0 = 0, t1 = 0;
+            if (raySphereIntersection(objects[k].position, objects[k].radius, shadowRay, t0, t1)) {
                 return AMBIENT_LIGHT;
             }
         }
@@ -143,9 +116,8 @@ vec3 computeColor(Hit hit)
     return (objMaterial.albedo.xyz * totalLightColor) + objMaterial.emission;
 }
 
-vec3 raytrace(vec2 fromPixel)
+vec3 takeSample(vec2 fromPixel)
 {
-    vec3 resultColor;
     // Create primary ray with direction for this pixel
     Ray primaryRay = createCameraRay(fromPixel);
 
@@ -155,9 +127,27 @@ vec3 raytrace(vec2 fromPixel)
     // Return color of the object at the hit
     if (hit.position != vec3(0,0,0)) // The zero vector indicates no hit
     {
-        resultColor = computeColor(hit);
+        return computeColor(hit);
     }
     else
-        resultColor = SPACE_COLOR;
-    return resultColor;
+        return SPACE_COLOR;
+}
+vec3 raytrace(vec2 fromPixel)
+{
+    vec3 resultColor = vec3(0, 0, 0);
+    uint sampleNum = 0;
+    for(int x = 0; x < Multisampling_perPixel; x++)
+    {
+        for(int y = 0; y < Multisampling_perPixel; y++,sampleNum++)
+        {
+            if(sampleNum == 0)
+            {
+                resultColor += takeSample(fromPixel + 0.5);
+                continue;
+            }
+            vec2 randomOffset = vec2((x + random(fromPixel+x+y)) / Multisampling_perPixel, (y + random(fromPixel-x-y)) / Multisampling_perPixel);
+            resultColor += takeSample(fromPixel + randomOffset);
+        }
+    }
+    return resultColor / sampleNum;
 }
