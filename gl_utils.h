@@ -162,4 +162,14 @@ struct Args
 	uint16_t m_pciId;
 };
 
+namespace bgfx_utils
+{
+	bgfx::DynamicIndexBufferHandle createDynamicComputeReadBuffer(
+		uint32_t _num
+		, uint16_t _flags = BGFX_BUFFER_COMPUTE_READ | BGFX_BUFFER_ALLOW_RESIZE
+	)
+	{
+		return bgfx::createDynamicIndexBuffer(_num / 2 /* because BGFX expects 2-byte indices */, _flags);
+	}
+}
 #endif // BGFX_UTILS_H_HEADER_GUARD

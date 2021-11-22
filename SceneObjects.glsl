@@ -5,7 +5,12 @@
 /**
  * Represents camera matrix (location, direction, up, right, fovX, fovY)
  */
+#ifndef SCENEOBJECTS
+#define SCENEOBJECTS
+#define AMBIENT_LIGHT vec3(0)
 #ifdef BGFX_SHADER_LANGUAGE_GLSL
+const float POSITIVE_INFINITY = uintBitsToFloat(0x7F800000);
+#define SPACE_COLOR vec3(0.1,0.1,0.3)
 uniform vec4 u_viewRect;
 uniform vec4 Camera[4];
 uniform vec4 MultisamplingSettings;
@@ -71,10 +76,16 @@ struct Atmosphere
 {
     vec3 center;
     float startRadius;
-    float thickness;
-    vec3 rayleighCoefficients;
+    float endRadius;
     float mieCoefficient;
     float mieAsymmetryFactor;
+    float mieScaleHeight; /* Aerosol density would be uniform if the atmosfere was homogenous and had this "Scale" height */
+    vec3 rayleighCoefficients;
+    float rayleighScaleHeight; /* Air molecular density would be uniform if the atmosfere was homogenous and had this "Scale" height */
+    float sunIntensity;
+    uint sunObjectIndex;
+    float _pad1;
+    float _pad2;
 };
 
 struct Hit
@@ -94,3 +105,4 @@ struct Material {
     vec3 emission;
     float occlusion;
 };
+#endif

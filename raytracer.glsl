@@ -1,5 +1,6 @@
 //?#version 440
 #include "Intersections.glsl"
+#include "Atmosphere.glsl"
 #include "Random.glsl"
 
 #ifdef DEBUG
@@ -8,39 +9,6 @@
 #else
     #define DEBUG_NORMALS false
 #endif
-
-#define SPACE_COLOR vec3(0.1,0.1,0.3)
-#define AMBIENT_LIGHT vec3(0)
-
-layout(std430, binding=1) readonly buffer ObjectBuffer
-{
-    Sphere objects[];
-};
-
-layout(std430, binding=2) readonly buffer MaterialBuffer
-{
-    Material materials[];
-};
-
-layout(std430, binding=3) readonly buffer DirectionalLightBuffer
-{
-    DirectionalLight directionalLights[];
-};
-
-layout(std430, binding=4) readonly buffer PointLightBuffer
-{
-    PointLight pointLights[];
-};
-
-layout(std430, binding=5) readonly buffer SpotLightBuffer
-{
-    SpotLight spotLights[];
-};
-
-layout(std430, binding=6) readonly buffer AtmosphereBuffer
-{
-    Atmosphere atmosphere[];
-};
 
 // Create a primary ray for pixel x, y
 Ray createCameraRay(vec2 fromPixel)
@@ -59,14 +27,15 @@ Ray createCameraRay(vec2 fromPixel)
                                             */
 }
 
-Hit findClosestHit(Ray ray)
+Hit findObjectHit(Ray ray)
 {
-    float closestDistance = /*positive infinity*/ uintBitsToFloat(0x7F800000);
+    float closestDistance = POSITIVE_INFINITY;
     uint hitObjectIndex;
     vec3 hitPosition;
     vec3 normalAtHit;
     vec3 closesHitPosition = vec3(0, 0, 0);
     vec3 closestNormalAtHit = vec3(0, 0, 0);
+    //Firstly try hitting objects
     for (int k = 0; k < objects.length(); ++k)
     {
         if (getRaySphereIntersection(objects[k], ray, hitPosition, normalAtHit)) // Update hit position and normal
@@ -84,7 +53,7 @@ Hit findClosestHit(Ray ray)
     return Hit(closesHitPosition, closestNormalAtHit, hitObjectIndex);
 }
 
-vec3 computeColor(Hit hit)
+vec3 computeObjectColor(Hit hit)
 {
     if(DEBUG_NORMALS)
     {
@@ -122,15 +91,31 @@ vec3 takeSample(vec2 fromPixel)
     Ray primaryRay = createCameraRay(fromPixel);
 
     // Cast the ray into the scene and check for the intersection points
-    Hit hit = findClosestHit(primaryRay);
+    Hit hit = findObjectHit(primaryRay);
 
     // Return color of the object at the hit
     if (hit.position != vec3(0,0,0)) // The zero vector indicates no hit
     {
-        return computeColor(hit);
+        return computeObjectColor(hit);
     }
     else
-        return SPACE_COLOR;
+    {
+        //Then try hitting atmospheres
+        for (int k = 0; k < atmospheres.length(); ++k)
+        {
+            float t0, t1;
+            float tMax = POSITIVE_INFINITY;
+            if(raySphereIntersection(atmospheres[k].center, atmospheres[k].startRadius, primaryRay, t0, t1) && t1 > 0)
+            {
+                // When the bottom of the atmosphere is intersecting primaryRay in positive direction
+                // we need to limit the scattering computation to the inner atmosphere bounds (by tMax variable)
+                tMax = max(t0, 0);
+            }
+            return atmosphereColor(atmospheres[k], primaryRay, 0, tMax);
+        }
+
+        return vec3(1,0,0);
+    }
 }
 vec3 raytrace(vec2 fromPixel)
 {

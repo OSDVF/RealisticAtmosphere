@@ -86,6 +86,9 @@
     <None Include="Random.glsl">
       <Filter>Shader Programs</Filter>
     </None>
+    <None Include="Buffers.glsl">
+      <Filter>Shader Programs</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="TestCube.h">

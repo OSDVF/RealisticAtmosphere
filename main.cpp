@@ -29,16 +29,16 @@ const Material _materialBuffer[] = {
 	}
 };
 
-const float earthRadius = 6360; // cit. E. Bruneton page 3
+const float earthRadius = 6360000; // cit. E. Bruneton page 3
 const Sphere _objectBuffer[] = {
 	{
-		{0.001, earthRadius - 0.001, 30.020}, //Position
-		{0.005}, //Radius
+		{1, earthRadius + 999, 30200}, //Position
+		{5}, //Radius
 		0, //Material index
 	},
-	{
-		{0.001, earthRadius + 0.005, 30.015}, //Position
-		{0.001}, //Radius
+	{//Sun
+		{earthRadius*0.2 , earthRadius*1.2, earthRadius*6}, //Position
+		{earthRadius}, //Radius
 		1 //Material index
 	},
 };
@@ -59,15 +59,19 @@ const float mieAssymetryFactor = 0.76;
 const Atmosphere _atmosphereBuffer[] = {
 	{
 		{0,0,0},//center
-		earthRadius,
-		6420 - earthRadius,//thickness
+		earthRadius,//start radius
+		6420000,//end radius
+		precomputedMieScaterringCoefficient,
+		mieAssymetryFactor,
+		1200,//Mie scale height
 		//These values are based on Nishita's measurements
 		//This means that atmospheric thickness of 60 Km covers troposphere, stratosphere and a bit of mezosphere
 		//I am usnure of the "completeness" of this model, but Nishita and Bruneton used this
 		precomputedRayleighScatteringCoefficients,
-		precomputedMieScaterringCoefficient,
-		mieAssymetryFactor,
-
+		7994,//Rayleigh scale heigh
+		5, //Sun intensity
+		1, // Sun object index
+		0,0
 	}
 };
 
@@ -102,6 +106,7 @@ namespace RealisticAtmosphere
 		bool _debugNormals = false;
 
 		bgfx::DynamicIndexBufferHandle _objectBufferHandle;
+		bgfx::DynamicIndexBufferHandle _atmosphereBufferHandle;
 		bgfx::DynamicIndexBufferHandle _materialBufferHandle;
 		bgfx::DynamicIndexBufferHandle _directionalLightBufferHandle;
 		bgfx::ShaderHandle _computeShaderHandle;
@@ -118,8 +123,8 @@ namespace RealisticAtmosphere
 		// The Entry library will call this method after setting up window manager
 		void init(int32_t argc, const char* const* argv, uint32_t width, uint32_t height) override
 		{
-			Camera[0].y = earthRadius + 0.001;
-			Camera[0].z = 30.000;
+			Camera[0].y = earthRadius + 1000;
+			Camera[0].z = 30000;
 
 			entry::setWindowFlags(HANDLE_OF_DEFALUT_WINDOW, ENTRY_WINDOW_FLAG_ASPECT_RATIO, false);
 			entry::setWindowSize(HANDLE_OF_DEFALUT_WINDOW, 1024, 600);
@@ -168,10 +173,10 @@ namespace RealisticAtmosphere
 			_computeShaderHandle = loadShader("compute_render.comp");
 			_computeShaderProgram = bgfx::createProgram(_computeShaderHandle);
 
-			// "general" buffers are called "dynamic index" buffers by BGFX. C'est la vie.
-			_objectBufferHandle = bgfx::createDynamicIndexBuffer((sizeof(_objectBuffer)) / 2 /* because BGFX expects 2-byte indices */, BGFX_BUFFER_COMPUTE_READ | BGFX_BUFFER_ALLOW_RESIZE);
-			_materialBufferHandle = bgfx::createDynamicIndexBuffer(sizeof(_materialBuffer) / 2, BGFX_BUFFER_COMPUTE_READ | BGFX_BUFFER_ALLOW_RESIZE);
-			_directionalLightBufferHandle = bgfx::createDynamicIndexBuffer(sizeof(_directionalLightBuffer) / 2, BGFX_BUFFER_COMPUTE_READ | BGFX_BUFFER_ALLOW_RESIZE);
+			_objectBufferHandle = bgfx_utils::createDynamicComputeReadBuffer(sizeof(_objectBuffer));
+			_atmosphereBufferHandle = bgfx_utils::createDynamicComputeReadBuffer(sizeof(_atmosphereBuffer));
+			_materialBufferHandle = bgfx_utils::createDynamicComputeReadBuffer(sizeof(_materialBuffer));
+			_directionalLightBufferHandle = bgfx_utils::createDynamicComputeReadBuffer(sizeof(_directionalLightBuffer));
 
 			_raytracerOutputTexture = bgfx::createTexture2D(
 				uint16_t(_windowWidth)
@@ -192,6 +197,8 @@ namespace RealisticAtmosphere
 			imguiDestroy();
 
 			//Destroy resources
+			bgfx::destroy(_timeHandle);
+			bgfx::destroy(_multisamplingSettingsHandle);
 			bgfx::destroy(_raytracerOutputTexture);
 			bgfx::destroy(_raytracerOutputSampler);
 			bgfx::destroy(_computeShaderHandle);
@@ -200,6 +207,7 @@ namespace RealisticAtmosphere
 			bgfx::destroy(_raytracerShaderProgram);
 			bgfx::destroy(_materialBufferHandle);
 			bgfx::destroy(_directionalLightBufferHandle);
+			bgfx::destroy(_atmosphereBufferHandle);
 			bgfx::destroy(_objectBufferHandle);
 			bgfx::destroy(_cameraHandle);
 			bgfx::destroy(_debugAttributesHandle);
@@ -320,12 +328,14 @@ namespace RealisticAtmosphere
 		void updateBuffersAndUniforms()
 		{
 			bgfx::update(_objectBufferHandle, 0, bgfx::makeRef((void*)_objectBuffer, sizeof(_objectBuffer)));
+			bgfx::update(_atmosphereBufferHandle, 0, bgfx::makeRef((void*)_atmosphereBuffer, sizeof(_atmosphereBuffer)));
 			bgfx::update(_materialBufferHandle, 0, bgfx::makeRef((void*)_materialBuffer, sizeof(_materialBuffer)));
 			bgfx::update(_directionalLightBufferHandle, 0, bgfx::makeRef((void*)_directionalLightBuffer, sizeof(_directionalLightBuffer)));
 
 			bgfx::setBuffer(1, _objectBufferHandle, bgfx::Access::Read);
-			bgfx::setBuffer(2, _materialBufferHandle, bgfx::Access::Read);
-			bgfx::setBuffer(3, _directionalLightBufferHandle, bgfx::Access::Read);
+			bgfx::setBuffer(2, _atmosphereBufferHandle, bgfx::Access::Read);
+			bgfx::setBuffer(3, _materialBufferHandle, bgfx::Access::Read);
+			bgfx::setBuffer(4, _directionalLightBufferHandle, bgfx::Access::Read);
 			vec4 timeWrapper = vec4(_frame, 0, 0, 0);
 			bgfx::setUniform(_timeHandle, &timeWrapper);
 			bgfx::setUniform(_multisamplingSettingsHandle, &MultisamplingSettings);

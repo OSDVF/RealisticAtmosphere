@@ -1,3 +1,9 @@
+/*
+    https://stackoverflow.com/questions/4200224/random-noise-functions-for-glsl
+    static.frag
+    by Spatial
+    05 July 2013
+*/
 // A single iteration of Bob Jenkins' One-At-A-Time hashing algorithm.
 uniform vec4 time;
 uint hash( uint x ) {
