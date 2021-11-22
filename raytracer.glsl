@@ -119,6 +119,7 @@ vec3 takeSample(vec2 fromPixel)
 }
 vec3 raytrace(vec2 fromPixel)
 {
+    fromPixel+= 0.5;//Center the ray
     vec3 resultColor = vec3(0, 0, 0);
     uint sampleNum = 0;
     for(int x = 0; x < Multisampling_perPixel; x++)
@@ -127,11 +128,11 @@ vec3 raytrace(vec2 fromPixel)
         {
             if(sampleNum == 0)
             {
-                resultColor += takeSample(fromPixel + 0.5);
+                resultColor += takeSample(fromPixel);
                 continue;
             }
-            vec2 randomOffset = vec2((x + random(fromPixel+x+y)) / Multisampling_perPixel, (y + random(fromPixel-x-y)) / Multisampling_perPixel);
-            resultColor += takeSample(fromPixel + randomOffset);
+            vec2 randomOffset = vec2((x + random(fromPixel+x+y)-0.5) / Multisampling_perPixel, (y + random(fromPixel-x-y)-0.5) / Multisampling_perPixel);
+            resultColor += takeSample(fromPixel + randomOffset/2);
         }
     }
     return resultColor / sampleNum;

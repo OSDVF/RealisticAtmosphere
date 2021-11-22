@@ -1,7 +1,6 @@
 ﻿/*
  * Copyright 2021 Ondřej Sabela
  */
-
 #include <bx/uint32_t.h>
  // Library for controlling aplication flow (init() and update() methods)
 #include "entry/entry.h"
@@ -11,6 +10,7 @@
  // Utils for working with resources (shaders, meshes..)
 #include "ScreenSpaceQuad.h"
 #include "SceneObjects.h"
+#include <entry/input.h>
 
 #define HANDLE_OF_DEFALUT_WINDOW entry::WindowHandle{ 0 }
 
@@ -37,7 +37,7 @@ const Sphere _objectBuffer[] = {
 		0, //Material index
 	},
 	{//Sun
-		{earthRadius*0.2 , earthRadius*1.2, earthRadius*6}, //Position
+		{earthRadius * 0.2 , earthRadius * 1.2, earthRadius * 6}, //Position
 		{earthRadius}, //Radius
 		1 //Material index
 	},
@@ -56,9 +56,10 @@ const vec3 precomputedRayleighScatteringCoefficients = vec3(0.0000058, 0.0000135
 /*Scattering coefficient for Mie scattering βˢₘ */
 const float precomputedMieScaterringCoefficient = 21e-6f;
 const float mieAssymetryFactor = 0.76;
-const Atmosphere _atmosphereBuffer[] = {
+
+Atmosphere _atmosphereBuffer[] = {
 	{
-		{0,0,0},//center
+		{0, 0, 0},//center
 		earthRadius,//start radius
 		6420000,//end radius
 		precomputedMieScaterringCoefficient,
@@ -69,9 +70,9 @@ const Atmosphere _atmosphereBuffer[] = {
 		//I am usnure of the "completeness" of this model, but Nishita and Bruneton used this
 		precomputedRayleighScatteringCoefficients,
 		7994,//Rayleigh scale heigh
-		5, //Sun intensity
+		10, //Sun intensity
 		1, // Sun object index
-		0,0
+		0, 0
 	}
 };
 
@@ -230,16 +231,18 @@ namespace RealisticAtmosphere
 				//
 				// GUI Actions
 				// 
-
+				const uint8_t* utf8 = inputGetChar();
+				char asciiKey = (nullptr != utf8) ? utf8[0] : 0;
 				// Supply mouse events to GUI library
-				imguiBeginFrame(_mouseState.m_mx
-					, _mouseState.m_my
-					, (_mouseState.m_buttons[entry::MouseButton::Left] ? IMGUI_MBUT_LEFT : 0)
+				imguiBeginFrame(_mouseState.m_mx,
+					_mouseState.m_my,
+					(_mouseState.m_buttons[entry::MouseButton::Left] ? IMGUI_MBUT_LEFT : 0)
 					| (_mouseState.m_buttons[entry::MouseButton::Right] ? IMGUI_MBUT_RIGHT : 0)
-					| (_mouseState.m_buttons[entry::MouseButton::Middle] ? IMGUI_MBUT_MIDDLE : 0)
-					, _mouseState.m_mz
-					, uint16_t(_windowWidth)
-					, uint16_t(_windowHeight)
+					| (_mouseState.m_buttons[entry::MouseButton::Middle] ? IMGUI_MBUT_MIDDLE : 0),
+					_mouseState.m_mz,
+					uint16_t(_windowWidth),
+					uint16_t(_windowHeight),
+					asciiKey
 				);
 
 				// Displays/Updates an innner dialog with debug and profiler information
@@ -367,7 +370,7 @@ namespace RealisticAtmosphere
 				ImVec2(250, _windowHeight / 3.4f)
 				, ImGuiCond_FirstUseEver
 			);
-			ImGui::Begin("Settings", NULL, 0);
+			ImGui::Begin("Settings");
 
 			ImGui::Checkbox("Use Compute Shader", &_useComputeShader);
 			ImGui::Checkbox("Debug Normals", &_debugNormals);
@@ -383,6 +386,28 @@ namespace RealisticAtmosphere
 			int perLight = Multisampling_perLightRay;
 			ImGui::InputInt("Light ray supersampling", &perLight);
 			Multisampling_perLightRay = perLight;
+			ImGui::PopItemWidth();
+			ImGui::End();
+
+			Atmosphere& singleAtmosphere = _atmosphereBuffer[0];
+			ImGui::SetNextWindowPos(
+				ImVec2(_windowWidth - 250, _windowHeight / 3.4f + 10.0f)
+				, ImGuiCond_FirstUseEver
+			);
+			ImGui::Begin("Planet");
+			ImGui::PushItemWidth(90);
+			ImGui::InputFloat3("Center", (float*)&singleAtmosphere.center);
+			ImGui::InputFloat("Radius", &singleAtmosphere.startRadius);
+			ImGui::InputFloat("Amosphere Radius", &singleAtmosphere.endRadius);
+			ImGui::InputFloat("Mie Coef", &singleAtmosphere.mieCoefficient);
+			ImGui::InputFloat("M.Asssymetry Factor", &singleAtmosphere.mieAsymmetryFactor);
+			ImGui::InputFloat("M.Scale Height", &singleAtmosphere.mieScaleHeight);
+			ImGui::InputFloat3("Rayleigh Coef.s", (float*)&singleAtmosphere.rayleighCoefficients);
+			ImGui::InputFloat("R.Scale Height", &singleAtmosphere.rayleighScaleHeight);
+			ImGui::InputFloat("Sun Intensity", &singleAtmosphere.sunIntensity);
+			int sunObjectIndex = singleAtmosphere.sunObjectIndex;
+			ImGui::InputInt("Sun Object", &sunObjectIndex);
+			singleAtmosphere.sunObjectIndex = sunObjectIndex;
 			ImGui::PopItemWidth();
 			ImGui::End();
 		}
