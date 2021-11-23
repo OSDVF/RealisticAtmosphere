@@ -6,15 +6,23 @@
 #include "entry/entry.h"
 #include "imgui/imgui.h"
 #include "gl_utils.h"
+#include <glm/gtc/type_ptr.hpp>
 
  // Utils for working with resources (shaders, meshes..)
 #include "ScreenSpaceQuad.h"
 #include "SceneObjects.h"
+#include "FirstPersonController.h"
 #include <entry/input.h>
 
 #define HANDLE_OF_DEFALUT_WINDOW entry::WindowHandle{ 0 }
 
 const Material _materialBuffer[] = {
+	{
+		{1,1,1,1},// White
+		{0,0,0},// No Specular part
+		{0},// No Roughness
+		{1,1,1} // Max emission
+	},
 	{
 		{1, 0.5, 1 / 39, 1},// Orange albedo
 		{0.5,0.5,0.5},// Half specular
@@ -31,16 +39,16 @@ const Material _materialBuffer[] = {
 
 const float earthRadius = 6360000; // cit. E. Bruneton page 3
 const Sphere _objectBuffer[] = {
+	{//Sun
+		{earthRadius * 0.2 , earthRadius * 10, earthRadius * 60}, //Position
+		{earthRadius}, //Radius
+		0 //Material index
+	},
 	{
 		{1, earthRadius + 999, 30200}, //Position
 		{5}, //Radius
-		0, //Material index
-	},
-	{//Sun
-		{earthRadius * 0.2 , earthRadius * 1.2, earthRadius * 6}, //Position
-		{earthRadius}, //Radius
-		1 //Material index
-	},
+		1, //Material index
+	}
 };
 
 const DirectionalLight _directionalLightBuffer[] = {
@@ -71,7 +79,7 @@ Atmosphere _atmosphereBuffer[] = {
 		precomputedRayleighScatteringCoefficients,
 		7994,//Rayleigh scale heigh
 		10, //Sun intensity
-		1, // Sun object index
+		0, // Sun object index
 		0, 0
 	}
 };
@@ -120,12 +128,14 @@ namespace RealisticAtmosphere
 		float _tanFovY;
 		float _tanFovX;
 		float _fovY = 45;
+		bool _mouseLock = false;
+
+		FirstPersonController _person;
 
 		// The Entry library will call this method after setting up window manager
 		void init(int32_t argc, const char* const* argv, uint32_t width, uint32_t height) override
 		{
-			Camera[0].y = earthRadius + 1000;
-			Camera[0].z = 30000;
+			_person.Camera.SetPosition(glm::vec3(0, earthRadius + 1000, 30000));
 
 			entry::setWindowFlags(HANDLE_OF_DEFALUT_WINDOW, ENTRY_WINDOW_FLAG_ASPECT_RATIO, false);
 			entry::setWindowSize(HANDLE_OF_DEFALUT_WINDOW, 1024, 600);
@@ -233,6 +243,16 @@ namespace RealisticAtmosphere
 				// 
 				const uint8_t* utf8 = inputGetChar();
 				char asciiKey = (nullptr != utf8) ? utf8[0] : 0;
+				uint8_t modifiers = inputGetModifiersState();
+				if (asciiKey == 'l')
+				{
+					_mouseLock = !_mouseLock;
+				}
+				if (_mouseLock)
+				{
+					_person.Update(asciiKey, modifiers, _mouseState, false);
+				}
+
 				// Supply mouse events to GUI library
 				imguiBeginFrame(_mouseState.m_mx,
 					_mouseState.m_my,
@@ -254,8 +274,6 @@ namespace RealisticAtmosphere
 				//
 				// Graphics actions
 				// 
-
-				drawDebugInfo();
 
 				viewportActions();
 
@@ -282,21 +300,6 @@ namespace RealisticAtmosphere
 			}
 			// update() should return false when we want the application to exit
 			return false;
-		}
-		void drawDebugInfo()
-		{
-			bgfx::dbgTextPrintf(0, 1, 0x0f, "Color can be changed with ANSI \x1b[9;me\x1b[10;ms\x1b[11;mc\x1b[12;ma\x1b[13;mp\x1b[14;me\x1b[0m code too.");
-
-			bgfx::dbgTextPrintf(80, 1, 0x0f, "\x1b[;0m    \x1b[;1m    \x1b[; 2m    \x1b[; 3m    \x1b[; 4m    \x1b[; 5m    \x1b[; 6m    \x1b[; 7m    \x1b[0m");
-			bgfx::dbgTextPrintf(80, 2, 0x0f, "\x1b[;8m    \x1b[;9m    \x1b[;10m    \x1b[;11m    \x1b[;12m    \x1b[;13m    \x1b[;14m    \x1b[;15m    \x1b[0m");
-
-			const bgfx::Stats* stats = bgfx::getStats();
-			bgfx::dbgTextPrintf(0, 2, 0x0f, "Backbuffer %dW x %dH in pixels, debug text %dW x %dH in characters."
-				, stats->width
-				, stats->height
-				, stats->textWidth
-				, stats->textHeight
-			);
 		}
 
 		void updateDebugUniforms()
@@ -355,8 +358,15 @@ namespace RealisticAtmosphere
 
 			_tanFovY = bx::tan(_fovY * bx::acos(-1) / 180.f / 2.0f);
 			_tanFovX = (static_cast<float>(_windowWidth) * _tanFovY) / static_cast<float>(_windowHeight);
-			Camera_fovX = _tanFovX;
-			Camera_fovY = _tanFovY;
+
+			glm::vec3 camPos = _person.Camera.GetPosition();
+			glm::vec3 camRot = _person.Camera.GetForward();
+			glm::vec3 camUp = _person.Camera.GetUp();
+			glm::vec3 camRight = _person.Camera.GetRight();
+			Camera[0] = vec4(camPos.x, camPos.y, camPos.z, 1);
+			Camera[1] = vec4(camRot.x, camRot.y, camRot.z, 0);
+			Camera[2] = vec4(camUp.x, camUp.y, camUp.z, _tanFovY);
+			Camera[3] = vec4(camRight.x, camRight.y, camRight.z, _tanFovX);
 			bgfx::setUniform(_cameraHandle, Camera, 4);
 		}
 
@@ -395,19 +405,40 @@ namespace RealisticAtmosphere
 				, ImGuiCond_FirstUseEver
 			);
 			ImGui::Begin("Planet");
-			ImGui::PushItemWidth(90);
 			ImGui::InputFloat3("Center", (float*)&singleAtmosphere.center);
+			ImGui::PushItemWidth(90);
+			ImGui::InputFloat("Rayleigh CoefR", &singleAtmosphere.rayleighCoefficients.x, 0, 0, "%e");
+			ImGui::InputFloat("Rayleigh CoefG", &singleAtmosphere.rayleighCoefficients.y, 0, 0, "%e");
+			ImGui::InputFloat("Rayleigh CoefB", &singleAtmosphere.rayleighCoefficients.z, 0, 0, "%e");
 			ImGui::InputFloat("Radius", &singleAtmosphere.startRadius);
 			ImGui::InputFloat("Amosphere Radius", &singleAtmosphere.endRadius);
-			ImGui::InputFloat("Mie Coef", &singleAtmosphere.mieCoefficient);
+			ImGui::InputFloat("Mie Coef", &singleAtmosphere.mieCoefficient, 0, 0, "%e");
 			ImGui::InputFloat("M.Asssymetry Factor", &singleAtmosphere.mieAsymmetryFactor);
 			ImGui::InputFloat("M.Scale Height", &singleAtmosphere.mieScaleHeight);
-			ImGui::InputFloat3("Rayleigh Coef.s", (float*)&singleAtmosphere.rayleighCoefficients);
 			ImGui::InputFloat("R.Scale Height", &singleAtmosphere.rayleighScaleHeight);
 			ImGui::InputFloat("Sun Intensity", &singleAtmosphere.sunIntensity);
 			int sunObjectIndex = singleAtmosphere.sunObjectIndex;
 			ImGui::InputInt("Sun Object", &sunObjectIndex);
 			singleAtmosphere.sunObjectIndex = sunObjectIndex;
+			ImGui::PopItemWidth();
+			ImGui::End();
+
+			ImGui::SetNextWindowPos(
+				ImVec2(0, 0)
+				, ImGuiCond_FirstUseEver
+			);
+			ImGui::Begin("Camera");
+			ImGui::SliderFloat("Sensitivity", &_person.Camera.Sensitivity, 0, 5.0f);
+			ImGui::InputFloat("FOV", &_fovY);
+			ImGui::PushItemWidth(180);
+			auto glmRot = _person.Camera.GetRotation();
+			auto glmPos = _person.Camera.GetPosition();
+			float pos[3] = { glmPos.x,glmPos.y,glmPos.z };
+			float rot[3] = { glmRot.x,glmRot.y,glmRot.z };
+			ImGui::InputFloat3("Pos", pos);
+			_person.Camera.SetPosition({ pos[0],pos[1],pos[2] });
+			ImGui::InputFloat3("Rot", rot);
+			_person.Camera.SetRotation({ rot[0],rot[1],rot[2] });
 			ImGui::PopItemWidth();
 			ImGui::End();
 		}
@@ -423,3 +454,4 @@ ENTRY_IMPLEMENT_MAIN(
 	, "https://github.com/OSDVF/RealisticAtmosphere"
 );
 // Declares main() function
+

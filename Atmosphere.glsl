@@ -10,7 +10,7 @@ vec3 atmosphereColor(Atmosphere atmosphere, Ray ray, float minDistance, float ma
 	if(!raySphereIntersection(atmosphere.center, atmosphere.endRadius, ray, t0, t1)
 		|| (t1 < 0 ))// this would mean that the atmosphere is behind us
 	{
-		return vec3(1,1,0);
+		return AMBIENT_LIGHT;
 	}
 
 	//Limit atmosphere bounds according to the Hit

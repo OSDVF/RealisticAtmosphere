@@ -10,6 +10,7 @@
 #define AMBIENT_LIGHT vec3(0)
 #ifdef BGFX_SHADER_LANGUAGE_GLSL
 const float POSITIVE_INFINITY = uintBitsToFloat(0x7F800000);
+const float NEGATIVE_INFINITY = uintBitsToFloat(0xFF800000);
 #define SPACE_COLOR vec3(0.1,0.1,0.3)
 uniform vec4 u_viewRect;
 uniform vec4 Camera[4];

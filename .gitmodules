@@ -7,3 +7,6 @@
 [submodule "bimg"]
 	path = bimg
 	url = git@github.com:bkaradzic/bimg.git
+[submodule "glm"]
+	path = glm
+	url = git@github.com:g-truc/glm.git

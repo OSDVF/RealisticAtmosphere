@@ -82,7 +82,7 @@ vec3 computeObjectColor(Hit hit)
     }
     
     Material objMaterial = materials[objects[hit.hitObjectIndex].materialIndex];
-    return (objMaterial.albedo.xyz * totalLightColor) + objMaterial.emission;
+    return clamp((objMaterial.albedo.xyz * totalLightColor) + objMaterial.emission,vec3(0),vec3(1));
 }
 
 vec3 takeSample(vec2 fromPixel)
@@ -109,12 +109,14 @@ vec3 takeSample(vec2 fromPixel)
             {
                 // When the bottom of the atmosphere is intersecting primaryRay in positive direction
                 // we need to limit the scattering computation to the inner atmosphere bounds (by tMax variable)
+
+                // This also limits the rays to the planet surface
                 tMax = max(t0, 0);
             }
             return atmosphereColor(atmospheres[k], primaryRay, 0, tMax);
         }
 
-        return vec3(1,0,0);
+        return AMBIENT_LIGHT;
     }
 }
 vec3 raytrace(vec2 fromPixel)
@@ -131,8 +133,8 @@ vec3 raytrace(vec2 fromPixel)
                 resultColor += takeSample(fromPixel);
                 continue;
             }
-            vec2 randomOffset = vec2((x + random(fromPixel+x+y)-0.5) / Multisampling_perPixel, (y + random(fromPixel-x-y)-0.5) / Multisampling_perPixel);
-            resultColor += takeSample(fromPixel + randomOffset/2);
+            vec2 randomOffset = vec2((x - Multisampling_perPixel/2) / Multisampling_perPixel, (y - Multisampling_perPixel/2) / Multisampling_perPixel);
+            resultColor += takeSample(fromPixel + randomOffset);
         }
     }
     return resultColor / sampleNum;

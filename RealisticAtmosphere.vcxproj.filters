@@ -36,6 +36,12 @@
     <ClCompile Include="ScreenSpaceQuad.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="FirstPersonController.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="MouseCamera.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="normal_render.vert">
@@ -119,6 +125,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="gl_utils.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="FirstPersonController.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="MouseCamera.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
