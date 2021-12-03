@@ -2,7 +2,8 @@
  * Copyright 2021 Ondřej Sabela
  */
 #include <bx/uint32_t.h>
- // Library for controlling aplication flow (init() and update() methods)
+#define ENTRY_CONFIG_USE_SDL
+ // Library for controlling aplication flow (init() and update() methods) and event system (mouse & keyboard)
 #include "entry/entry.h"
 #include "imgui/imgui.h"
 #include "gl_utils.h"
@@ -172,7 +173,6 @@ namespace RealisticAtmosphere
 			// Setup Resources
 			//
 
-			_screenSpaceQuad = ScreenSpaceQuad((float)_windowWidth, (float)_windowHeight);//Init internal vertex layout
 			_cameraHandle = bgfx::createUniform("Camera", bgfx::UniformType::Vec4, 4);//It is an array of 4 vec4
 			_raytracerOutputSampler = bgfx::createUniform("computeShaderOutput", bgfx::UniformType::Sampler);
 			_debugAttributesHandle = bgfx::createUniform("debugAttributes", bgfx::UniformType::Vec4);
@@ -189,6 +189,15 @@ namespace RealisticAtmosphere
 			_materialBufferHandle = bgfx_utils::createDynamicComputeReadBuffer(sizeof(_materialBuffer));
 			_directionalLightBufferHandle = bgfx_utils::createDynamicComputeReadBuffer(sizeof(_directionalLightBuffer));
 
+			resetBufferSize();
+
+			// Create Immediate GUI graphics context
+			imguiCreate();
+		}
+
+		void resetBufferSize()
+		{
+			_screenSpaceQuad = ScreenSpaceQuad((float)_windowWidth, (float)_windowHeight);//Init internal vertex layout
 			_raytracerOutputTexture = bgfx::createTexture2D(
 				uint16_t(_windowWidth)
 				, uint16_t(_windowHeight)
@@ -196,10 +205,6 @@ namespace RealisticAtmosphere
 				, 1
 				, bgfx::TextureFormat::RGBA8
 				, BGFX_TEXTURE_COMPUTE_WRITE);
-
-
-			// Create Immediate GUI graphics context
-			imguiCreate();
 		}
 
 		virtual int shutdown() override
@@ -236,8 +241,16 @@ namespace RealisticAtmosphere
 		{
 			// Polling about mouse, keyboard and window events
 			// Returns true when the window is up to close itself
+			auto previousWidth = _windowWidth, previousHeight = _windowHeight;
 			if (!entry::processEvents(_windowWidth, _windowHeight, _debugFlags, _resetFlags, &_mouseState))
 			{
+				// Maybe reset window buffer size
+				if (previousWidth != _windowWidth || previousHeight != _windowHeight)
+				{
+					_screenSpaceQuad.destroy();
+					resetBufferSize();
+				}
+				
 				//
 				// GUI Actions
 				// 
@@ -247,10 +260,11 @@ namespace RealisticAtmosphere
 				if (asciiKey == 'l')
 				{
 					_mouseLock = !_mouseLock;
+					inputSetMouseLock(_mouseLock);
 				}
 				if (_mouseLock)
 				{
-					_person.Update(asciiKey, modifiers, _mouseState, false);
+					_person.Update(asciiKey, modifiers, _mouseState, _mouseLock);
 				}
 
 				// Supply mouse events to GUI library

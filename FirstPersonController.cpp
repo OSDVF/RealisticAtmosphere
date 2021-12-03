@@ -26,10 +26,10 @@ void FirstPersonController::Update(char keyboard, uint8_t modifiers, entry::Mous
 
 	auto rightForce = this->Camera.GetRight() * (float)(right - left);
 	auto upForce = this->Camera.GetUp() * (float)(jump - crouch);
-	auto downForce = (this->Camera.GetForward() * (float)(up - down));
-	auto moveForce = glm::normalize(rightForce + upForce + downForce);
+	auto forwardForce = (this->Camera.GetForward() * (float)(up - down));
+	auto moveForce = glm::normalize(rightForce + upForce + forwardForce);
 
-	if (up || down || right || left || jump) {
+	if (up || down || right || left || jump || crouch) {
 		isMoving = true;
 	}
 	else {
