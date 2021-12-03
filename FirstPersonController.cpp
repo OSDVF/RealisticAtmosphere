@@ -1,9 +1,12 @@
 #include "FirstPersonController.h"
 #include "entry/entry.h"
 #include <bx/math.h>
+#include <SDL2/SDL_events.h>
 
-void FirstPersonController::Update(char keyboard, uint8_t modifiers, entry::MouseState mouseState, bool mouseLocked) {
-	this->Camera.handleMouseInput(mouseState, mouseLocked);
+void FirstPersonController::Update(float deltaTime, bool mouseLocked) {
+	this->Camera.handleMouseInput(mouseLocked, deltaTime);
+
+	auto keyboardState = SDL_GetKeyboardState(nullptr);
 	//Speed Modifier
 	if (running == true && isMoving && isGrounded) {
 		speed = RunSpeed;
@@ -16,13 +19,13 @@ void FirstPersonController::Update(char keyboard, uint8_t modifiers, entry::Mous
 	}
 
 	isGrounded = false;//TODO
-	running = modifiers & entry::Modifier::LeftShift;
-	jump = keyboard == ' ';
-	bool up = keyboard == 'w';
-	bool left = keyboard == 'a';
-	bool right = keyboard == 'd';
-	bool down = keyboard == 's';
-	bool crouch = keyboard == 'c';
+	running = keyboardState[SDL_SCANCODE_LSHIFT];
+	jump = keyboardState[SDL_SCANCODE_SPACE];
+	bool up = keyboardState[SDL_SCANCODE_W];
+	bool left = keyboardState[SDL_SCANCODE_A];
+	bool right = keyboardState[SDL_SCANCODE_D];
+	bool down = keyboardState[SDL_SCANCODE_S];
+	bool crouch = keyboardState[SDL_SCANCODE_C];
 
 	auto rightForce = this->Camera.GetRight() * (float)(right - left);
 	auto upForce = this->Camera.GetUp() * (float)(jump - crouch);

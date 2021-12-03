@@ -14,6 +14,7 @@
 #include "SceneObjects.h"
 #include "FirstPersonController.h"
 #include <entry/input.h>
+#include <SDL2/SDL.h>
 
 #define HANDLE_OF_DEFALUT_WINDOW entry::WindowHandle{ 0 }
 
@@ -93,11 +94,13 @@ namespace RealisticAtmosphere
 		RealisticAtmosphere(const char* name, const char* description, const char* projectUrl)
 			: entry::AppI(name, description, projectUrl) {}
 
+		Uint64 _freq;
 		uint32_t _frame = 0;
+		Uint64 _lastTicks;
 		uint32_t _windowWidth = 1024;
 		uint32_t _windowHeight = 600;
-		uint32_t _debugFlags;
-		uint32_t _resetFlags;
+		uint32_t _debugFlags = 0;
+		uint32_t _resetFlags = 0;
 		entry::MouseState _mouseState;
 
 		bgfx::UniformHandle _timeHandle;
@@ -193,6 +196,8 @@ namespace RealisticAtmosphere
 
 			// Create Immediate GUI graphics context
 			imguiCreate();
+			_lastTicks = SDL_GetPerformanceCounter();
+			_freq = SDL_GetPerformanceFrequency();
 		}
 
 		void resetBufferSize()
@@ -250,7 +255,7 @@ namespace RealisticAtmosphere
 					_screenSpaceQuad.destroy();
 					resetBufferSize();
 				}
-				
+
 				//
 				// GUI Actions
 				// 
@@ -260,11 +265,22 @@ namespace RealisticAtmosphere
 				if (asciiKey == 'l')
 				{
 					_mouseLock = !_mouseLock;
-					inputSetMouseLock(_mouseLock);
+					if (_mouseLock)
+					{
+						SDL_SetRelativeMouseMode(SDL_TRUE);
+					}
+					else
+					{
+						SDL_SetRelativeMouseMode(SDL_FALSE);
+					}
 				}
 				if (_mouseLock)
 				{
-					_person.Update(asciiKey, modifiers, _mouseState, _mouseLock);
+					auto nowTicks = SDL_GetPerformanceCounter();
+					auto deltaTime = (float)((nowTicks - _lastTicks) * 1000 / (float)_freq);
+					_person.Update(_mouseLock, deltaTime);
+
+					_lastTicks = nowTicks;
 				}
 
 				// Supply mouse events to GUI library
