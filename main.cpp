@@ -117,6 +117,7 @@ namespace RealisticAtmosphere
 
 		bool _useComputeShader = true;
 		bool _debugNormals = false;
+		bool _showGUI = true;
 
 		bgfx::DynamicIndexBufferHandle _objectBufferHandle;
 		bgfx::DynamicIndexBufferHandle _atmosphereBufferHandle;
@@ -262,8 +263,9 @@ namespace RealisticAtmosphere
 				const uint8_t* utf8 = inputGetChar();
 				char asciiKey = (nullptr != utf8) ? utf8[0] : 0;
 				uint8_t modifiers = inputGetModifiersState();
-				if (asciiKey == 'l')
+				switch (asciiKey)
 				{
+				case 'l':
 					_mouseLock = !_mouseLock;
 					if (_mouseLock)
 					{
@@ -273,6 +275,10 @@ namespace RealisticAtmosphere
 					{
 						SDL_SetRelativeMouseMode(SDL_FALSE);
 					}
+					break;
+				case 'g':
+					_showGUI = !_showGUI;
+					break;
 				}
 				if (_mouseLock)
 				{
@@ -284,22 +290,25 @@ namespace RealisticAtmosphere
 				}
 
 				// Supply mouse events to GUI library
-				imguiBeginFrame(_mouseState.m_mx,
-					_mouseState.m_my,
-					(_mouseState.m_buttons[entry::MouseButton::Left] ? IMGUI_MBUT_LEFT : 0)
-					| (_mouseState.m_buttons[entry::MouseButton::Right] ? IMGUI_MBUT_RIGHT : 0)
-					| (_mouseState.m_buttons[entry::MouseButton::Middle] ? IMGUI_MBUT_MIDDLE : 0),
-					_mouseState.m_mz,
-					uint16_t(_windowWidth),
-					uint16_t(_windowHeight),
-					asciiKey
-				);
+				if (_showGUI)
+				{
+					imguiBeginFrame(_mouseState.m_mx,
+						_mouseState.m_my,
+						(_mouseState.m_buttons[entry::MouseButton::Left] ? IMGUI_MBUT_LEFT : 0)
+						| (_mouseState.m_buttons[entry::MouseButton::Right] ? IMGUI_MBUT_RIGHT : 0)
+						| (_mouseState.m_buttons[entry::MouseButton::Middle] ? IMGUI_MBUT_MIDDLE : 0),
+						_mouseState.m_mz,
+						uint16_t(_windowWidth),
+						uint16_t(_windowHeight),
+						asciiKey
+					);
+					// Displays/Updates an innner dialog with debug and profiler information
+					showDebugDialog(this);
 
-				// Displays/Updates an innner dialog with debug and profiler information
-				showDebugDialog(this);
-				drawSettingsDialogUI();
+					drawSettingsDialogUI();
 
-				imguiEndFrame();
+					imguiEndFrame();
+				}
 
 				//
 				// Graphics actions
@@ -402,36 +411,9 @@ namespace RealisticAtmosphere
 
 		void drawSettingsDialogUI()
 		{
-			ImGui::SetNextWindowPos(
-				ImVec2(_windowWidth - 250, 10.0f)
-				, ImGuiCond_FirstUseEver
-			);
-			ImGui::SetNextWindowSize(
-				ImVec2(250, _windowHeight / 3.4f)
-				, ImGuiCond_FirstUseEver
-			);
-			ImGui::Begin("Settings");
-
-			ImGui::Checkbox("Use Compute Shader", &_useComputeShader);
-			ImGui::Checkbox("Debug Normals", &_debugNormals);
-			ImGui::PushItemWidth(90);
-
-			//We need to cast the values to int and back to float because BGFX does not recognize ivec4 uniforms
-			int perPixel = Multisampling_perPixel;
-			ImGui::InputInt("Pixel supersampling", &perPixel);
-			Multisampling_perPixel = perPixel;
-			int perAtmo = Multisampling_perAtmospherePixel;
-			ImGui::InputInt("Atmosphere supersampling", &perAtmo);
-			Multisampling_perAtmospherePixel = perAtmo;
-			int perLight = Multisampling_perLightRay;
-			ImGui::InputInt("Light ray supersampling", &perLight);
-			Multisampling_perLightRay = perLight;
-			ImGui::PopItemWidth();
-			ImGui::End();
-
 			Atmosphere& singleAtmosphere = _atmosphereBuffer[0];
 			ImGui::SetNextWindowPos(
-				ImVec2(_windowWidth - 250, _windowHeight / 3.4f + 10.0f)
+				ImVec2(0, 145)
 				, ImGuiCond_FirstUseEver
 			);
 			ImGui::Begin("Planet");
@@ -469,6 +451,34 @@ namespace RealisticAtmosphere
 			_person.Camera.SetPosition({ pos[0],pos[1],pos[2] });
 			ImGui::InputFloat3("Rot", rot);
 			_person.Camera.SetRotation({ rot[0],rot[1],rot[2] });
+			ImGui::PopItemWidth();
+			ImGui::End();
+
+			ImGui::SetNextWindowPos(
+				ImVec2(220, 0)
+				, ImGuiCond_FirstUseEver
+			);
+			ImGui::SetNextWindowSize(
+				ImVec2(250, 180)
+				, ImGuiCond_FirstUseEver
+			);
+
+			ImGui::Begin("Settings");
+
+			ImGui::Checkbox("Use Compute Shader", &_useComputeShader);
+			ImGui::Checkbox("Debug Normals", &_debugNormals);
+			ImGui::PushItemWidth(90);
+
+			//We need to cast the values to int and back to float because BGFX does not recognize ivec4 uniforms
+			int perPixel = Multisampling_perPixel;
+			ImGui::InputInt("Pixel supersampling", &perPixel);
+			Multisampling_perPixel = perPixel;
+			int perAtmo = Multisampling_perAtmospherePixel;
+			ImGui::InputInt("Atmosphere supersampling", &perAtmo);
+			Multisampling_perAtmospherePixel = perAtmo;
+			int perLight = Multisampling_perLightRay;
+			ImGui::InputInt("Light ray supersampling", &perLight);
+			Multisampling_perLightRay = perLight;
 			ImGui::PopItemWidth();
 			ImGui::End();
 		}
