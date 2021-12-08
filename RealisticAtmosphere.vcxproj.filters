@@ -95,6 +95,12 @@
     <None Include="Buffers.glsl">
       <Filter>Shader Programs</Filter>
     </None>
+    <None Include="Planet.glsl">
+      <Filter>Shader Programs\Material Shaders</Filter>
+    </None>
+    <None Include="Heightmap.comp">
+      <Filter>Shader Programs</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="TestCube.h">

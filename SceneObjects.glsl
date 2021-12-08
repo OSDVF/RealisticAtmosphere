@@ -12,9 +12,14 @@
 const float POSITIVE_INFINITY = uintBitsToFloat(0x7F800000);
 const float NEGATIVE_INFINITY = uintBitsToFloat(0xFF800000);
 #define SPACE_COLOR vec3(0.1,0.1,0.3)
+uniform sampler2D texSampler1;
+uniform sampler2D texSampler2;
+uniform sampler2D texSampler3;
+uniform sampler2D heightmapTexture;
 uniform vec4 u_viewRect;
 uniform vec4 Camera[4];
 uniform vec4 MultisamplingSettings;
+uniform vec4 QualitySettings;
 #else
 vec4 Camera[] =
 {
@@ -24,6 +29,7 @@ vec4 Camera[] =
     vec4(1,0,0,0)//Right vector, fovX
 };
 vec4 MultisamplingSettings = {2,8,16,0};
+vec4 QualitySettings = {10,100,100000,0};
 #endif
 
 struct Ray
@@ -34,6 +40,11 @@ struct Ray
 #define Multisampling_perPixel MultisamplingSettings.x
 #define Multisampling_perLightRay MultisamplingSettings.y
 #define Multisampling_perAtmospherePixel MultisamplingSettings.z
+#define Multisampling_type MultisamplingSettings.w
+
+#define QualitySettings_steps QualitySettings.x
+#define QualitySettings_precision QualitySettings.y
+#define QualitySettings_farPlane QualitySettings.z
 
 #define Camera_position (Camera[0].xyz)
 #define Camera_direction (Camera[1].xyz)
@@ -73,11 +84,11 @@ struct Sphere
     float _pad3;
 };
 
-struct Atmosphere
+struct Planet
 {
     vec3 center;
-    float startRadius;
-    float endRadius;
+    float surfaceRadius;
+    float atmosphereRadius;
     float mieCoefficient;
     float mieAsymmetryFactor;
     float mieScaleHeight; /* Aerosol density would be uniform if the atmosfere was homogenous and had this "Scale" height */
@@ -85,7 +96,7 @@ struct Atmosphere
     float rayleighScaleHeight; /* Air molecular density would be uniform if the atmosfere was homogenous and had this "Scale" height */
     float sunIntensity;
     uint sunObjectIndex;
-    float _pad1;
+    float mountainsRadius;
     float _pad2;
 };
 

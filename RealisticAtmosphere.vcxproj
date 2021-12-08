@@ -253,9 +253,11 @@
     <None Include="ComputeRender\rt_display.vert" />
     <None Include="ComputeRender\rt_display.frag" />
     <None Include="ComputeRender\compute_render.comp" />
+    <None Include="Heightmap.comp" />
     <None Include="Intersections.glsl" />
     <None Include="normal_render.frag" />
     <None Include="normal_render.vert" />
+    <None Include="Planet.glsl" />
     <None Include="Random.glsl" />
     <None Include="raytracer.glsl" />
     <None Include="SceneObjects.glsl" />

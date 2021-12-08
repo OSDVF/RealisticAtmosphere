@@ -1,14 +1,8 @@
 //?#version 440
 #include "Intersections.glsl"
 #include "Atmosphere.glsl"
+#include "Planet.glsl"
 #include "Random.glsl"
-
-#ifdef DEBUG
-    uniform vec4 debugAttributes;
-    #define DEBUG_NORMALS (debugAttributes.x == 1.0)
-#else
-    #define DEBUG_NORMALS false
-#endif
 
 // Create a primary ray for pixel x, y
 Ray createCameraRay(vec2 fromPixel)
@@ -82,7 +76,7 @@ vec3 computeObjectColor(Hit hit)
     }
     
     Material objMaterial = materials[objects[hit.hitObjectIndex].materialIndex];
-    return clamp((objMaterial.albedo.xyz * totalLightColor) + objMaterial.emission,vec3(0),vec3(1));
+    return (objMaterial.albedo.xyz * totalLightColor) + objMaterial.emission;
 }
 
 vec3 takeSample(vec2 fromPixel)
@@ -100,42 +94,66 @@ vec3 takeSample(vec2 fromPixel)
     }
     else
     {
-        //Then try hitting atmospheres
-        for (int k = 0; k < atmospheres.length(); ++k)
+        //Then try hitting the planets
+        for (int k = 0; k < planets.length(); ++k)
         {
-            float t0, t1;
-            float tMax = POSITIVE_INFINITY;
-            if(raySphereIntersection(atmospheres[k].center, atmospheres[k].startRadius, primaryRay, t0, t1) && t1 > 0)
-            {
-                // When the bottom of the atmosphere is intersecting primaryRay in positive direction
-                // we need to limit the scattering computation to the inner atmosphere bounds (by tMax variable)
-
-                // This also limits the rays to the planet surface
-                tMax = max(t0, 0);
-            }
-            return atmosphereColor(atmospheres[k], primaryRay, 0, tMax);
+            float tMax;
+            vec3 planet = raytracePlanet(planets[k], primaryRay, tMax);//tMax will be ray direciton multiplier if the ray hits the planet
+            return planet + atmosphereColor(planets[k], primaryRay, 0, tMax);
         }
 
         return AMBIENT_LIGHT;
     }
 }
+
+vec3 tonemapping(vec3 hdrColor)
+{
+    return min(min(hdrColor.x,hdrColor.y),hdrColor.z) < 1.413 ? /*gamma correction*/ pow(hdrColor * 0.38317, vec3(1.0 / 2.2)) : 1.0 - exp(-hdrColor)/*exposure tone mapping*/;
+}
+
 vec3 raytrace(vec2 fromPixel)
 {
     fromPixel+= 0.5;//Center the ray
     vec3 resultColor = vec3(0, 0, 0);
     uint sampleNum = 0;
-    for(int x = 0; x < Multisampling_perPixel; x++)
+    switch(int(Multisampling_type))
     {
-        for(int y = 0; y < Multisampling_perPixel; y++,sampleNum++)
+    case 1:
+        for(int x = 0; x < Multisampling_perPixel; x++)
         {
-            if(sampleNum == 0)
+            for(int y = 0; y < Multisampling_perPixel; y++,sampleNum++)
             {
-                resultColor += takeSample(fromPixel);
-                continue;
+                if(sampleNum == 0)
+                {
+                    resultColor += takeSample(fromPixel);
+                    continue;
+                }
+                float firstRand = random(x);
+                vec2 randomOffset = vec2(firstRand,random(firstRand))-0.5;
+                vec2 griddedOffset = vec2(x / Multisampling_perPixel, y / Multisampling_perPixel) - 0.5;
+                resultColor += takeSample(fromPixel + mix(griddedOffset,randomOffset,0.5));
             }
-            vec2 randomOffset = vec2((x - Multisampling_perPixel/2) / Multisampling_perPixel, (y - Multisampling_perPixel/2) / Multisampling_perPixel);
+        }
+        return tonemapping(resultColor / sampleNum);
+    case 2:
+        for(int x = 0; x < Multisampling_perPixel; x++)
+        {
+            for(int y = 0; y < Multisampling_perPixel; y++,sampleNum++)
+            {
+                vec2 griddedOffset = vec2(x / (Multisampling_perPixel-1), y / (Multisampling_perPixel-1)) - 0.5;
+                resultColor += takeSample(fromPixel + griddedOffset);
+            }
+        }
+        return tonemapping(resultColor / sampleNum);
+
+    default:
+        resultColor += takeSample(fromPixel);
+        for(int x = 1; x < Multisampling_perPixel; x++)
+        {
+            float firstRand = random(x);
+            vec2 randomOffset = vec2(firstRand,random(firstRand))-0.5;
             resultColor += takeSample(fromPixel + randomOffset);
         }
+        return tonemapping(resultColor / Multisampling_perPixel);
     }
-    return resultColor / sampleNum;
 }

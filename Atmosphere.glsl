@@ -3,11 +3,11 @@
 #include "Intersections.glsl"
 #define PI (3.14159265358979323846) 
 
-vec3 atmosphereColor(Atmosphere atmosphere, Ray ray, float minDistance, float maxDistance)
+vec3 atmosphereColor(Planet atmosphere, Ray ray, float minDistance, float maxDistance)
 {
 	float t0, t1;
 	ray.direction = normalize(ray.direction);
-	if(!raySphereIntersection(atmosphere.center, atmosphere.endRadius, ray, t0, t1)
+	if(!raySphereIntersection(atmosphere.center, atmosphere.atmosphereRadius, ray, t0, t1)
 		|| (t1 < 0 ))// this would mean that the atmosphere is behind us
 	{
 		return AMBIENT_LIGHT;
@@ -38,7 +38,7 @@ vec3 atmosphereColor(Atmosphere atmosphere, Ray ray, float minDistance, float ma
 		vec3 worldSamplePos = ray.origin + (currentDistance + segmentLength * 0.5) * ray.direction;
 		float centerDist = distance(worldSamplePos, atmosphere.center);
 		// Height above the sea level
-		float sampleHeight = centerDist - atmosphere.startRadius;
+		float sampleHeight = centerDist - atmosphere.surfaceRadius;
 
 		//Compute optical depth; HF = height factor
 		float rayleighHF = exp(-sampleHeight/atmosphere.rayleighScaleHeight) * segmentLength;
@@ -49,7 +49,7 @@ vec3 atmosphereColor(Atmosphere atmosphere, Ray ray, float minDistance, float ma
 		//Compute light optical depth
         float t0Light, t1Light; 
 		// Intersect light ray with outer shell of the atmosphere
-        raySphereIntersection(atmosphere.center, atmosphere.endRadius, Ray(worldSamplePos, sunVector), t0Light, t1Light); 
+        raySphereIntersection(atmosphere.center, atmosphere.atmosphereRadius, Ray(worldSamplePos, sunVector), t0Light, t1Light); 
         float lSegmentLength = t1Light / Multisampling_perLightRay;
 		float tCurrentLight = 0; 
         float lOpticalDepthR = 0, lOpticalDepthM = 0; 
@@ -58,7 +58,7 @@ vec3 atmosphereColor(Atmosphere atmosphere, Ray ray, float minDistance, float ma
 		for (l = 0; l < Multisampling_perLightRay; ++l) { 
             vec3 lSamplePos = worldSamplePos + (tCurrentLight + lSegmentLength * 0.5) * sunVector; 
 			float lCenterDist = distance(lSamplePos, atmosphere.center);
-            float lSampleHeight = lCenterDist - atmosphere.startRadius; 
+            float lSampleHeight = lCenterDist - atmosphere.surfaceRadius; 
             if (lSampleHeight < 0) break;
 
             lOpticalDepthR += exp(-lSampleHeight / atmosphere.rayleighScaleHeight) * lSegmentLength; 

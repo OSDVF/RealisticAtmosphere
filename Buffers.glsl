@@ -2,15 +2,20 @@
 #ifndef BUFFERS
 #define BUFFERS
 #include "SceneObjects.glsl"
-
+#ifdef DEBUG
+    uniform vec4 debugAttributes;
+    #define DEBUG_NORMALS (debugAttributes.x == 1.0)
+#else
+    #define DEBUG_NORMALS false
+#endif
 layout(std430, binding=1) readonly buffer ObjectBuffer
 {
     Sphere objects[];
 };
 
-layout(std430, binding=2) readonly buffer AtmosphereBuffer
+layout(std430, binding=2) readonly buffer PlanetBuffer
 {
-    Atmosphere atmospheres[];
+    Planet planets[];
 };
 
 layout(std430, binding=3) readonly buffer MaterialBuffer

@@ -171,5 +171,12 @@ namespace bgfx_utils
 	{
 		return bgfx::createDynamicIndexBuffer(_num / 2 /* because BGFX expects 2-byte indices */, _flags);
 	}
+
+	static void imageReleaseCb(void* _ptr, void* _userData)
+	{
+		BX_UNUSED(_ptr);
+		bimg::ImageContainer* imageContainer = (bimg::ImageContainer*)_userData;
+		bimg::imageFree(imageContainer);
+	}
 }
 #endif // BGFX_UTILS_H_HEADER_GUARD

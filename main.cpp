@@ -23,19 +23,22 @@ const Material _materialBuffer[] = {
 		{1,1,1,1},// White
 		{0,0,0},// No Specular part
 		{0},// No Roughness
-		{1,1,1} // Max emission
+		{10,10,10}, // Max emission
+		0
 	},
 	{
 		{1, 0.5, 1 / 39, 1},// Orange albedo
 		{0.5,0.5,0.5},// Half specular
 		{0.5},// Half Roughness
-		{0,0,0} // No emission
+		{0,0,0}, // No emission
+		0
 	},
 	{
 		{0, 0.1, 1, 1},// Blue albedo
 		{0.5,0.5,0.5},// Half specular
 		{0.5},// Half Roughness
-		{0,0,0} // No emission
+		{0,0,0}, // No emission
+		0
 	}
 };
 
@@ -47,7 +50,7 @@ const Sphere _objectBuffer[] = {
 		0 //Material index
 	},
 	{
-		{1, earthRadius + 999, 30200}, //Position
+		{1, earthRadius + 8000, 30200}, //Position
 		{5}, //Radius
 		1, //Material index
 	}
@@ -67,7 +70,7 @@ const vec3 precomputedRayleighScatteringCoefficients = vec3(0.0000058, 0.0000135
 const float precomputedMieScaterringCoefficient = 21e-6f;
 const float mieAssymetryFactor = 0.76;
 
-Atmosphere _atmosphereBuffer[] = {
+Planet _planetBuffer[] = {
 	{
 		{0, 0, 0},//center
 		earthRadius,//start radius
@@ -82,7 +85,8 @@ Atmosphere _atmosphereBuffer[] = {
 		7994,//Rayleigh scale heigh
 		10, //Sun intensity
 		0, // Sun object index
-		0, 0
+		earthRadius + 40000, // Mountains radius
+		0 //padding 
 	}
 };
 
@@ -105,6 +109,7 @@ namespace RealisticAtmosphere
 
 		bgfx::UniformHandle _timeHandle;
 		bgfx::UniformHandle _multisamplingSettingsHandle;
+		bgfx::UniformHandle _qualitySettingsHandle;
 		bgfx::TextureHandle _raytracerOutputTexture; /**< Used only when using compute-shader variant */
 		bgfx::UniformHandle _raytracerOutputSampler;
 
@@ -124,6 +129,16 @@ namespace RealisticAtmosphere
 		bgfx::DynamicIndexBufferHandle _materialBufferHandle;
 		bgfx::DynamicIndexBufferHandle _directionalLightBufferHandle;
 		bgfx::ShaderHandle _computeShaderHandle;
+		bgfx::ShaderHandle _heightmapShaderHandle;
+		bgfx::ProgramHandle _heightmapShaderProgram;
+		bgfx::TextureHandle _heightmapTextureHandle;
+		bgfx::UniformHandle _heightmapSampler;
+		bgfx::TextureHandle _texture1Handle;
+		bgfx::TextureHandle _texture2Handle;
+		bgfx::TextureHandle _texture3Handle;
+		bgfx::UniformHandle _texSampler1;
+		bgfx::UniformHandle _texSampler2;
+		bgfx::UniformHandle _texSampler3;
 
 		bgfx::UniformHandle _cameraHandle;
 #if _DEBUG
@@ -140,7 +155,7 @@ namespace RealisticAtmosphere
 		// The Entry library will call this method after setting up window manager
 		void init(int32_t argc, const char* const* argv, uint32_t width, uint32_t height) override
 		{
-			_person.Camera.SetPosition(glm::vec3(0, earthRadius + 1000, 30000));
+			_person.Camera.SetPosition(glm::vec3(0, earthRadius + 8000, 30000));
 
 			entry::setWindowFlags(HANDLE_OF_DEFALUT_WINDOW, ENTRY_WINDOW_FLAG_ASPECT_RATIO, false);
 			entry::setWindowSize(HANDLE_OF_DEFALUT_WINDOW, 1024, 600);
@@ -179,21 +194,43 @@ namespace RealisticAtmosphere
 
 			_cameraHandle = bgfx::createUniform("Camera", bgfx::UniformType::Vec4, 4);//It is an array of 4 vec4
 			_raytracerOutputSampler = bgfx::createUniform("computeShaderOutput", bgfx::UniformType::Sampler);
+			_heightmapSampler = bgfx::createUniform("heightmapTexture",bgfx::UniformType::Sampler);
+			_texSampler1 = bgfx::createUniform("texSampler1", bgfx::UniformType::Sampler);
+			_texSampler2 = bgfx::createUniform("texSampler2", bgfx::UniformType::Sampler);
+			_texSampler3 = bgfx::createUniform("texSampler3", bgfx::UniformType::Sampler);
 			_debugAttributesHandle = bgfx::createUniform("debugAttributes", bgfx::UniformType::Vec4);
 			_timeHandle = bgfx::createUniform("time", bgfx::UniformType::Vec4);
 			_multisamplingSettingsHandle = bgfx::createUniform("MultisamplingSettings", bgfx::UniformType::Vec4);
+			_qualitySettingsHandle = bgfx::createUniform("QualitySettings", bgfx::UniformType::Vec4);
 
 			_displayingShaderProgram = loadProgram("rt_display.vert", "rt_display.frag");
 			_raytracerShaderProgram = loadProgram("normal_render.vert", "normal_render.frag");
 			_computeShaderHandle = loadShader("compute_render.comp");
 			_computeShaderProgram = bgfx::createProgram(_computeShaderHandle);
+			_heightmapShaderHandle = loadShader("Heightmap.comp");
+			_heightmapShaderProgram = bgfx::createProgram(_heightmapShaderHandle);
+			_texture1Handle = loadTexture("textures/grass.ktx");
+			_texture2Handle = loadTexture("textures/dirt.ktx");
+			_texture3Handle = loadTexture("textures/rock.ktx");
+			_heightmapTextureHandle = bgfx::createTexture2D(8192, 2048, false, 1, bgfx::TextureFormat::RGBA32F,BGFX_TEXTURE_COMPUTE_WRITE);
+
+			/*auto data = imageLoad("textures/grass.ktx", bgfx::TextureFormat::RGB8);
+			bgfx::updateTexture2D(_texturesHandle, 0, 0, 0, 0, 2048, 2048, bgfx::makeRef(data->m_data, data->m_size));
+			data = imageLoad("textures/dirt.ktx", bgfx::TextureFormat::RGB8);
+			bgfx::updateTexture2D(_texturesHandle, 1, 0, 0, 0, 2048, 2048, bgfx::makeRef(data->m_data, data->m_size));
+			data = imageLoad("textures/rock.ktx", bgfx::TextureFormat::RGB8);
+			bgfx::updateTexture2D(_texturesHandle, 2, 0, 0, 0, 2048, 2048, bgfx::makeRef(data->m_data, data->m_size));*/
 
 			_objectBufferHandle = bgfx_utils::createDynamicComputeReadBuffer(sizeof(_objectBuffer));
-			_atmosphereBufferHandle = bgfx_utils::createDynamicComputeReadBuffer(sizeof(_atmosphereBuffer));
+			_atmosphereBufferHandle = bgfx_utils::createDynamicComputeReadBuffer(sizeof(_planetBuffer));
 			_materialBufferHandle = bgfx_utils::createDynamicComputeReadBuffer(sizeof(_materialBuffer));
 			_directionalLightBufferHandle = bgfx_utils::createDynamicComputeReadBuffer(sizeof(_directionalLightBuffer));
 
 			resetBufferSize();
+
+			// Render heighmap
+			bgfx::setImage(0, _heightmapTextureHandle, 0, bgfx::Access::Write);
+			bgfx::dispatch(0, _heightmapShaderProgram, bx::ceil(8192 / 16.0f), bx::ceil(2048 / 16.0f));
 
 			// Create Immediate GUI graphics context
 			imguiCreate();
@@ -221,8 +258,13 @@ namespace RealisticAtmosphere
 			//Destroy resources
 			bgfx::destroy(_timeHandle);
 			bgfx::destroy(_multisamplingSettingsHandle);
+			bgfx::destroy(_qualitySettingsHandle);
+			bgfx::destroy(_heightmapTextureHandle);
 			bgfx::destroy(_raytracerOutputTexture);
 			bgfx::destroy(_raytracerOutputSampler);
+			bgfx::destroy(_texSampler1);
+			bgfx::destroy(_texSampler2);
+			bgfx::destroy(_texSampler3);
 			bgfx::destroy(_computeShaderHandle);
 			bgfx::destroy(_computeShaderProgram);
 			bgfx::destroy(_displayingShaderProgram);
@@ -373,7 +415,7 @@ namespace RealisticAtmosphere
 		void updateBuffersAndUniforms()
 		{
 			bgfx::update(_objectBufferHandle, 0, bgfx::makeRef((void*)_objectBuffer, sizeof(_objectBuffer)));
-			bgfx::update(_atmosphereBufferHandle, 0, bgfx::makeRef((void*)_atmosphereBuffer, sizeof(_atmosphereBuffer)));
+			bgfx::update(_atmosphereBufferHandle, 0, bgfx::makeRef((void*)_planetBuffer, sizeof(_planetBuffer)));
 			bgfx::update(_materialBufferHandle, 0, bgfx::makeRef((void*)_materialBuffer, sizeof(_materialBuffer)));
 			bgfx::update(_directionalLightBufferHandle, 0, bgfx::makeRef((void*)_directionalLightBuffer, sizeof(_directionalLightBuffer)));
 
@@ -384,6 +426,11 @@ namespace RealisticAtmosphere
 			vec4 timeWrapper = vec4(_frame, 0, 0, 0);
 			bgfx::setUniform(_timeHandle, &timeWrapper);
 			bgfx::setUniform(_multisamplingSettingsHandle, &MultisamplingSettings);
+			bgfx::setUniform(_qualitySettingsHandle, &QualitySettings);
+			bgfx::setTexture(5, _texSampler1, _texture1Handle, BGFX_SAMPLER_UVW_MIRROR | BGFX_SAMPLER_MIN_ANISOTROPIC);
+			bgfx::setTexture(6, _texSampler2, _texture2Handle, BGFX_SAMPLER_UVW_MIRROR | BGFX_SAMPLER_MIN_ANISOTROPIC);
+			bgfx::setTexture(7, _texSampler3, _texture3Handle, BGFX_SAMPLER_UVW_MIRROR | BGFX_SAMPLER_MIN_ANISOTROPIC);
+			bgfx::setTexture(8, _heightmapSampler, _heightmapTextureHandle);
 		}
 
 		void viewportActions()
@@ -411,27 +458,27 @@ namespace RealisticAtmosphere
 
 		void drawSettingsDialogUI()
 		{
-			Atmosphere& singleAtmosphere = _atmosphereBuffer[0];
+			Planet& singlePlanet = _planetBuffer[0];
 			ImGui::SetNextWindowPos(
 				ImVec2(0, 145)
 				, ImGuiCond_FirstUseEver
 			);
 			ImGui::Begin("Planet");
-			ImGui::InputFloat3("Center", (float*)&singleAtmosphere.center);
+			ImGui::InputFloat3("Center", (float*)&singlePlanet.center);
 			ImGui::PushItemWidth(90);
-			ImGui::InputFloat("Rayleigh CoefR", &singleAtmosphere.rayleighCoefficients.x, 0, 0, "%e");
-			ImGui::InputFloat("Rayleigh CoefG", &singleAtmosphere.rayleighCoefficients.y, 0, 0, "%e");
-			ImGui::InputFloat("Rayleigh CoefB", &singleAtmosphere.rayleighCoefficients.z, 0, 0, "%e");
-			ImGui::InputFloat("Radius", &singleAtmosphere.startRadius);
-			ImGui::InputFloat("Amosphere Radius", &singleAtmosphere.endRadius);
-			ImGui::InputFloat("Mie Coef", &singleAtmosphere.mieCoefficient, 0, 0, "%e");
-			ImGui::InputFloat("M.Asssymetry Factor", &singleAtmosphere.mieAsymmetryFactor);
-			ImGui::InputFloat("M.Scale Height", &singleAtmosphere.mieScaleHeight);
-			ImGui::InputFloat("R.Scale Height", &singleAtmosphere.rayleighScaleHeight);
-			ImGui::InputFloat("Sun Intensity", &singleAtmosphere.sunIntensity);
-			int sunObjectIndex = singleAtmosphere.sunObjectIndex;
+			ImGui::InputFloat("Rayleigh CoefR", &singlePlanet.rayleighCoefficients.x, 0, 0, "%e");
+			ImGui::InputFloat("Rayleigh CoefG", &singlePlanet.rayleighCoefficients.y, 0, 0, "%e");
+			ImGui::InputFloat("Rayleigh CoefB", &singlePlanet.rayleighCoefficients.z, 0, 0, "%e");
+			ImGui::InputFloat("Radius", &singlePlanet.surfaceRadius);
+			ImGui::InputFloat("Amosphere Radius", &singlePlanet.atmosphereRadius);
+			ImGui::InputFloat("Mie Coef", &singlePlanet.mieCoefficient, 0, 0, "%e");
+			ImGui::InputFloat("M.Asssymetry Factor", &singlePlanet.mieAsymmetryFactor);
+			ImGui::InputFloat("M.Scale Height", &singlePlanet.mieScaleHeight);
+			ImGui::InputFloat("R.Scale Height", &singlePlanet.rayleighScaleHeight);
+			ImGui::InputFloat("Sun Intensity", &singlePlanet.sunIntensity);
+			int sunObjectIndex = singlePlanet.sunObjectIndex;
 			ImGui::InputInt("Sun Object", &sunObjectIndex);
-			singleAtmosphere.sunObjectIndex = sunObjectIndex;
+			singlePlanet.sunObjectIndex = sunObjectIndex;
 			ImGui::PopItemWidth();
 			ImGui::End();
 
