@@ -122,6 +122,8 @@ namespace RealisticAtmosphere
 
 		bool _useComputeShader = true;
 		bool _debugNormals = false;
+		bool _debugAtmoOff = false;
+		bool _debugRm = false;
 		bool _showGUI = true;
 
 		bgfx::DynamicIndexBufferHandle _objectBufferHandle;
@@ -194,7 +196,7 @@ namespace RealisticAtmosphere
 
 			_cameraHandle = bgfx::createUniform("Camera", bgfx::UniformType::Vec4, 4);//It is an array of 4 vec4
 			_raytracerOutputSampler = bgfx::createUniform("computeShaderOutput", bgfx::UniformType::Sampler);
-			_heightmapSampler = bgfx::createUniform("heightmapTexture",bgfx::UniformType::Sampler);
+			_heightmapSampler = bgfx::createUniform("heightmapTexture", bgfx::UniformType::Sampler);
 			_texSampler1 = bgfx::createUniform("texSampler1", bgfx::UniformType::Sampler);
 			_texSampler2 = bgfx::createUniform("texSampler2", bgfx::UniformType::Sampler);
 			_texSampler3 = bgfx::createUniform("texSampler3", bgfx::UniformType::Sampler);
@@ -212,7 +214,7 @@ namespace RealisticAtmosphere
 			_texture1Handle = loadTexture("textures/grass.ktx");
 			_texture2Handle = loadTexture("textures/dirt.ktx");
 			_texture3Handle = loadTexture("textures/rock.ktx");
-			_heightmapTextureHandle = bgfx::createTexture2D(8192, 2048, false, 1, bgfx::TextureFormat::RGBA32F,BGFX_TEXTURE_COMPUTE_WRITE);
+			_heightmapTextureHandle = bgfx::createTexture2D(8192, 2048, false, 1, bgfx::TextureFormat::RGBA32F, BGFX_TEXTURE_COMPUTE_WRITE);
 
 			/*auto data = imageLoad("textures/grass.ktx", bgfx::TextureFormat::RGB8);
 			bgfx::updateTexture2D(_texturesHandle, 0, 0, 0, 0, 2048, 2048, bgfx::makeRef(data->m_data, data->m_size));
@@ -385,7 +387,7 @@ namespace RealisticAtmosphere
 
 		void updateDebugUniforms()
 		{
-			_debugAttributesResult = vec4(_debugNormals ? 1 : 0, 0, 0, 0);
+			_debugAttributesResult = vec4(_debugNormals ? 1 : 0, _debugRm ? 1 : 0, _debugAtmoOff ? 1 : 0 , 0);
 			bgfx::setUniform(_debugAttributesHandle, &_debugAttributesResult);
 		}
 
@@ -526,6 +528,21 @@ namespace RealisticAtmosphere
 			int perLight = Multisampling_perLightRay;
 			ImGui::InputInt("Light ray supersampling", &perLight);
 			Multisampling_perLightRay = perLight;
+			ImGui::PopItemWidth();
+
+			ImGui::Checkbox("Hide atmosphere", &_debugAtmoOff);
+			ImGui::Checkbox("Debug RayMarch", &_debugRm);
+			ImGui::PushItemWidth(90);
+			ImGui::InputFloat("Optimism", &QualitySettings_optimism, 0, 1);
+			int steps = QualitySettings_steps;
+			ImGui::InputInt("Steps", &steps);
+			QualitySettings_steps = steps;
+			int prec = QualitySettings_precision;
+			ImGui::InputInt("Inaccuracy", &prec);
+			QualitySettings_precision = prec;
+			int far = QualitySettings_farPlane;
+			ImGui::InputInt("Far Plane", &far);
+			QualitySettings_farPlane = far;
 			ImGui::PopItemWidth();
 			ImGui::End();
 		}

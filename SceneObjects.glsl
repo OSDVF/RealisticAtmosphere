@@ -20,6 +20,7 @@ uniform vec4 u_viewRect;
 uniform vec4 Camera[4];
 uniform vec4 MultisamplingSettings;
 uniform vec4 QualitySettings;
+uniform vec4 RaymarchingCascades;
 #else
 vec4 Camera[] =
 {
@@ -29,7 +30,8 @@ vec4 Camera[] =
     vec4(1,0,0,0)//Right vector, fovX
 };
 vec4 MultisamplingSettings = {2,8,16,0};
-vec4 QualitySettings = {10,100,100000,0};
+vec4 QualitySettings = {200,100,500000,1};
+vec4 RaymarchingCascades = {200, 1000, 5000, 15000}
 #endif
 
 struct Ray
@@ -45,6 +47,7 @@ struct Ray
 #define QualitySettings_steps QualitySettings.x
 #define QualitySettings_precision QualitySettings.y
 #define QualitySettings_farPlane QualitySettings.z
+#define QualitySettings_optimism QualitySettings.w
 
 #define Camera_position (Camera[0].xyz)
 #define Camera_direction (Camera[1].xyz)

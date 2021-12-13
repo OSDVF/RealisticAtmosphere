@@ -99,6 +99,10 @@ vec3 takeSample(vec2 fromPixel)
         {
             float tMax;
             vec3 planet = raytracePlanet(planets[k], primaryRay, tMax);//tMax will be ray direciton multiplier if the ray hits the planet
+            if(DEBUG_ATMO_OFF)
+            {
+                return planet;
+            }
             return planet + atmosphereColor(planets[k], primaryRay, 0, tMax);
         }
 

@@ -63,25 +63,62 @@ bool raymarchTerrain(Planet planet, Ray ray, float minDistance, float maxDistanc
 	if(t0 < maxDistance && t0 > 0) {
 		maxDistance = t0;
 	}
+	// Limit to the far plane
 	maxDistance = min(maxDistance, QualitySettings_farPlane);
 
-	float segmentLength = (maxDistance - minDistance)/QualitySettings_steps;
-
-    for (t = minDistance; t < maxDistance; t += segmentLength) {
+	float fixedSegmentLength = distance((ray.origin + ray.direction * maxDistance),
+										(ray.origin + ray.direction * minDistance))/QualitySettings_steps;
+	t = minDistance;
+    for (int i = 0; i < QualitySettings_steps; i++) {
         vec3 samplePos = ray.origin + ray.direction * t;
 		
-		vec4 bump = texture(heightmapTexture,toUV(normalize(samplePos - planet.center)));
+		vec3 directionToSample = normalize(samplePos - planet.center);
+		vec4 bump = texture(heightmapTexture,toUV(directionToSample));
 
 		float surfaceHeight = planet.surfaceRadius + (bump.x * mountainHeight);
+		vec3 surfacePoint = planet.center + surfaceHeight * directionToSample;
 		float sampleHeight = distance(planet.center, samplePos);
 
-		if(sampleHeight - surfaceHeight < QualitySettings_precision)
+		// Compute "distance" function
+		float dist  = sampleHeight - surfaceHeight;
+		if(dist < QualitySettings_precision || surfaceHeight >= sampleHeight)
 		{
-			hitRecord = Hit(samplePos, vec3(bump.gb,0), 0);
+			hitRecord = Hit(samplePos, vec3(bump.gb,0), i);
 			return true;
 		}
+		else if(dist > maxDistance)// When we are too far away from the surface
+		{
+			return false;
+		}
+
+		int remainingSteps = int(QualitySettings_steps) - i;
+		float remainingDistance = maxDistance - t;
+
+		//t += max(minSegmentLength, dist * QualitySettings_optimism);
+		float optimisticStep = dist * QualitySettings_optimism;
+		float realisticStep = remainingDistance/remainingSteps;
+		if(optimisticStep > realisticStep)
+		{
+			if(t + optimisticStep > maxDistance)
+			{
+				t = maxDistance;
+			}
+			else
+			{
+				t += optimisticStep;
+			}
+		}
+		else
+		{
+			t += realisticStep;
+		}
+
+		if(t > maxDistance)
+		{
+			return false;
+		}
     }
-    return false;
+	return false;
 }
 
 vec3 raytracePlanet(Planet planet, Ray ray, out float tMax)
@@ -102,7 +139,11 @@ vec3 raytracePlanet(Planet planet, Ray ray, out float tMax)
 			if(DEBUG_NORMALS)
 			{
 				return outHit.normalAtHit/2+0.5;
-			};
+			}
+			else if(DEBUG_RM)
+			{
+				return vec3(outHit.hitObjectIndex)/QualitySettings_steps;
+			}
 			return vec3(texture(heightmapTexture,toUV(normalize(outHit.position))).x);
 		}
     }
