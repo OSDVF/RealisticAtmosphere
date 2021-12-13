@@ -33,9 +33,9 @@ vec3 planetColor(vec3 camPos, Hit hit)
 	//float lodLevel = distanceFromCamera / RaymarchingCascades.x;
 	//float lodLevel = mip_map_level(hit.position.zy);
 	// Triplanar texture mapping in world space
-	vec2 triUVx = (hit.position.zy)/1000;
-	vec2 triUVy = (hit.position.xz)/1000;
-	vec2 triUVz = (hit.position.xy)/1000;
+	vec2 triUVx = (hit.position.zy)/10;
+	vec2 triUVy = (hit.position.xz)/10;
+	vec2 triUVz = (hit.position.xy)/10;
 	triUVx -= floor(triUVx);
 	triUVy -= floor(triUVy);
 	triUVz -= floor(triUVz);
@@ -112,10 +112,16 @@ bool raymarchTerrain(Planet planet, Ray ray, float minDistance, float maxDistanc
 										(ray.origin + ray.direction * minDistance))/QualitySettings_steps;
 	t = minDistance;
 	ivec2 mapSize = textureSize(heightmapTexture,0);
-    for (int i = 0; i < QualitySettings_steps; i++) {
-        vec3 samplePos = ray.origin + ray.direction * t;
+
+	vec3 bump;
+	bool wasHit = false;
+	vec3 sphNormal;
+	vec3 samplePos;
+	int i;
+    for (i = 0; i < QualitySettings_steps; i++) {
+        samplePos = ray.origin + ray.direction * t;
 		
-		vec3 sphNormal = normalize(samplePos - planet.center);
+		sphNormal = normalize(samplePos - planet.center);
 		#if 0
 		// Perform hermite bilinear interpolation of texture
 		vec2 uvScaled = toUV(sphNormal) * mapSize;
@@ -128,9 +134,9 @@ bool raymarchTerrain(Planet planet, Ray ray, float minDistance, float maxDistanc
 		vec2 sm = smoothstep(0,1,coordDiff);
 
 		// Result interpolated texture
-		vec3 bump = biLerp(bump1,bump2,bump3,bump4,sm.y,sm.x);
+		bump = biLerp(bump1,bump2,bump3,bump4,sm.y,sm.x);
 		#else
-		vec3 bump = texture(heightmapTexture,toUV(sphNormal)).xyz;
+		bump = texture(heightmapTexture,toUV(sphNormal)).xyz;
 		#endif
 
 		float surfaceHeight = planet.surfaceRadius + (bump.x * mountainHeight);
@@ -138,35 +144,36 @@ bool raymarchTerrain(Planet planet, Ray ray, float minDistance, float maxDistanc
 		float sampleHeight = distance(planet.center, samplePos);
 
 		// Compute "distance" function
-		float dist  = sampleHeight - surfaceHeight;
-		if(dist < QualitySettings_precision || surfaceHeight >= sampleHeight)
+		float dist = sampleHeight - surfaceHeight;
+		if(dist < 0)
 		{
-			// Compute normal in world space
-			vec2 map = bump.gb * 2 - 1;
-			vec3 t = sphereTangent(sphNormal);
-			vec3 bitangent = sphNormal * t;
-			float normalZ = sqrt(1 - dot(map.xy, map.xy));
-			vec3 worldNormal = normalize(map.x * t + map.y * bitangent + normalZ * sphNormal);
-			hitRecord = Hit(samplePos, worldNormal, i);
-			return true;
+			wasHit = true;
+			t += min(dist * RaymarchingSteps.z, RaymarchingSteps.w);
 		}
-		else if(dist > maxDistance)// When we are too far away from the surface
+		else 
 		{
-			return false;
-		}
+			if(dist < QualitySettings_precision || surfaceHeight >= sampleHeight)
+			{
+				wasHit = true;
+				break;
+			}
+			else if(dist > maxDistance)// When we are too far away from the surface
+			{
+				return false;
+			}
 
-		int remainingSteps = int(QualitySettings_steps) - i;
-		float remainingDistance = maxDistance - t;
+			int remainingSteps = int(QualitySettings_steps) - i;
+			float remainingDistance = maxDistance - t;
 
-		//t += max(minSegmentLength, dist * QualitySettings_optimism);
-		float realisticStep = remainingDistance/remainingSteps;
-		if(remainingDistance < RaymarchingCascades.x)
-		{
-			t += realisticStep;
-		}
-		else
-		{
-			float optimisticStep = dist * QualitySettings_optimism;
+			//t += max(minSegmentLength, dist * QualitySettings_optimism);
+			float realisticStep;
+			/*if(t < RaymarchingCascades.x)
+				realisticStep = RaymarchingSteps.x;
+			else if(t < RaymarchingCascades.y)
+				realisticStep = RaymarchingSteps.y;
+			else*/
+				realisticStep = remainingDistance/remainingSteps;
+			float optimisticStep = dist;
 			if(optimisticStep > realisticStep)
 			{
 				if(t + optimisticStep > maxDistance)
@@ -188,6 +195,17 @@ bool raymarchTerrain(Planet planet, Ray ray, float minDistance, float maxDistanc
 			return false;
 		}
     }
+	if(wasHit)
+	{
+		// Compute normal in world space
+		vec2 map = bump.gb * 2 - 1;
+		vec3 t = sphereTangent(sphNormal);
+		vec3 bitangent = sphNormal * t;
+		float normalZ = sqrt(1 - dot(map.xy, map.xy));
+		vec3 worldNormal = normalize(map.x * t + map.y * bitangent + normalZ * sphNormal);
+		hitRecord = Hit(samplePos, worldNormal, i);
+		return true;
+	}
 	return false;
 }
 

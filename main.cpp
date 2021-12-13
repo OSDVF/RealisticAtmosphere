@@ -144,6 +144,7 @@ namespace RealisticAtmosphere
 
 		bgfx::UniformHandle _cameraHandle;
 		bgfx::UniformHandle _raymarchingCascadesHandle;
+		bgfx::UniformHandle _raymarchingStepsHandle;
 #if _DEBUG
 		bgfx::UniformHandle _debugAttributesHandle;
 		vec4 _debugAttributesResult = vec4(0, 0, 0, 0);
@@ -158,7 +159,7 @@ namespace RealisticAtmosphere
 		// The Entry library will call this method after setting up window manager
 		void init(int32_t argc, const char* const* argv, uint32_t width, uint32_t height) override
 		{
-			_person.Camera.SetPosition(glm::vec3(0, earthRadius + 8000, 30000));
+			_person.Camera.SetPosition(glm::vec3(0, earthRadius + 2000, 30000));
 
 			entry::setWindowFlags(HANDLE_OF_DEFALUT_WINDOW, ENTRY_WINDOW_FLAG_ASPECT_RATIO, false);
 			entry::setWindowSize(HANDLE_OF_DEFALUT_WINDOW, 1024, 600);
@@ -196,6 +197,7 @@ namespace RealisticAtmosphere
 
 			_cameraHandle = bgfx::createUniform("Camera", bgfx::UniformType::Vec4, 4);//It is an array of 4 vec4
 			_raymarchingCascadesHandle = bgfx::createUniform("RaymarchingCascades", bgfx::UniformType::Vec4);
+			_raymarchingStepsHandle = bgfx::createUniform("RaymarchingSteps", bgfx::UniformType::Vec4);
 			_raytracerOutputSampler = bgfx::createUniform("computeShaderOutput", bgfx::UniformType::Sampler);
 			_heightmapSampler = bgfx::createUniform("heightmapTexture", bgfx::UniformType::Sampler);
 			_texSampler1 = bgfx::createUniform("texSampler1", bgfx::UniformType::Sampler);
@@ -279,6 +281,7 @@ namespace RealisticAtmosphere
 			bgfx::destroy(_cameraHandle);
 			bgfx::destroy(_debugAttributesHandle);
 			bgfx::destroy(_raymarchingCascadesHandle);
+			bgfx::destroy(_raymarchingStepsHandle);
 
 			_screenSpaceQuad.destroy();
 
@@ -432,9 +435,10 @@ namespace RealisticAtmosphere
 			bgfx::setUniform(_multisamplingSettingsHandle, &MultisamplingSettings);
 			bgfx::setUniform(_qualitySettingsHandle, &QualitySettings);
 			bgfx::setUniform(_raymarchingCascadesHandle, &RaymarchingCascades);
-			bgfx::setTexture(5, _texSampler1, _texture1Handle, BGFX_SAMPLER_UVW_CLAMP | BGFX_SAMPLER_POINT);
-			bgfx::setTexture(6, _texSampler2, _texture2Handle, BGFX_SAMPLER_UVW_CLAMP | BGFX_SAMPLER_POINT);
-			bgfx::setTexture(7, _texSampler3, _texture3Handle, BGFX_SAMPLER_UVW_CLAMP | BGFX_SAMPLER_POINT);
+			bgfx::setUniform(_raymarchingStepsHandle, &RaymarchingSteps);
+			bgfx::setTexture(5, _texSampler1, _texture1Handle);
+			bgfx::setTexture(6, _texSampler2, _texture2Handle);
+			bgfx::setTexture(7, _texSampler3, _texture3Handle);
 			bgfx::setTexture(8, _heightmapSampler, _heightmapTextureHandle);
 		}
 
@@ -540,12 +544,15 @@ namespace RealisticAtmosphere
 			int steps = QualitySettings_steps;
 			ImGui::InputInt("Steps", &steps);
 			QualitySettings_steps = steps;
-			ImGui::InputFloat("Inaccuracy", &QualitySettings_precision);
-			int far = QualitySettings_farPlane;
-			ImGui::InputInt("Far Plane", &far);
-			QualitySettings_farPlane = far;
-			ImGui::InputFloat("LOD Bias",&RaymarchingCascades.x);
 			ImGui::PopItemWidth();
+			ImGui::InputFloat("Inaccuracy", &QualitySettings_precision);
+			ImGui::InputFloat("Far Plane", &QualitySettings_farPlane);
+			ImGui::InputFloat("Cascade 1",&RaymarchingCascades.x);
+			ImGui::InputFloat("Cascade 2", &RaymarchingCascades.y);
+			ImGui::InputFloat("Step 1", &RaymarchingSteps.x);
+			ImGui::InputFloat("Step 2", &RaymarchingSteps.y);
+			ImGui::InputFloat("Back optim", &RaymarchingSteps.z);
+			ImGui::InputFloat("Back prec", &RaymarchingSteps.w);
 			ImGui::End();
 		}
 	};

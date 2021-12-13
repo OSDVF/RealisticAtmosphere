@@ -8,7 +8,8 @@ void FirstPersonController::Update(float deltaTime, bool mouseLocked) {
 
 	auto keyboardState = SDL_GetKeyboardState(nullptr);
 	//Speed Modifier
-	if (running == true && isMoving && isGrounded) {
+	running = keyboardState[SDL_SCANCODE_LSHIFT];
+	if (running == true) {
 		speed = RunSpeed;
 	}
 	else if (running && isMoving && isGrounded) {
@@ -19,7 +20,6 @@ void FirstPersonController::Update(float deltaTime, bool mouseLocked) {
 	}
 
 	isGrounded = false;//TODO
-	running = keyboardState[SDL_SCANCODE_LSHIFT];
 	jump = keyboardState[SDL_SCANCODE_SPACE];
 	bool up = keyboardState[SDL_SCANCODE_W];
 	bool left = keyboardState[SDL_SCANCODE_A];

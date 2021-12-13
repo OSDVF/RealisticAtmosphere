@@ -8,7 +8,7 @@ public:
 	MouseCamera Camera;
 	bool CanJump = true;
 	float WalkSpeed = 10;
-	float RunSpeed = 15;
+	float RunSpeed = 40;
 	float AirModifier = 1.5f;
 	float Friction = 0.86f;
 	float JumpForce = 40;
