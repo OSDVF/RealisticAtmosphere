@@ -120,7 +120,7 @@ namespace RealisticAtmosphere
 
 		ScreenSpaceQuad _screenSpaceQuad;/**< Output of raytracer (both the compute-shader variant and fragment-shader variant) */
 
-		bool _useComputeShader = true;
+		bool _useComputeShader = false;
 		bool _debugNormals = false;
 		bool _debugAtmoOff = false;
 		bool _debugRm = false;
@@ -143,6 +143,7 @@ namespace RealisticAtmosphere
 		bgfx::UniformHandle _texSampler3;
 
 		bgfx::UniformHandle _cameraHandle;
+		bgfx::UniformHandle _raymarchingCascadesHandle;
 #if _DEBUG
 		bgfx::UniformHandle _debugAttributesHandle;
 		vec4 _debugAttributesResult = vec4(0, 0, 0, 0);
@@ -185,7 +186,6 @@ namespace RealisticAtmosphere
 
 			// Enable debug text.
 			bgfx::setDebug(_debugFlags);
-			_useComputeShader = !!(bgfx::getCaps()->supported & BGFX_CAPS_COMPUTE);
 
 			// Set view 0 clear state.
 			bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH);
@@ -195,6 +195,7 @@ namespace RealisticAtmosphere
 			//
 
 			_cameraHandle = bgfx::createUniform("Camera", bgfx::UniformType::Vec4, 4);//It is an array of 4 vec4
+			_raymarchingCascadesHandle = bgfx::createUniform("RaymarchingCascades", bgfx::UniformType::Vec4);
 			_raytracerOutputSampler = bgfx::createUniform("computeShaderOutput", bgfx::UniformType::Sampler);
 			_heightmapSampler = bgfx::createUniform("heightmapTexture", bgfx::UniformType::Sampler);
 			_texSampler1 = bgfx::createUniform("texSampler1", bgfx::UniformType::Sampler);
@@ -211,9 +212,9 @@ namespace RealisticAtmosphere
 			_computeShaderProgram = bgfx::createProgram(_computeShaderHandle);
 			_heightmapShaderHandle = loadShader("Heightmap.comp");
 			_heightmapShaderProgram = bgfx::createProgram(_heightmapShaderHandle);
-			_texture1Handle = loadTexture("textures/grass.ktx");
-			_texture2Handle = loadTexture("textures/dirt.ktx");
-			_texture3Handle = loadTexture("textures/rock.ktx");
+			_texture1Handle = loadTexture("textures/grass.dds");
+			_texture2Handle = loadTexture("textures/dirt.dds");
+			_texture3Handle = loadTexture("textures/rock.dds");
 			_heightmapTextureHandle = bgfx::createTexture2D(8192, 2048, false, 1, bgfx::TextureFormat::RGBA32F, BGFX_TEXTURE_COMPUTE_WRITE);
 
 			/*auto data = imageLoad("textures/grass.ktx", bgfx::TextureFormat::RGB8);
@@ -277,6 +278,7 @@ namespace RealisticAtmosphere
 			bgfx::destroy(_objectBufferHandle);
 			bgfx::destroy(_cameraHandle);
 			bgfx::destroy(_debugAttributesHandle);
+			bgfx::destroy(_raymarchingCascadesHandle);
 
 			_screenSpaceQuad.destroy();
 
@@ -429,9 +431,10 @@ namespace RealisticAtmosphere
 			bgfx::setUniform(_timeHandle, &timeWrapper);
 			bgfx::setUniform(_multisamplingSettingsHandle, &MultisamplingSettings);
 			bgfx::setUniform(_qualitySettingsHandle, &QualitySettings);
-			bgfx::setTexture(5, _texSampler1, _texture1Handle, BGFX_SAMPLER_UVW_MIRROR | BGFX_SAMPLER_MIN_ANISOTROPIC);
-			bgfx::setTexture(6, _texSampler2, _texture2Handle, BGFX_SAMPLER_UVW_MIRROR | BGFX_SAMPLER_MIN_ANISOTROPIC);
-			bgfx::setTexture(7, _texSampler3, _texture3Handle, BGFX_SAMPLER_UVW_MIRROR | BGFX_SAMPLER_MIN_ANISOTROPIC);
+			bgfx::setUniform(_raymarchingCascadesHandle, &RaymarchingCascades);
+			bgfx::setTexture(5, _texSampler1, _texture1Handle, BGFX_SAMPLER_UVW_CLAMP | BGFX_SAMPLER_POINT);
+			bgfx::setTexture(6, _texSampler2, _texture2Handle, BGFX_SAMPLER_UVW_CLAMP | BGFX_SAMPLER_POINT);
+			bgfx::setTexture(7, _texSampler3, _texture3Handle, BGFX_SAMPLER_UVW_CLAMP | BGFX_SAMPLER_POINT);
 			bgfx::setTexture(8, _heightmapSampler, _heightmapTextureHandle);
 		}
 
@@ -537,12 +540,11 @@ namespace RealisticAtmosphere
 			int steps = QualitySettings_steps;
 			ImGui::InputInt("Steps", &steps);
 			QualitySettings_steps = steps;
-			int prec = QualitySettings_precision;
-			ImGui::InputInt("Inaccuracy", &prec);
-			QualitySettings_precision = prec;
+			ImGui::InputFloat("Inaccuracy", &QualitySettings_precision);
 			int far = QualitySettings_farPlane;
 			ImGui::InputInt("Far Plane", &far);
 			QualitySettings_farPlane = far;
+			ImGui::InputFloat("LOD Bias",&RaymarchingCascades.x);
 			ImGui::PopItemWidth();
 			ImGui::End();
 		}

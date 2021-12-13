@@ -245,11 +245,34 @@ vec3 toPolar(in vec2 uv)
 	return n;
 }
 
-/*vec2 toTc(vec3 cartesian)
+vec3 tangentFromSpherical(float theta, float phi)
 {
-    float x = acos(cartesian.x)/pi;
-    float y = acos(cartesian.z)/pi;
-    return vec2(x,y);
-}*/
+    return vec3(
+        sin(theta)*cos(phi),
+        sin(theta)*sin(phi),
+        cos(theta)
+        );
+    }
+
+vec3 sphereTangent(vec3 normal)
+{
+    float theta = acos(normal.z);
+    float phi = atan(normal.y,normal.x);
+
+    //then add pi/2 to theta or phi
+    float theta1 = theta + pi/2;
+    vec3 tan1 = tangentFromSpherical(theta1, phi);
+    if(dot(tan1,normal) == 0)
+    {
+        return tan1;
+    }
+    float phi1 = phi + pi/2;
+    vec3 tan2 = tangentFromSpherical(theta, phi1);
+    if(dot(tan2,normal) == 0)
+    {
+        return tan2;
+    }
+    return tangentFromSpherical(theta1, phi1);
+}
 
 #endif

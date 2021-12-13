@@ -6,7 +6,7 @@ layout(rgba32f, binding=0) writeonly uniform image2DArray heightmapOutput;//r = 
 float terrainElevation(vec3 p)
 {
     float elev = 1.0 - fbm6(p*200);
-    return elev*elev*elev/0.69443;
+    return (elev*elev*elev-0.00031)/0.81415;
 }
 
 // https://www.shadertoy.com/view/3sSSW1
@@ -18,7 +18,7 @@ vec2 texNormalMap(in vec2 uv)
     float h1 = terrainElevation(toPolar(uv + s * vec2(1,0)));
     float v1 = terrainElevation(toPolar(uv + s * vec2(0,1)));
        
-   	return normalize(p - vec2(h1, v1));
+   	return normalize(vec3(p - vec2(h1, v1),1)).xy;
 }
 
 void main()
@@ -28,7 +28,8 @@ void main()
 	
     vec3 p = toPolar(tc);
 	color.r = terrainElevation(p);
-    color.gb = texNormalMap(tc)/2+0.5;
+    vec2 normal = texNormalMap(tc) * 3.43973582829;// This constant came from pure debugging. It makes it range -1 to 1
+    color.gb = (normal/2+0.5);
 
 	imageStore(heightmapOutput, ivec3(gl_GlobalInvocationID.xy,0), color );
 }

@@ -31,7 +31,7 @@ vec4 Camera[] =
 };
 vec4 MultisamplingSettings = {2,8,16,0};
 vec4 QualitySettings = {200,100,500000,1};
-vec4 RaymarchingCascades = {200, 1000, 5000, 15000}
+vec4 RaymarchingCascades = {2000, 1000, 5000, 15000};
 #endif
 
 struct Ray

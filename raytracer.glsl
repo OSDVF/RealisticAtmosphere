@@ -99,7 +99,7 @@ vec3 takeSample(vec2 fromPixel)
         {
             float tMax;
             vec3 planet = raytracePlanet(planets[k], primaryRay, tMax);//tMax will be ray direciton multiplier if the ray hits the planet
-            if(DEBUG_ATMO_OFF)
+            if(DEBUG_ATMO_OFF ||DEBUG_NORMALS||DEBUG_RM)
             {
                 return planet;
             }
@@ -112,6 +112,8 @@ vec3 takeSample(vec2 fromPixel)
 
 vec3 tonemapping(vec3 hdrColor)
 {
+    if(DEBUG_NORMALS || DEBUG_RM)
+        return hdrColor;
     return min(min(hdrColor.x,hdrColor.y),hdrColor.z) < 1.413 ? /*gamma correction*/ pow(hdrColor * 0.38317, vec3(1.0 / 2.2)) : 1.0 - exp(-hdrColor)/*exposure tone mapping*/;
 }
 

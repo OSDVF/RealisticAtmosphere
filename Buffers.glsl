@@ -1,4 +1,5 @@
 //?#version 440
+//!#define DEBUG
 #ifndef BUFFERS
 #define BUFFERS
 #include "SceneObjects.glsl"
