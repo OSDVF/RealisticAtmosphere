@@ -47,7 +47,7 @@ Hit findObjectHit(Ray ray)
     return Hit(closesHitPosition, closestNormalAtHit, hitObjectIndex);
 }
 
-vec3 computeObjectColor(Hit hit)
+vec3 computeLightColor(Hit hit)
 {
     if(DEBUG_NORMALS)
     {
@@ -60,23 +60,29 @@ vec3 computeObjectColor(Hit hit)
     for(int i = 0; i < directionalLights.length(); i++)
     {
         DirectionalLight light = directionalLights[i];
+        vec3 lDir = light.direction.xyz;
         bool inShadow = false;
+        Ray shadowRay = Ray(hit.position, -lDir);
         for (int k = 0; k < objects.length(); ++k) {
-            if(k == hit.hitObjectIndex)
+            if(k == hit.hitObjectIndex||k==0)
             {
                 continue;
             }
-            Ray shadowRay = Ray(hit.position, light.direction.xyz);
             float t0 = 0, t1 = 0;
             if (raySphereIntersection(objects[k].position, objects[k].radius, shadowRay, t0, t1)) {
                 return AMBIENT_LIGHT;
             }
         }
-        totalLightColor += light.color.xyz * dot(light.direction.xyz, hit.normalAtHit);
+        /*for(int k = 0; k < planets.length();++k)
+        {
+            if(intersectsPlanet(planets[k], shadowRay))
+            {
+                return vec3(0,0,1);
+            }
+        }*/
+        totalLightColor += light.color.xyz * dot(-lDir, hit.normalAtHit);
     }
-    
-    Material objMaterial = materials[objects[hit.hitObjectIndex].materialIndex];
-    return (objMaterial.albedo.xyz * totalLightColor) + objMaterial.emission;
+    return totalLightColor;
 }
 
 vec3 takeSample(vec2 fromPixel)
@@ -90,20 +96,37 @@ vec3 takeSample(vec2 fromPixel)
     // Return color of the object at the hit
     if (hit.position != vec3(0,0,0)) // The zero vector indicates no hit
     {
-        return computeObjectColor(hit);
+        vec3 totalLightColor = computeLightColor(hit);
+        Material objMaterial = materials[objects[hit.hitObjectIndex].materialIndex];
+        return (objMaterial.albedo.xyz * totalLightColor) + objMaterial.emission;
     }
     else
     {
         //Then try hitting the planets
         for (int k = 0; k < planets.length(); ++k)
         {
+            Planet p = planets[k];
             float tMax;
-            vec3 planet = raytracePlanet(planets[k], primaryRay, tMax);//tMax will be ray direciton multiplier if the ray hits the planet
-            if(DEBUG_ATMO_OFF ||DEBUG_NORMALS||DEBUG_RM)
+            vec3 planet = raytracePlanet(p, primaryRay, tMax, hit);//tMax will be ray direciton multiplier if the ray hits the planet
+            #ifdef DEBUG
+            if(DEBUG_ATMO_OFF || DEBUG_RM)
             {
                 return planet;
             }
-            return planet + atmosphereColor(planets[k], primaryRay, 0, tMax);
+            else if(DEBUG_NORMALS)
+            {
+                return hit.normalAtHit;
+            }
+            #endif
+            if(planet == vec3(0))
+            {
+                return atmosphereColor(p, primaryRay, 0, tMax);
+            }
+            else
+            {
+                planet *= computeLightColor(hit);
+                return planet + atmosphereColor(p, primaryRay, 0, tMax) * PlanetMaterial.w;
+            }
         }
 
         return AMBIENT_LIGHT;

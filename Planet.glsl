@@ -26,28 +26,26 @@ float mip_map_level(in vec2 texture_coordinate) // in texel units
     return max( 0, mml ); // Thanks @Nims
 }
 #endif
-
-vec3 planetColor(vec3 camPos, Hit hit)
+vec3 triplanarSample(sampler2D sampl, Hit hit)
 {
-	float distanceFromCamera = distance(camPos, hit.position);
-	//float lodLevel = distanceFromCamera / RaymarchingCascades.x;
-	//float lodLevel = mip_map_level(hit.position.zy);
-	// Triplanar texture mapping in world space
-	vec2 triUVx = (hit.position.zy)/10;
-	vec2 triUVy = (hit.position.xz)/10;
-	vec2 triUVz = (hit.position.xy)/10;
-	triUVx -= floor(triUVx);
-	triUVy -= floor(triUVy);
-	triUVz -= floor(triUVz);
-	
+	vec2 triUVx = (hit.position.zy)/100;
+	vec2 triUVy = (hit.position.xz)/100;
+	vec2 triUVz = (hit.position.xy)/100;
 	#ifdef COMPUTE
-	vec4 texX = textureLod(texSampler1, triUVx, mip_map_level(hit.position.zy));
-	vec4 texY = textureLod(texSampler2, triUVy, mip_map_level(hit.position.xz));
-	vec4 texZ = textureLod(texSampler3, triUVz, mip_map_level(hit.position.xy));
+	vec4 texX = textureLod(sampl, triUVx, mip_map_level(hit.position.zy));
+	vec4 texY = textureLod(sampl, triUVy, mip_map_level(hit.position.xz));
+	vec4 texZ = textureLod(sampl, triUVz, mip_map_level(hit.position.xy));
 	#else
-	vec4 texX = textureGrad(texSampler1, triUVx, dFdx(triUVx),dFdy(triUVx));
-	vec4 texY = textureGrad(texSampler2, triUVy, dFdx(triUVy),dFdy(triUVy));
-	vec4 texZ = textureGrad(texSampler3, triUVz, dFdx(triUVz),dFdy(triUVz));
+	const float bigUvFrac = 10;
+	vec2 biggerUV = triUVx/bigUvFrac;
+	vec4 texX = textureGrad(sampl, triUVx, dFdx(triUVx),dFdy(triUVx));
+	texX *= textureGrad(sampl, biggerUV, dFdx(biggerUV),dFdy(biggerUV));
+	vec4 texY = textureGrad(sampl, triUVy, dFdx(triUVy),dFdy(triUVy));
+	biggerUV = triUVy/bigUvFrac;
+	texY *= textureGrad(sampl, biggerUV, dFdx(biggerUV),dFdy(biggerUV));
+	vec4 texZ = textureGrad(sampl, triUVz, dFdx(triUVz),dFdy(triUVz));
+	biggerUV = triUVz/bigUvFrac;
+	texZ *= textureGrad(sampl, biggerUV, dFdx(biggerUV),dFdy(biggerUV));
 	#endif
 
 	vec3 weights = abs(hit.normalAtHit);
@@ -57,37 +55,42 @@ vec3 planetColor(vec3 camPos, Hit hit)
 	return color.xyz;
 }
 
+vec3 planetColor(Planet planet, vec3 camPos, Hit hit)
+{
+	// Triplanar texture mapping in world space
+	float distFromSurface = distance(hit.position, planet.center) - planet.surfaceRadius;
+	float elev = terrainElevation(hit.position);
+	float gradHeight = 5000 * elev;
+	float randomStrength = 10000;
+	distFromSurface -= randomStrength * elev;
+	if(distFromSurface < PlanetMaterial.x)
+	{
+		return triplanarSample(texSampler1, hit);
+	}
+	else if(distFromSurface < PlanetMaterial.x+gradHeight)
+	{
+		return mix(triplanarSample(texSampler1, hit),triplanarSample(texSampler2, hit),
+					smoothstep(0,gradHeight,distFromSurface-PlanetMaterial.x));
+	}
+	else if(distFromSurface < PlanetMaterial.y)
+	{
+		return triplanarSample(texSampler2, hit);
+	}
+	else if(distFromSurface < PlanetMaterial.y+gradHeight)
+	{
+		return mix(triplanarSample(texSampler2, hit),triplanarSample(texSampler3, hit),
+					smoothstep(0,gradHeight,distFromSurface-PlanetMaterial.y));
+	}
+	else
+	{
+		return triplanarSample(texSampler3, hit);
+	}
+}
+
 // https://www.shadertoy.com/view/WsySzw
 float pow3(float f) {
     return f * f * f;
 }
-/*vec4 terrainElevation(vec3 p, Planet planet) {
-    vec3 surfaceLocation = normalize(p - planet.center);
-	float mountainHeight = planet.mountainsRadius -  planet.surfaceRadius;
-    vec4 elevation = noised(surfaceLocation * 400);
-	elevation.x *= mountainHeight;
-    return elevation;
-}
-
-// Signed distance function describing the terrain.
-float terrainSdf(vec3 p, Planet planet) {
-    float elevation = terrainElevation(p, planet).x;
-    return distance(planet.center, p) - elevation - planet.surfaceRadius;
-}
-
-// normal function from Graphics Codex
-vec3 terrianNormal(vec3 p, Planet planet) {
-    p = normalize(p);
-    const float e = 1e-2;
-    const vec3 u = vec3(e, 0, 0);
-    const vec3 v = vec3(0, e, 0);
-    const vec3 w = vec3(e, 0, e);
-    
-    return normalize(vec3(
-        terrainSdf(p + u, planet) - terrainSdf(p - u, planet),
-        terrainSdf(p + v, planet) - terrainSdf(p - v, planet),
-        terrainSdf(p + w, planet) - terrainSdf(p - w, planet)));
-}*/
 
 vec3 biLerp(vec3 a, vec3 b, vec3 c, vec3 d, float s, float t)
 {
@@ -97,7 +100,7 @@ vec3 biLerp(vec3 a, vec3 b, vec3 c, vec3 d, float s, float t)
 }
 
 bool raymarchTerrain(Planet planet, Ray ray, float minDistance, float maxDistance, out Hit hitRecord, out float t) {
-	
+	int backSteps = 0, forwardStepsBig = 0, forwardStepsSmall = 0;
 	float t0, t1;
 	raySphereIntersection(planet.center, planet.surfaceRadius, ray, t0, t1);
 	float mountainHeight = planet.mountainsRadius -  planet.surfaceRadius;
@@ -122,7 +125,7 @@ bool raymarchTerrain(Planet planet, Ray ray, float minDistance, float maxDistanc
         samplePos = ray.origin + ray.direction * t;
 		
 		sphNormal = normalize(samplePos - planet.center);
-		#if 0
+		#if 1
 		// Perform hermite bilinear interpolation of texture
 		vec2 uvScaled = toUV(sphNormal) * mapSize;
 		ivec2 coords = ivec2(uvScaled);
@@ -148,11 +151,12 @@ bool raymarchTerrain(Planet planet, Ray ray, float minDistance, float maxDistanc
 		if(dist < 0)
 		{
 			wasHit = true;
+			backSteps++;
 			t += min(dist * RaymarchingSteps.z, RaymarchingSteps.w);
 		}
 		else 
 		{
-			if(dist < QualitySettings_precision || surfaceHeight >= sampleHeight)
+			if(dist < QualitySettings_precision)
 			{
 				wasHit = true;
 				break;
@@ -162,32 +166,41 @@ bool raymarchTerrain(Planet planet, Ray ray, float minDistance, float maxDistanc
 				return false;
 			}
 
-			int remainingSteps = int(QualitySettings_steps) - i;
+			int remainingSteps = int(QualitySettings_steps/2/*Fixed step will be 2*long as 'optimalisation' */) - i;
 			float remainingDistance = maxDistance - t;
 
-			//t += max(minSegmentLength, dist * QualitySettings_optimism);
 			float realisticStep;
-			/*if(t < RaymarchingCascades.x)
-				realisticStep = RaymarchingSteps.x;
-			else if(t < RaymarchingCascades.y)
-				realisticStep = RaymarchingSteps.y;
-			else*/
-				realisticStep = remainingDistance/remainingSteps;
-			float optimisticStep = dist;
-			if(optimisticStep > realisticStep)
+			if(wasHit)
 			{
-				if(t + optimisticStep > maxDistance)
-				{
-					t = maxDistance;
-				}
-				else
-				{
-					t += optimisticStep;
-				}
+				t += (dist*RaymarchingSteps.x)/remainingSteps;
+				continue;
+			}
+			else
+				realisticStep = remainingDistance/remainingSteps;
+			float optimisticStep = dist * QualitySettings_optimism;
+			float slopeFactor = sqrt(1 - dot(bump.gb, bump.gb));
+			vec3 planetPointApprox = samplePos;
+			planetPointApprox -= sphNormal*dist;
+			float biggerStep = max(realisticStep,optimisticStep);
+			float smallerStep = min(realisticStep,optimisticStep);
+
+			float mixFactor = max(slopeFactor, 1-(distance(ray.origin,planetPointApprox))/RaymarchingSteps.y);
+			if(mixFactor > 0.5)
+			{
+				forwardStepsSmall++;
 			}
 			else
 			{
-				t += realisticStep;
+				forwardStepsBig++;
+			}
+			float st = mix(biggerStep,smallerStep,mixFactor);
+			if(t + st > maxDistance)
+			{
+				t = maxDistance;
+			}
+			else
+			{
+				t += st;
 			}
 		}
 		if(t > maxDistance)
@@ -197,26 +210,47 @@ bool raymarchTerrain(Planet planet, Ray ray, float minDistance, float maxDistanc
     }
 	if(wasHit)
 	{
-		// Compute normal in world space
-		vec2 map = bump.gb * 2 - 1;
-		vec3 t = sphereTangent(sphNormal);
-		vec3 bitangent = sphNormal * t;
-		float normalZ = sqrt(1 - dot(map.xy, map.xy));
-		vec3 worldNormal = normalize(map.x * t + map.y * bitangent + normalZ * sphNormal);
-		hitRecord = Hit(samplePos, worldNormal, i);
+		vec3 worldNormal;
+		if(DEBUG_RM)
+		{
+			worldNormal = vec3(forwardStepsBig,forwardStepsSmall,backSteps)/QualitySettings_steps;
+		}
+		else
+		{
+			// Compute normal in world space
+			vec2 map = (bump.gb) * 2 - 1;
+			vec3 t = sphereTangent(sphNormal);
+			vec3 bitangent = sphNormal * t;
+			float normalZ = sqrt(1-dot(map.xy, map.xy));
+			worldNormal = normalize(map.x * t + map.y * bitangent + normalZ * sphNormal);
+		}
+		hitRecord = Hit(samplePos, worldNormal, -1);
 		return true;
 	}
 	return false;
 }
+bool intersectsPlanet(Planet planet, Ray ray)
+{
+	float t0,t1;
+	if(raySphereIntersection(planet.center, planet.mountainsRadius, ray, t0, t1) && t1 > 0)
+    {
+		// Compute intersection point with planet mountains by raymarching
+		Hit outHit;
+		if(raymarchTerrain(planet, ray, max(t0,0), t1, outHit , t1))
+		{
+			return true;
+		}
+    }
+	return false;
+}
 
-vec3 raytracePlanet(Planet planet, Ray ray, out float tMax)
+vec3 raytracePlanet(Planet planet, Ray ray, out float tMax, out Hit outHit)
 {
 	tMax = POSITIVE_INFINITY;
 	float t0,t1;
 	if(raySphereIntersection(planet.center, planet.mountainsRadius, ray, t0, t1) && t1 > 0)
     {
 		// Compute intersection point with planet mountains by raymarching
-		Hit outHit;
 		float t2;
 		if(raymarchTerrain(planet, ray, max(t0,0), t1, outHit, t2))
 		{
@@ -230,10 +264,10 @@ vec3 raytracePlanet(Planet planet, Ray ray, out float tMax)
 			}
 			else if(DEBUG_RM)
 			{
-				return vec3(outHit.hitObjectIndex)/QualitySettings_steps;
+				return outHit.normalAtHit;
 			}
 			//return vec3(texture(heightmapTexture,toUV(normalize(outHit.position))).x);
-			return planetColor(ray.origin, outHit);
+			return planetColor(planet, ray.origin, outHit);
 		}
     }
 	return vec3(0);

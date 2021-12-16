@@ -3,12 +3,6 @@
 layout(local_size_x=16, local_size_y=16, local_size_z = 1) in;
 layout(rgba32f, binding=0) writeonly uniform image2DArray heightmapOutput;//r = height, bga = normal
 
-float terrainElevation(vec3 p)
-{
-    float elev = 1.0 - fbm6(p*200);
-    return (elev*elev*elev-0.00031)/0.81415;
-}
-
 // https://www.shadertoy.com/view/3sSSW1
 vec2 texNormalMap(in vec2 uv)
 {

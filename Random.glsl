@@ -134,6 +134,12 @@ float fbm6(vec3 x) {
 	return v;
 }
 
+float terrainElevation(vec3 p)
+{
+    float elev = 1.0 - fbm6(p*200);
+    return (elev*elev*elev-0.00031)/0.81415;
+}
+
 const float pi = atan(1.0) * 4.0;
 
 vec2 tcToAngle(vec2 tc)

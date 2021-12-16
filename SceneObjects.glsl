@@ -20,7 +20,7 @@ uniform vec4 u_viewRect;
 uniform vec4 Camera[4];
 uniform vec4 MultisamplingSettings;
 uniform vec4 QualitySettings;
-uniform vec4 RaymarchingCascades;
+uniform vec4 PlanetMaterial;
 uniform vec4 RaymarchingSteps;
 #else
 vec4 Camera[] =
@@ -31,9 +31,9 @@ vec4 Camera[] =
     vec4(1,0,0,0)//Right vector, fovX
 };
 vec4 MultisamplingSettings = {2,8,16,0};
-vec4 QualitySettings = {50,0.1,500000,1};
-vec4 RaymarchingCascades = {10000, 50000, 0, 0 };
-vec4 RaymarchingSteps = {500, 5000, 0.5, 1};
+vec4 QualitySettings = {50,1,500000,2};
+vec4 PlanetMaterial = {-10000, 5000, 10000, 0.2 };
+vec4 RaymarchingSteps = {0.1, 100000, 0.5, 1};
 #endif
 
 struct Ray

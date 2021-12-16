@@ -15,6 +15,7 @@
 #include "FirstPersonController.h"
 #include <entry/input.h>
 #include <SDL2/SDL.h>
+#include <array>
 
 #define HANDLE_OF_DEFALUT_WINDOW entry::WindowHandle{ 0 }
 
@@ -43,23 +44,23 @@ const Material _materialBuffer[] = {
 };
 
 const float earthRadius = 6360000; // cit. E. Bruneton page 3
-const Sphere _objectBuffer[] = {
+Sphere _objectBuffer[] = {
 	{//Sun
 		{earthRadius * 0.2 , earthRadius * 10, earthRadius * 60}, //Position
 		{earthRadius}, //Radius
 		0 //Material index
 	},
 	{
-		{1, earthRadius + 8000, 30200}, //Position
+		{1, earthRadius + 3900, 30200}, //Position
 		{5}, //Radius
 		1, //Material index
 	}
 };
 
-const DirectionalLight _directionalLightBuffer[] = {
+DirectionalLight _directionalLightBuffer[] = {
 	{
-		vec4(0, 2, -1, 0).normalize(),// direction
-		{1, 1, 1, 1}// color
+		{0,0,0,0},//Direction will be assigned automatically
+		{1, .9, .8, 1}// color
 	}
 };
 
@@ -70,9 +71,9 @@ const vec3 precomputedRayleighScatteringCoefficients = vec3(0.0000058, 0.0000135
 const float precomputedMieScaterringCoefficient = 21e-6f;
 const float mieAssymetryFactor = 0.76;
 
-Planet _planetBuffer[] = {
-	{
-		{0, 0, 0},//center
+std::array<Planet, 1> _planetBuffer = {
+	Planet{
+		vec3(0, 0, 0),//center
 		earthRadius,//start radius
 		6420000,//end radius
 		precomputedMieScaterringCoefficient,
@@ -83,7 +84,7 @@ Planet _planetBuffer[] = {
 		//I am usnure of the "completeness" of this model, but Nishita and Bruneton used this
 		precomputedRayleighScatteringCoefficients,
 		7994,//Rayleigh scale heigh
-		10, //Sun intensity
+		20, //Sun intensity
 		0, // Sun object index
 		earthRadius + 40000, // Mountains radius
 		0 //padding 
@@ -106,6 +107,7 @@ namespace RealisticAtmosphere
 		uint32_t _debugFlags = 0;
 		uint32_t _resetFlags = 0;
 		entry::MouseState _mouseState;
+		float _sunAngle = 0;
 
 		bgfx::UniformHandle _timeHandle;
 		bgfx::UniformHandle _multisamplingSettingsHandle;
@@ -143,7 +145,7 @@ namespace RealisticAtmosphere
 		bgfx::UniformHandle _texSampler3;
 
 		bgfx::UniformHandle _cameraHandle;
-		bgfx::UniformHandle _raymarchingCascadesHandle;
+		bgfx::UniformHandle _planetMaterialHandle;
 		bgfx::UniformHandle _raymarchingStepsHandle;
 #if _DEBUG
 		bgfx::UniformHandle _debugAttributesHandle;
@@ -159,7 +161,7 @@ namespace RealisticAtmosphere
 		// The Entry library will call this method after setting up window manager
 		void init(int32_t argc, const char* const* argv, uint32_t width, uint32_t height) override
 		{
-			_person.Camera.SetPosition(glm::vec3(0, earthRadius + 2000, 30000));
+			_person.Camera.SetPosition(glm::vec3(0, earthRadius + 10, 30000));
 
 			entry::setWindowFlags(HANDLE_OF_DEFALUT_WINDOW, ENTRY_WINDOW_FLAG_ASPECT_RATIO, false);
 			entry::setWindowSize(HANDLE_OF_DEFALUT_WINDOW, 1024, 600);
@@ -196,7 +198,7 @@ namespace RealisticAtmosphere
 			//
 
 			_cameraHandle = bgfx::createUniform("Camera", bgfx::UniformType::Vec4, 4);//It is an array of 4 vec4
-			_raymarchingCascadesHandle = bgfx::createUniform("RaymarchingCascades", bgfx::UniformType::Vec4);
+			_planetMaterialHandle = bgfx::createUniform("PlanetMaterial", bgfx::UniformType::Vec4);
 			_raymarchingStepsHandle = bgfx::createUniform("RaymarchingSteps", bgfx::UniformType::Vec4);
 			_raytracerOutputSampler = bgfx::createUniform("computeShaderOutput", bgfx::UniformType::Sampler);
 			_heightmapSampler = bgfx::createUniform("heightmapTexture", bgfx::UniformType::Sampler);
@@ -280,7 +282,7 @@ namespace RealisticAtmosphere
 			bgfx::destroy(_objectBufferHandle);
 			bgfx::destroy(_cameraHandle);
 			bgfx::destroy(_debugAttributesHandle);
-			bgfx::destroy(_raymarchingCascadesHandle);
+			bgfx::destroy(_planetMaterialHandle);
 			bgfx::destroy(_raymarchingStepsHandle);
 
 			_screenSpaceQuad.destroy();
@@ -305,7 +307,7 @@ namespace RealisticAtmosphere
 					_screenSpaceQuad.destroy();
 					resetBufferSize();
 				}
-
+				updateSun();
 				//
 				// GUI Actions
 				// 
@@ -318,15 +320,20 @@ namespace RealisticAtmosphere
 					_mouseLock = !_mouseLock;
 					if (_mouseLock)
 					{
+						SDL_CaptureMouse(SDL_TRUE);
 						SDL_SetRelativeMouseMode(SDL_TRUE);
 					}
 					else
 					{
+						SDL_CaptureMouse(SDL_FALSE);
 						SDL_SetRelativeMouseMode(SDL_FALSE);
 					}
 					break;
 				case 'g':
 					_showGUI = !_showGUI;
+					break;
+				case 'r':
+					_objectBuffer[1].position = vec3(Camera[0].x, Camera[0].y, Camera[0].z);
 					break;
 				}
 				if (_mouseLock)
@@ -390,9 +397,25 @@ namespace RealisticAtmosphere
 			return false;
 		}
 
+		void updateSun()
+		{
+			for (int i = 0; i < _planetBuffer.size(); i++)
+			{
+				auto& planet = _planetBuffer[i];
+				auto& sun = _objectBuffer[planet.sunObjectIndex];
+				glm::quat rotQua(glm::vec3(_sunAngle, 0, 0));
+				glm::vec3 pos(0, bx::length(sun.position),0);
+				pos = rotQua*pos;
+				sun.position = vec3(pos.x,pos.y,pos.z);
+
+				auto& sunLight = _directionalLightBuffer[planet.sunObjectIndex];
+				sunLight.direction = vec4::fromVec3(bx::sub(planet.center, sun.position)).normalize();
+			}
+		}
+
 		void updateDebugUniforms()
 		{
-			_debugAttributesResult = vec4(_debugNormals ? 1 : 0, _debugRm ? 1 : 0, _debugAtmoOff ? 1 : 0 , 0);
+			_debugAttributesResult = vec4(_debugNormals ? 1 : 0, _debugRm ? 1 : 0, _debugAtmoOff ? 1 : 0, 0);
 			bgfx::setUniform(_debugAttributesHandle, &_debugAttributesResult);
 		}
 
@@ -422,7 +445,7 @@ namespace RealisticAtmosphere
 		void updateBuffersAndUniforms()
 		{
 			bgfx::update(_objectBufferHandle, 0, bgfx::makeRef((void*)_objectBuffer, sizeof(_objectBuffer)));
-			bgfx::update(_atmosphereBufferHandle, 0, bgfx::makeRef((void*)_planetBuffer, sizeof(_planetBuffer)));
+			bgfx::update(_atmosphereBufferHandle, 0, bgfx::makeRef((void*)_planetBuffer.data(), sizeof(_planetBuffer)));
 			bgfx::update(_materialBufferHandle, 0, bgfx::makeRef((void*)_materialBuffer, sizeof(_materialBuffer)));
 			bgfx::update(_directionalLightBufferHandle, 0, bgfx::makeRef((void*)_directionalLightBuffer, sizeof(_directionalLightBuffer)));
 
@@ -434,7 +457,7 @@ namespace RealisticAtmosphere
 			bgfx::setUniform(_timeHandle, &timeWrapper);
 			bgfx::setUniform(_multisamplingSettingsHandle, &MultisamplingSettings);
 			bgfx::setUniform(_qualitySettingsHandle, &QualitySettings);
-			bgfx::setUniform(_raymarchingCascadesHandle, &RaymarchingCascades);
+			bgfx::setUniform(_planetMaterialHandle, &PlanetMaterial);
 			bgfx::setUniform(_raymarchingStepsHandle, &RaymarchingSteps);
 			bgfx::setTexture(5, _texSampler1, _texture1Handle);
 			bgfx::setTexture(6, _texSampler2, _texture2Handle);
@@ -485,10 +508,8 @@ namespace RealisticAtmosphere
 			ImGui::InputFloat("M.Scale Height", &singlePlanet.mieScaleHeight);
 			ImGui::InputFloat("R.Scale Height", &singlePlanet.rayleighScaleHeight);
 			ImGui::InputFloat("Sun Intensity", &singlePlanet.sunIntensity);
-			int sunObjectIndex = singlePlanet.sunObjectIndex;
-			ImGui::InputInt("Sun Object", &sunObjectIndex);
-			singlePlanet.sunObjectIndex = sunObjectIndex;
 			ImGui::PopItemWidth();
+			ImGui::SliderAngle("Sun Angle", &_sunAngle, 0,180);
 			ImGui::End();
 
 			ImGui::SetNextWindowPos(
@@ -547,8 +568,7 @@ namespace RealisticAtmosphere
 			ImGui::PopItemWidth();
 			ImGui::InputFloat("Inaccuracy", &QualitySettings_precision);
 			ImGui::InputFloat("Far Plane", &QualitySettings_farPlane);
-			ImGui::InputFloat("Cascade 1",&RaymarchingCascades.x);
-			ImGui::InputFloat("Cascade 2", &RaymarchingCascades.y);
+			ImGui::SliderFloat("Fog", &PlanetMaterial.w, 0, 1);
 			ImGui::InputFloat("Step 1", &RaymarchingSteps.x);
 			ImGui::InputFloat("Step 2", &RaymarchingSteps.y);
 			ImGui::InputFloat("Back optim", &RaymarchingSteps.z);
