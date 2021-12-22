@@ -1,6 +1,5 @@
 //?#version 440
 #include "Intersections.glsl"
-#include "Atmosphere.glsl"
 #include "Planet.glsl"
 #include "Random.glsl"
 
@@ -24,15 +23,16 @@ Ray createCameraRay(vec2 fromPixel)
 Hit findObjectHit(Ray ray)
 {
     float closestDistance = POSITIVE_INFINITY;
-    uint hitObjectIndex;
+    uint hitObjectIndex = -1;
+    float t = 0;
     vec3 hitPosition;
     vec3 normalAtHit;
-    vec3 closesHitPosition = vec3(0, 0, 0);
-    vec3 closestNormalAtHit = vec3(0, 0, 0);
+    vec3 closesHitPosition = vec3(0);
+    vec3 closestNormalAtHit = vec3(0);
     //Firstly try hitting objects
     for (int k = 0; k < objects.length(); ++k)
     {
-        if (getRaySphereIntersection(objects[k], ray, hitPosition, normalAtHit)) // Update hit position and normal
+        if (getRaySphereIntersection(objects[k], ray, hitPosition, normalAtHit, t)) // Update hit position and normal
         {
             float lastDistance = distance(Camera_position, hitPosition);
             if (lastDistance < closestDistance) {
@@ -44,45 +44,7 @@ Hit findObjectHit(Ray ray)
         }
     }
     
-    return Hit(closesHitPosition, closestNormalAtHit, hitObjectIndex);
-}
-
-vec3 computeLightColor(Hit hit)
-{
-    if(DEBUG_NORMALS)
-    {
-        return hit.normalAtHit;
-    }
-    vec3 totalLightColor = AMBIENT_LIGHT;// Initially the object is only lightened up by ambient light
-    // Compute illumination by casting 'shadow rays' into lights
-
-    // Check for directional lights
-    for(int i = 0; i < directionalLights.length(); i++)
-    {
-        DirectionalLight light = directionalLights[i];
-        vec3 lDir = light.direction.xyz;
-        bool inShadow = false;
-        Ray shadowRay = Ray(hit.position, -lDir);
-        for (int k = 0; k < objects.length(); ++k) {
-            if(k == hit.hitObjectIndex||k==0)
-            {
-                continue;
-            }
-            float t0 = 0, t1 = 0;
-            if (raySphereIntersection(objects[k].position, objects[k].radius, shadowRay, t0, t1)) {
-                return AMBIENT_LIGHT;
-            }
-        }
-        /*for(int k = 0; k < planets.length();++k)
-        {
-            if(intersectsPlanet(planets[k], shadowRay))
-            {
-                return vec3(0,0,1);
-            }
-        }*/
-        totalLightColor += light.color.xyz * dot(-lDir, hit.normalAtHit);
-    }
-    return totalLightColor;
+    return Hit(closesHitPosition, closestNormalAtHit, hitObjectIndex, t);
 }
 
 vec3 takeSample(vec2 fromPixel)
@@ -92,45 +54,26 @@ vec3 takeSample(vec2 fromPixel)
 
     // Cast the ray into the scene and check for the intersection points
     Hit hit = findObjectHit(primaryRay);
-
+    vec3 objectColor = AMBIENT_LIGHT;
     // Return color of the object at the hit
-    if (hit.position != vec3(0,0,0)) // The zero vector indicates no hit
+    if (hit.hitObjectIndex != -1)
     {
         vec3 totalLightColor = computeLightColor(hit);
         Material objMaterial = materials[objects[hit.hitObjectIndex].materialIndex];
-        return (objMaterial.albedo.xyz * totalLightColor) + objMaterial.emission;
+        objectColor = (objMaterial.albedo.xyz * totalLightColor) + objMaterial.emission;
+    }
+    
+    //Then add the atmosphere color
+    vec3 planetColor;
+    float somePlanetHitT = planetsWithAtmospheres(primaryRay, hit.t, /*out*/ planetColor);
+    if(somePlanetHitT < hit.t)// The planet surface is closer than the object
+    {
+        return planetColor;
     }
     else
     {
-        //Then try hitting the planets
-        for (int k = 0; k < planets.length(); ++k)
-        {
-            Planet p = planets[k];
-            float tMax;
-            vec3 planet = raytracePlanet(p, primaryRay, tMax, hit);//tMax will be ray direciton multiplier if the ray hits the planet
-            #ifdef DEBUG
-            if(DEBUG_ATMO_OFF || DEBUG_RM)
-            {
-                return planet;
-            }
-            else if(DEBUG_NORMALS)
-            {
-                return hit.normalAtHit;
-            }
-            #endif
-            if(planet == vec3(0))
-            {
-                return atmosphereColor(p, primaryRay, 0, tMax);
-            }
-            else
-            {
-                planet *= computeLightColor(hit);
-                return planet + atmosphereColor(p, primaryRay, 0, tMax) * PlanetMaterial.w;
-            }
-        }
-
-        return AMBIENT_LIGHT;
-    }
+        return objectColor + planetColor;
+    } 
 }
 
 vec3 tonemapping(vec3 hdrColor)

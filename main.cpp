@@ -46,12 +46,12 @@ const Material _materialBuffer[] = {
 const float earthRadius = 6360000; // cit. E. Bruneton page 3
 Sphere _objectBuffer[] = {
 	{//Sun
-		{earthRadius * 0.2 , earthRadius * 10, earthRadius * 60}, //Position
+		{0, 0, earthRadius * 60}, //Position
 		{earthRadius}, //Radius
 		0 //Material index
 	},
 	{
-		{1, earthRadius + 3900, 30200}, //Position
+		{1, earthRadius + 1, 0}, //Position
 		{5}, //Radius
 		1, //Material index
 	}
@@ -86,8 +86,8 @@ std::array<Planet, 1> _planetBuffer = {
 		7994,//Rayleigh scale heigh
 		20, //Sun intensity
 		0, // Sun object index
-		earthRadius + 40000, // Mountains radius
-		0 //padding 
+		earthRadius + 10000, // Mountains radius
+		0 //padding
 	}
 };
 
@@ -161,7 +161,7 @@ namespace RealisticAtmosphere
 		// The Entry library will call this method after setting up window manager
 		void init(int32_t argc, const char* const* argv, uint32_t width, uint32_t height) override
 		{
-			_person.Camera.SetPosition(glm::vec3(0, earthRadius + 10, 30000));
+			_person.Camera.SetPosition(glm::vec3(17.563f, earthRadius + 984, 2.430f));
 
 			entry::setWindowFlags(HANDLE_OF_DEFALUT_WINDOW, ENTRY_WINDOW_FLAG_ASPECT_RATIO, false);
 			entry::setWindowSize(HANDLE_OF_DEFALUT_WINDOW, 1024, 600);
@@ -402,14 +402,14 @@ namespace RealisticAtmosphere
 			for (int i = 0; i < _planetBuffer.size(); i++)
 			{
 				auto& planet = _planetBuffer[i];
-				auto& sun = _objectBuffer[planet.sunObjectIndex];
+				auto& sun = _objectBuffer[0];
 				glm::quat rotQua(glm::vec3(_sunAngle, 0, 0));
 				glm::vec3 pos(0, bx::length(sun.position),0);
 				pos = rotQua*pos;
 				sun.position = vec3(pos.x,pos.y,pos.z);
 
-				auto& sunLight = _directionalLightBuffer[planet.sunObjectIndex];
-				sunLight.direction = vec4::fromVec3(bx::sub(planet.center, sun.position)).normalize();
+				auto& sunLight = _directionalLightBuffer[planet.sunDrectionalLightIndex];
+				sunLight.direction = vec4::fromVec3(bx::sub(sun.position, planet.center /* light direction is reverse */)).normalize();
 			}
 		}
 

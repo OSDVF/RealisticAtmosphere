@@ -30,7 +30,7 @@ vec4 Camera[] =
     vec4(0,1,0,0),//Up vector, fovY
     vec4(1,0,0,0)//Right vector, fovX
 };
-vec4 MultisamplingSettings = {2,8,16,0};
+vec4 MultisamplingSettings = {2,8,64,0};
 vec4 QualitySettings = {50,1,500000,2};
 vec4 PlanetMaterial = {-10000, 5000, 10000, 0.2 };
 vec4 RaymarchingSteps = {0.1, 100000, 0.5, 1};
@@ -100,7 +100,7 @@ struct Planet
     vec3 rayleighCoefficients;
     float rayleighScaleHeight; /* Air molecular density would be uniform if the atmosfere was homogenous and had this "Scale" height */
     float sunIntensity;
-    uint sunObjectIndex;
+    uint sunDrectionalLightIndex;
     float mountainsRadius;
     float _pad2;
 };
@@ -110,6 +110,7 @@ struct Hit
     vec3 position;
     vec3 normalAtHit;
     uint hitObjectIndex;
+    float t;/**< Multiplier of ray direction */
 };
 
 /**

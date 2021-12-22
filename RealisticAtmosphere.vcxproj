@@ -248,13 +248,13 @@
     <UpToDateCheckInput Include="**\*.glsl" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Atmosphere.glsl" />
     <None Include="Buffers.glsl" />
     <None Include="ComputeRender\rt_display.vert" />
     <None Include="ComputeRender\rt_display.frag" />
     <None Include="ComputeRender\compute_render.comp" />
     <None Include="Heightmap.comp" />
     <None Include="Intersections.glsl" />
+    <None Include="Lighting.glsl" />
     <None Include="normal_render.frag" />
     <None Include="normal_render.vert" />
     <None Include="Planet.glsl" />
@@ -266,6 +266,7 @@
     <None Include="ComputeRender\varying.def.sc" />
     <None Include="shaders\scripts\shaderc64debug.ps1" />
     <None Include="shaders\scripts\shaderc64release.ps1" />
+    <None Include="Terrain.glsl" />
     <None Include="varying.def.sc" />
   </ItemGroup>
   <ItemGroup>

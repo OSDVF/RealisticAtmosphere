@@ -44,7 +44,7 @@ bool raySphereIntersection(vec3 position, float radius, Ray ray, out float t0, o
 
 
 //Geometric solution
-bool getRaySphereIntersection(Sphere sphere, Ray ray, out vec3 hitPosition, out vec3 normalAtHit)
+bool getRaySphereIntersection(Sphere sphere, Ray ray, out vec3 hitPosition, out vec3 normalAtHit, out float t0)
 {
     hitPosition = vec3(0,0,0);
     normalAtHit = vec3(0,0,0);
@@ -57,7 +57,7 @@ bool getRaySphereIntersection(Sphere sphere, Ray ray, out vec3 hitPosition, out 
     if (d2 > radius2) return false; 
 
     float thc = sqrt(radius2 - d2); 
-    float t0 = tca - thc; 
+    t0 = tca - thc; 
     float t1 = tca + thc; 
 
     vec3 hp = ray.origin + ray.direction * t0; // point of intersection 

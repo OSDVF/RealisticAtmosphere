@@ -41,7 +41,7 @@ void FirstPersonController::Update(float deltaTime, bool mouseLocked) {
 	}
 
 	//Limit Speed
-	if (velocity.length() > speed) {
+	if (glm::length(velocity) > speed) {
 		velocity = normalize(velocity) * speed;
 	}
 

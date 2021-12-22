@@ -1,274 +1,141 @@
 //?#version 450
 #include "Buffers.glsl"
 #include "Intersections.glsl"
-#include "Random.glsl"
-#ifdef COMPUTE
-uvec2 quadIndex = gl_LocalInvocationID.xy / 2;
-shared vec3 hitPosition;
-float mip_map_level(in vec2 texture_coordinate) // in texel units
-{
-return 1;
-	/*vec2  dx_vtc = variable[quadIndex.x + 1][quadIndex.y + 0] - variable[quadIndex.x + 0][quadIndex.y + 0];
-	vec2  dy_vtc = variable[quadIndex.x + 0][quadIndex.y + 1] - variable[quadIndex.x + 0][quadIndex.y + 0];
-    vec2  dx_vtc        = dFdx(texture_coordinate);
-    vec2  dy_vtc        = dFdy(texture_coordinate);
-    float delta_max_sqr = max(dot(dx_vtc, dx_vtc), dot(dy_vtc, dy_vtc));
-    float mml = 0.5 * log2(delta_max_sqr);
-    return max( 0, mml ); // Thanks @Nims*/
-}
-#else
-float mip_map_level(in vec2 texture_coordinate) // in texel units
-{
-    vec2  dx_vtc        = dFdx(texture_coordinate);
-    vec2  dy_vtc        = dFdy(texture_coordinate);
-    float delta_max_sqr = max(dot(dx_vtc, dx_vtc), dot(dy_vtc, dy_vtc));
-    float mml = 0.5 * log2(delta_max_sqr);
-    return max( 0, mml ); // Thanks @Nims
-}
-#endif
-vec3 triplanarSample(sampler2D sampl, Hit hit)
-{
-	vec2 triUVx = (hit.position.zy)/100;
-	vec2 triUVy = (hit.position.xz)/100;
-	vec2 triUVz = (hit.position.xy)/100;
-	#ifdef COMPUTE
-	vec4 texX = textureLod(sampl, triUVx, mip_map_level(hit.position.zy));
-	vec4 texY = textureLod(sampl, triUVy, mip_map_level(hit.position.xz));
-	vec4 texZ = textureLod(sampl, triUVz, mip_map_level(hit.position.xy));
-	#else
-	const float bigUvFrac = 10;
-	vec2 biggerUV = triUVx/bigUvFrac;
-	vec4 texX = textureGrad(sampl, triUVx, dFdx(triUVx),dFdy(triUVx));
-	texX *= textureGrad(sampl, biggerUV, dFdx(biggerUV),dFdy(biggerUV));
-	vec4 texY = textureGrad(sampl, triUVy, dFdx(triUVy),dFdy(triUVy));
-	biggerUV = triUVy/bigUvFrac;
-	texY *= textureGrad(sampl, biggerUV, dFdx(biggerUV),dFdy(biggerUV));
-	vec4 texZ = textureGrad(sampl, triUVz, dFdx(triUVz),dFdy(triUVz));
-	biggerUV = triUVz/bigUvFrac;
-	texZ *= textureGrad(sampl, biggerUV, dFdx(biggerUV),dFdy(biggerUV));
-	#endif
+#include "Atmosphere.glsl"
+#include "Terrain.glsl"
+#include "Lighting.glsl"
+#define PI pi
 
-	vec3 weights = abs(hit.normalAtHit);
-	weights /= (weights.x + weights.y + weights.z);
+float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistance, out vec3 color);
 
-	vec4 color = texX * weights.x + texY * weights.y + texZ * weights.z;
-	return color.xyz;
-}
-
-vec3 planetColor(Planet planet, vec3 camPos, Hit hit)
+/**
+  * Does a raymarching through the atmosphere and planet
+  * @returns 0 when only atmosphere or nothing was hit, else a number higher than 0 (when the planet was hit)
+  * @param tMax By tweaking the tMax parameter, you can limit the assumed ray length
+  * This is useful when the ray was blocked by some objects
+  */
+float planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out vec3 color)
 {
-	// Triplanar texture mapping in world space
-	float distFromSurface = distance(hit.position, planet.center) - planet.surfaceRadius;
-	float elev = terrainElevation(hit.position);
-	float gradHeight = 5000 * elev;
-	float randomStrength = 10000;
-	distFromSurface -= randomStrength * elev;
-	if(distFromSurface < PlanetMaterial.x)
-	{
-		return triplanarSample(texSampler1, hit);
-	}
-	else if(distFromSurface < PlanetMaterial.x+gradHeight)
-	{
-		return mix(triplanarSample(texSampler1, hit),triplanarSample(texSampler2, hit),
-					smoothstep(0,gradHeight,distFromSurface-PlanetMaterial.x));
-	}
-	else if(distFromSurface < PlanetMaterial.y)
-	{
-		return triplanarSample(texSampler2, hit);
-	}
-	else if(distFromSurface < PlanetMaterial.y+gradHeight)
-	{
-		return mix(triplanarSample(texSampler2, hit),triplanarSample(texSampler3, hit),
-					smoothstep(0,gradHeight,distFromSurface-PlanetMaterial.y));
-	}
-	else
-	{
-		return triplanarSample(texSampler3, hit);
+	color = vec3(0);
+	for (int k = 0; k < planets.length(); ++k)
+    {
+        Planet p = planets[k];
+        float t0, t1, tMax = POSITIVE_INFINITY; 
+		float fromDistance, toDistance;
+		if(!raySphereIntersection(p.center, p.atmosphereRadius, ray, fromDistance, toDistance)
+		|| (t1 < 0 ))// this would mean that the atmosphere and the planet is behind us
+		{
+			return 0;
+		}
+        if (raySphereIntersection(p.center, p.surfaceRadius, ray, t0, t1) && t1 > 0) 
+        {
+            tMax = min(tMax, max(0, t0));//Limit by planet surface or "some object" distance
+        }
+		//Limit the computation bounds according to the Hit
+		toDistance = min(tMax, toDistance);
+
+		return raymarchPlanet(p, ray, max(fromDistance,0), toDistance, /*out*/ color);
 	}
 }
 
-// https://www.shadertoy.com/view/WsySzw
-float pow3(float f) {
-    return f * f * f;
-}
-
-vec3 biLerp(vec3 a, vec3 b, vec3 c, vec3 d, float s, float t)
+float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistance, out vec3 color)
 {
-  vec3 x = mix(a, b, t);
-  vec3 y = mix(c, d, t);
-  return mix(x, y, s);
-}
-
-bool raymarchTerrain(Planet planet, Ray ray, float minDistance, float maxDistance, out Hit hitRecord, out float t) {
-	int backSteps = 0, forwardStepsBig = 0, forwardStepsSmall = 0;
+	color = vec3(0);
 	float t0, t1;
-	raySphereIntersection(planet.center, planet.surfaceRadius, ray, t0, t1);
-	float mountainHeight = planet.mountainsRadius -  planet.surfaceRadius;
+	bool terrainCanBeHit = raySphereIntersection(planet.center, planet.mountainsRadius, ray, t0, t1) && t1 > 0;
 
-	if(t0 < maxDistance && t0 > 0) {
-		maxDistance = t0;
-	}
-	// Limit to the far plane
-	maxDistance = min(maxDistance, QualitySettings_farPlane);
+	float segmentLength = (maxDistance - minDistance) / Multisampling_perAtmospherePixel;
+	float currentDistance = minDistance;
+	float previousDistance;
 
-	float fixedSegmentLength = distance((ray.origin + ray.direction * maxDistance),
-										(ray.origin + ray.direction * minDistance))/QualitySettings_steps;
-	t = minDistance;
-	ivec2 mapSize = textureSize(heightmapTexture,0);
+	vec3 rayleighColor = vec3(0);
+	vec3 mieColor = vec3(0);
+	float opticalDepthR = 0, opticalDepthM = 0; 
 
-	vec3 bump;
-	bool wasHit = false;
-	vec3 sphNormal;
-	vec3 samplePos;
-	int i;
-    for (i = 0; i < QualitySettings_steps; i++) {
-        samplePos = ray.origin + ray.direction * t;
-		
-		sphNormal = normalize(samplePos - planet.center);
-		#if 1
-		// Perform hermite bilinear interpolation of texture
-		vec2 uvScaled = toUV(sphNormal) * mapSize;
-		ivec2 coords = ivec2(uvScaled);
-		vec2 coordDiff = uvScaled - coords;
-		vec3 bump1 = texelFetch(heightmapTexture, coords, 0).xyz;
-		vec3 bump2 = texelFetch(heightmapTexture, coords+ivec2(1,0), 0).xyz;
-		vec3 bump3 = texelFetch(heightmapTexture, coords+ivec2(0,1), 0).xyz;
-		vec3 bump4 = texelFetch(heightmapTexture, coords+ivec2(1,1), 0).xyz;
-		vec2 sm = smoothstep(0,1,coordDiff);
+	vec3 sunVector = directionalLights[planet.sunDrectionalLightIndex].direction.xyz;
+	float angleDot = dot(sunVector, ray.direction);
 
-		// Result interpolated texture
-		bump = biLerp(bump1,bump2,bump3,bump4,sm.y,sm.x);
-		#else
-		bump = texture(heightmapTexture,toUV(sphNormal)).xyz;
-		#endif
+	float rayleightPhase = 3.0 / (16.0 * PI) * (1 + angleDot * angleDot);
+	float assymetryFactor2 = planet.mieAsymmetryFactor * planet.mieAsymmetryFactor;
+	float miePhase = 3.0 /
+		(8.0 * PI) * ((1.0 - assymetryFactor2) * (1.0 + (angleDot * angleDot)))
+		/ ((2.f + assymetryFactor2) * pow(1.0 + assymetryFactor2 - 2.0 * planet.mieAsymmetryFactor * angleDot, 1.5f));
 
-		float surfaceHeight = planet.surfaceRadius + (bump.x * mountainHeight);
-		vec3 surfacePoint = planet.center + surfaceHeight * sphNormal;
-		float sampleHeight = distance(planet.center, samplePos);
-
-		// Compute "distance" function
-		float dist = sampleHeight - surfaceHeight;
-		if(dist < 0)
-		{
-			wasHit = true;
-			backSteps++;
-			t += min(dist * RaymarchingSteps.z, RaymarchingSteps.w);
-		}
-		else 
-		{
-			if(dist < QualitySettings_precision)
-			{
-				wasHit = true;
-				break;
-			}
-			else if(dist > maxDistance)// When we are too far away from the surface
-			{
-				return false;
-			}
-
-			int remainingSteps = int(QualitySettings_steps/2/*Fixed step will be 2*long as 'optimalisation' */) - i;
-			float remainingDistance = maxDistance - t;
-
-			float realisticStep;
-			if(wasHit)
-			{
-				t += (dist*RaymarchingSteps.x)/remainingSteps;
-				continue;
-			}
-			else
-				realisticStep = remainingDistance/remainingSteps;
-			float optimisticStep = dist * QualitySettings_optimism;
-			float slopeFactor = sqrt(1 - dot(bump.gb, bump.gb));
-			vec3 planetPointApprox = samplePos;
-			planetPointApprox -= sphNormal*dist;
-			float biggerStep = max(realisticStep,optimisticStep);
-			float smallerStep = min(realisticStep,optimisticStep);
-
-			float mixFactor = max(slopeFactor, 1-(distance(ray.origin,planetPointApprox))/RaymarchingSteps.y);
-			if(mixFactor > 0.5)
-			{
-				forwardStepsSmall++;
-			}
-			else
-			{
-				forwardStepsBig++;
-			}
-			float st = mix(biggerStep,smallerStep,mixFactor);
-			if(t + st > maxDistance)
-			{
-				t = maxDistance;
-			}
-			else
-			{
-				t += st;
-			}
-		}
-		if(t > maxDistance)
-		{
-			return false;
-		}
-    }
-	if(wasHit)
+	for(int i = 0; i < Multisampling_perAtmospherePixel; i++)
 	{
-		vec3 worldNormal;
-		if(DEBUG_RM)
+		// Always sample at the center of sample
+		vec3 worldSamplePos;
+		vec3 sphNormal;
+		previousDistance = currentDistance;
+		float sampleHeight = getSampleParameters(planet, ray, currentDistance, /*out*/ sphNormal, /*out*/ worldSamplePos);
+
+		// Check if there is terrain at this sample
+		if(terrainCanBeHit)
 		{
-			worldNormal = vec3(forwardStepsBig,forwardStepsSmall,backSteps)/QualitySettings_steps;
+			vec2 planetNormalMap;
+			float terrainDistance = terrainSDF(planet, sampleHeight, sphNormal, /*out*/ planetNormalMap);
+			if(terrainDistance < 0)
+			{	
+				//We could now return the color of the planet, but instead we want to do a binary search for a more precise intersection
+				vec3 betterIntersection = bisectTerrain(planet, ray, previousDistance, currentDistance,
+										/*out*/ planetNormalMap, /*out*/ sphNormal);
+				vec3 worldNormal = terrainNormal(planetNormalMap, sphNormal);
+				if(DEBUG_NORMALS)
+				{
+					//color = worldNormal * 0.5 + 0.5;
+					color = vec3(length(worldSamplePos - betterIntersection)/1000);
+					return currentDistance;
+				}
+				color = terrainColor(planet, ray.origin, betterIntersection, worldNormal);
+				break; // Skip further atmosphere raymarching
+			}
 		}
-		else
+
+
+		//Compute optical depth; HF = height factor
+		float rayleighHF = exp(-sampleHeight/planet.rayleighScaleHeight) * segmentLength;
+		float mieHF = exp(-sampleHeight/planet.mieScaleHeight) * segmentLength;
+		opticalDepthR += rayleighHF; 
+        opticalDepthM += mieHF;
+
+		//Compute light optical depth
+        float t0Light, t1Light; 
+		// Intersect light ray with outer shell of the planet
+        raySphereIntersection(planet.center, planet.atmosphereRadius, Ray(worldSamplePos, sunVector), t0Light, t1Light); 
+        float lSegmentLength = t1Light / Multisampling_perLightRay;
+		float tCurrentLight = 0; 
+        float lOpticalDepthR = 0, lOpticalDepthM = 0; 
+
+		int l;
+		for (l = 0; l < Multisampling_perLightRay; ++l) { 
+            vec3 lSamplePos = worldSamplePos + (tCurrentLight + lSegmentLength * 0.5) * sunVector; 
+			float lCenterDist = distance(lSamplePos, planet.center);
+            float lSampleHeight = lCenterDist - planet.surfaceRadius; 
+            if (lSampleHeight < 0) break;
+
+            lOpticalDepthR += exp(-lSampleHeight / planet.rayleighScaleHeight) * lSegmentLength; 
+            lOpticalDepthM += exp(-lSampleHeight / planet.mieScaleHeight) * lSegmentLength; 
+            tCurrentLight += lSegmentLength; 
+        }
+		if(l == Multisampling_perLightRay)
 		{
-			// Compute normal in world space
-			vec2 map = (bump.gb) * 2 - 1;
-			vec3 t = sphereTangent(sphNormal);
-			vec3 bitangent = sphNormal * t;
-			float normalZ = sqrt(1-dot(map.xy, map.xy));
-			worldNormal = normalize(map.x * t + map.y * bitangent + normalZ * sphNormal);
+			//Finalize the computation and commit to the result color
+
+			//There should be extinction coefficients, but for Rayleigh, they are the same as scattering coeff.s and for Mie, it is 1.11 times the s.c.
+			float mieExtinction = 1.11 * planet.mieCoefficient;
+			vec3 depth = planet.rayleighCoefficients * (lOpticalDepthR + opticalDepthR)
+							+ mieExtinction * (lOpticalDepthM + opticalDepthM);
+			vec3 attenuation = exp(-depth);
+
+			rayleighColor += attenuation * rayleighHF;
+			mieColor += attenuation * mieHF;
 		}
-		hitRecord = Hit(samplePos, worldNormal, -1);
-		return true;
+		// Shift to next sample
+		currentDistance += segmentLength;
 	}
-	return false;
-}
-bool intersectsPlanet(Planet planet, Ray ray)
-{
-	float t0,t1;
-	if(raySphereIntersection(planet.center, planet.mountainsRadius, ray, t0, t1) && t1 > 0)
-    {
-		// Compute intersection point with planet mountains by raymarching
-		Hit outHit;
-		if(raymarchTerrain(planet, ray, max(t0,0), t1, outHit , t1))
-		{
-			return true;
-		}
-    }
-	return false;
-}
-
-vec3 raytracePlanet(Planet planet, Ray ray, out float tMax, out Hit outHit)
-{
-	tMax = POSITIVE_INFINITY;
-	float t0,t1;
-	if(raySphereIntersection(planet.center, planet.mountainsRadius, ray, t0, t1) && t1 > 0)
-    {
-		// Compute intersection point with planet mountains by raymarching
-		float t2;
-		if(raymarchTerrain(planet, ray, max(t0,0), t1, outHit, t2))
-		{
-			// When the ray intersects the planet surface, we need to limit the atmosphere
-			// computation to the intersection point
-
-			tMax = max(t2, 0);
-			if(DEBUG_NORMALS)
-			{
-				return outHit.normalAtHit/2+0.5;
-			}
-			else if(DEBUG_RM)
-			{
-				return outHit.normalAtHit;
-			}
-			//return vec3(texture(heightmapTexture,toUV(normalize(outHit.position))).x);
-			return planetColor(planet, ray.origin, outHit);
-		}
-    }
-	return vec3(0);
+	// Add atmosphere to planet color /* or to nothing */
+	color += (rayleighColor * planet.rayleighCoefficients * rayleightPhase
+			+ mieColor * planet.mieCoefficient * miePhase
+			) * planet.sunIntensity;
+	return currentDistance;
 }
