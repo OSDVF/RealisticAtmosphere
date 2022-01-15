@@ -8,47 +8,23 @@ float getSampleParameters(Planet planet, Ray ray, float currentDistance, out vec
 #ifdef COMPUTE
 uvec2 quadIndex = gl_LocalInvocationID.xy / 2;
 shared vec3 hitPosition;
-float mip_map_level(in vec2 texture_coordinate) // in texel units
-{
-return 1;
-	/*vec2  dx_vtc = variable[quadIndex.x + 1][quadIndex.y + 0] - variable[quadIndex.x + 0][quadIndex.y + 0];
-	vec2  dy_vtc = variable[quadIndex.x + 0][quadIndex.y + 1] - variable[quadIndex.x + 0][quadIndex.y + 0];
-    vec2  dx_vtc        = dFdx(texture_coordinate);
-    vec2  dy_vtc        = dFdy(texture_coordinate);
-    float delta_max_sqr = max(dot(dx_vtc, dx_vtc), dot(dy_vtc, dy_vtc));
-    float mml = 0.5 * log2(delta_max_sqr);
-    return max( 0, mml ); // Thanks @Nims*/
-}
-#else
-float mip_map_level(in vec2 texture_coordinate) // in texel units
-{
-    vec2  dx_vtc        = dFdx(texture_coordinate);
-    vec2  dy_vtc        = dFdy(texture_coordinate);
-    float delta_max_sqr = max(dot(dx_vtc, dx_vtc), dot(dy_vtc, dy_vtc));
-    float mml = 0.5 * log2(delta_max_sqr);
-    return max( 0, mml ); // Thanks @Nims
-}
 #endif
-vec3 triplanarSample(sampler2D sampl, vec3 pos, vec3 normal)
+vec3 triplanarSample(sampler2D sampl, vec3 pos, vec3 normal, float lod)
 {
+	pos /= 50;
 	vec2 triUVx = (pos.zy);
 	vec2 triUVy = (pos.xz);
 	vec2 triUVz = (pos.xy);
-	#ifdef COMPUTE
-	vec4 texX = textureLod(sampl, triUVx, mip_map_level(pos.zy));
-	vec4 texY = textureLod(sampl, triUVy, mip_map_level(pos.xz));
-	vec4 texZ = textureLod(sampl, triUVz, mip_map_level(pos.xy));
-	#else
 	const float bigUvFrac = 10;
 	vec2 biggerUV = triUVx/bigUvFrac;
-	vec4 texX = texture(sampl, triUVx);
-	texX *= texture(sampl, biggerUV);
-	vec4 texY = texture(sampl, triUVy);
+	vec4 texX = textureLod(sampl, triUVx, lod);
+	texX *= textureLod(sampl, biggerUV, lod);
+	vec4 texY = textureLod(sampl, triUVy, lod);
 	biggerUV = triUVy/bigUvFrac;
-	texY *= texture(sampl, biggerUV);
-	vec4 texZ = texture(sampl, triUVz);
+	texY *= textureLod(sampl, biggerUV, lod);
+	vec4 texZ = textureLod(sampl, triUVz, lod);
 	biggerUV = triUVz/bigUvFrac;
-	texZ *= texture(sampl, biggerUV);
+	texZ *= textureLod(sampl, biggerUV, lod);
 	#endif
 
 	vec3 weights = abs(normal);
@@ -66,27 +42,48 @@ vec3 terrainColor(Planet planet, vec3 camPos, vec3 pos, vec3 normal)
 	float gradHeight = 5000 * elev;
 	float randomStrength = 10000;
 	distFromSurface -= randomStrength * elev;
+	float lod = pow(distance(camPos,pos), RaymarchingSteps.w) / QualitySettings_precision;
+	if(DEBUG_RM)
+	{
+		if(lod>4)
+		{
+			return vec3(1,1,0);
+		}
+		else if(lod > 3)
+		{
+			return vec3(1,0,0);
+		}
+		else if(lod > 2)
+		{
+			return vec3(0,1,0);
+		}
+		else if(lod > 1)
+		{
+			return vec3(0,0,1);
+		}
+		return vec3(0,0,0);
+	}
 	if(distFromSurface < PlanetMaterial.x)
 	{
-		return triplanarSample(texSampler1, pos, normal);
+		return triplanarSample(texSampler1, pos, normal, lod);
 	}
 	else if(distFromSurface < PlanetMaterial.x+gradHeight)
 	{
-		return mix(triplanarSample(texSampler1, pos, normal),triplanarSample(texSampler2, pos, normal),
+		return mix(triplanarSample(texSampler1, pos, normal, lod), triplanarSample(texSampler2, pos, normal, lod),
 					smoothstep(0,gradHeight,distFromSurface-PlanetMaterial.x));
 	}
 	else if(distFromSurface < PlanetMaterial.y)
 	{
-		return triplanarSample(texSampler2, pos, normal);
+		return triplanarSample(texSampler2, pos, normal, lod);
 	}
 	else if(distFromSurface < PlanetMaterial.y+gradHeight)
 	{
-		return mix(triplanarSample(texSampler2, pos, normal),triplanarSample(texSampler3, pos, normal),
+		return mix(triplanarSample(texSampler2, pos, normal, lod), triplanarSample(texSampler3, pos, normal, lod),
 					smoothstep(0,gradHeight,distFromSurface-PlanetMaterial.y));
 	}
 	else
 	{
-		return triplanarSample(texSampler3, pos, normal);
+		return triplanarSample(texSampler3, pos, normal, lod);
 	}
 }
 
@@ -104,7 +101,7 @@ vec3 biLerp(vec3 a, vec3 b, vec3 c, vec3 d, float s, float t)
 vec3 terrainNormal(vec2 normalMap, vec3 sphNormal)
 {
 	// Compute normal in world space
-	vec2 map = (normalMap*RaymarchingSteps.w) * 2 - 1;
+	vec2 map = (normalMap) * 2 - 1;
 	vec3 t = sphereTangent(sphNormal);
 	vec3 bitangent = sphNormal * t;
 	float normalZ = sqrt(1-dot(map.xy, map.xy));
@@ -220,7 +217,7 @@ bool raymarchTerrain(Planet planet, Ray ray, float fromDistance, inout float toD
 					//color = vec3(previousDistance,subStepDistance,terrainDistance);
 					return true;
 				}
-				color = terrainColor(planet, ray.origin, worldSamplePos*RaymarchingSteps.z, worldNormal);
+				color = terrainColor(planet, ray.origin, worldSamplePos, worldNormal);
 				return true;
 			}
 

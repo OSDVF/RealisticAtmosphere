@@ -35,6 +35,10 @@ float planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out ve
 		//Limit the srating point to the screen
 		fromDistance = max(fromDistance, 0);
 		raymarchTerrain(p, ray, fromDistance, /* inout */ toDistance, /* out */ color);
+		if(DEBUG_ATMO_OFF)
+		{
+			return 0;
+		}
 		return raymarchPlanet(p, ray, fromDistance, toDistance, /*inout*/ color);
 	}
 }

@@ -572,13 +572,13 @@ namespace RealisticAtmosphere
 			ImGui::InputInt("Bisect Steps", &steps);
 			QualitySettings_steps = steps;
 			ImGui::PopItemWidth();
-			ImGui::InputFloat("Precision", &QualitySettings_precision);
+			ImGui::InputFloat("Precision", &QualitySettings_precision,0,0,"%.10f");
 			ImGui::InputFloat("Far Plane", &QualitySettings_farPlane);
 			ImGui::SliderFloat("Fog", &PlanetMaterial.w, 0, 1);
 			ImGui::InputInt("Planet Steps", (int*)&RaymarchingSteps.x);
 			ImGui::InputFloat("SubRM Prec", &RaymarchingSteps.y);
 			ImGui::InputFloat("Texture", &RaymarchingSteps.z);
-			ImGui::SliderFloat("Normals", &RaymarchingSteps.w,0,2);
+			ImGui::InputFloat("LOD Bias", &RaymarchingSteps.w, 0,0,"%.10f");
 			ImGui::End();
 		}
 	};
