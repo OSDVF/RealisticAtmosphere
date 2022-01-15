@@ -30,10 +30,11 @@ vec4 Camera[] =
     vec4(0,1,0,0),//Up vector, fovY
     vec4(1,0,0,0)//Right vector, fovX
 };
-vec4 MultisamplingSettings = {2,8,64,0};
-vec4 QualitySettings = {50,1,500000,2};
+vec4 MultisamplingSettings = {1,1,64,0};
+vec4 QualitySettings = {5,0.6,7000,0.4};
 vec4 PlanetMaterial = {-10000, 5000, 10000, 0.2 };
-vec4 RaymarchingSteps = {0.1, 100000, 0.5, 1};
+int planetSteps = 200;
+vec4 RaymarchingSteps = {*(float*)&planetSteps, 0.0015, 0.01, 1};
 #endif
 
 struct Ray

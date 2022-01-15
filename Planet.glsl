@@ -1,12 +1,11 @@
 //?#version 450
 #include "Buffers.glsl"
 #include "Intersections.glsl"
-#include "Atmosphere.glsl"
 #include "Terrain.glsl"
 #include "Lighting.glsl"
 #define PI pi
 
-float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistance, out vec3 color);
+float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistance, inout vec3 color);
 
 /**
   * Does a raymarching through the atmosphere and planet
@@ -33,20 +32,30 @@ float planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out ve
         }
 		//Limit the computation bounds according to the Hit
 		toDistance = min(tMax, toDistance);
-
-		return raymarchPlanet(p, ray, max(fromDistance,0), toDistance, /*out*/ color);
+		//Limit the srating point to the screen
+		fromDistance = max(fromDistance, 0);
+		raymarchTerrain(p, ray, fromDistance, /* inout */ toDistance, /* out */ color);
+		return raymarchPlanet(p, ray, fromDistance, toDistance, /*inout*/ color);
 	}
 }
 
-float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistance, out vec3 color)
+float getSampleAtmParams(Planet planet, Ray ray, float currentDistance, out vec3 worldSamplePos)
 {
-	color = vec3(0);
+	worldSamplePos = ray.origin + currentDistance * ray.direction;
+	vec3 centerToSample = worldSamplePos - planet.center;
+	float centerDist = length(centerToSample);
+	// Height above the sea level
+	return centerDist - planet.surfaceRadius;
+}
+
+float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistance, inout vec3 color)
+{
 	float t0, t1;
 	bool terrainCanBeHit = raySphereIntersection(planet.center, planet.mountainsRadius, ray, t0, t1) && t1 > 0;
 
 	float segmentLength = (maxDistance - minDistance) / Multisampling_perAtmospherePixel;
 	float currentDistance = minDistance;
-	float previousDistance;
+	float previousDistance = 0;
 
 	vec3 rayleighColor = vec3(0);
 	vec3 mieColor = vec3(0);
@@ -66,31 +75,7 @@ float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistanc
 		// Always sample at the center of sample
 		vec3 worldSamplePos;
 		vec3 sphNormal;
-		previousDistance = currentDistance;
-		float sampleHeight = getSampleParameters(planet, ray, currentDistance, /*out*/ sphNormal, /*out*/ worldSamplePos);
-
-		// Check if there is terrain at this sample
-		if(terrainCanBeHit)
-		{
-			vec2 planetNormalMap;
-			float terrainDistance = terrainSDF(planet, sampleHeight, sphNormal, /*out*/ planetNormalMap);
-			if(terrainDistance < 0)
-			{	
-				//We could now return the color of the planet, but instead we want to do a binary search for a more precise intersection
-				vec3 betterIntersection = bisectTerrain(planet, ray, previousDistance, currentDistance,
-										/*out*/ planetNormalMap, /*out*/ sphNormal);
-				vec3 worldNormal = terrainNormal(planetNormalMap, sphNormal);
-				if(DEBUG_NORMALS)
-				{
-					//color = worldNormal * 0.5 + 0.5;
-					color = vec3(length(worldSamplePos - betterIntersection)/1000);
-					return currentDistance;
-				}
-				color = terrainColor(planet, ray.origin, betterIntersection, worldNormal);
-				break; // Skip further atmosphere raymarching
-			}
-		}
-
+		float sampleHeight = getSampleAtmParams(planet, ray, currentDistance, /*out*/ worldSamplePos);
 
 		//Compute optical depth; HF = height factor
 		float rayleighHF = exp(-sampleHeight/planet.rayleighScaleHeight) * segmentLength;
@@ -131,6 +116,7 @@ float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistanc
 			mieColor += attenuation * mieHF;
 		}
 		// Shift to next sample
+		previousDistance = currentDistance;
 		currentDistance += segmentLength;
 	}
 	// Add atmosphere to planet color /* or to nothing */

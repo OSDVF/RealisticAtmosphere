@@ -32,7 +32,7 @@ void FirstPersonController::Update(float deltaTime, bool mouseLocked) {
 	auto forwardForce = (this->Camera.GetForward() * (float)(up - down));
 	auto moveForce = glm::normalize(rightForce + upForce + forwardForce);
 
-	if (up || down || right || left || jump || crouch) {
+	if (glm::length(moveForce) > 0) {
 		isMoving = true;
 	}
 	else {
@@ -43,6 +43,10 @@ void FirstPersonController::Update(float deltaTime, bool mouseLocked) {
 	//Limit Speed
 	if (glm::length(velocity) > speed) {
 		velocity = normalize(velocity) * speed;
+	}
+	if (bx::isNan(velocity.x))
+	{
+		__debugbreak();
 	}
 
 	//

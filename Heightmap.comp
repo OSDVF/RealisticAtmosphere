@@ -22,8 +22,9 @@ void main()
 	
     vec3 p = toPolar(tc);
 	color.r = terrainElevation(p);
-    vec2 normal = texNormalMap(tc) * 3.43973582829;// This constant came from pure debugging. It makes it range -1 to 1
-    color.gb = (normal/2+0.5);
+    vec2 normal = texNormalMap(tc) / 0.56666;// This constant came from pure debugging. It makes it range -1 to 1
+    color.gb = normal/2+0.5;
+    //color.gb = normal;
 
 	imageStore(heightmapOutput, ivec3(gl_GlobalInvocationID.xy,0), color );
 }

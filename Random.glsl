@@ -134,10 +134,53 @@ float fbm6(vec3 x) {
 	return v;
 }
 
-float terrainElevation(vec3 p)
+float hash1( vec2 p )
 {
-    float elev = 1.0 - fbm6(p*200);
-    return (elev*elev*elev-0.00031)/0.81415;
+    p  = 50.0*fract( p*0.3183099 );
+    return fract( p.x*p.y*(p.x+p.y) );
+}
+float noise( in vec2 x )
+{
+    vec2 p = floor(x);
+    vec2 w = fract(x);
+    #if 1
+    vec2 u = w*w*w*(w*(w*6.0-15.0)+10.0);
+    #else
+    vec2 u = w*w*(3.0-2.0*w);
+    #endif
+
+    float a = hash1(p+vec2(0,0));
+    float b = hash1(p+vec2(1,0));
+    float c = hash1(p+vec2(0,1));
+    float d = hash1(p+vec2(1,1));
+    
+    return -1.0+2.0*(a + (b-a)*u.x + (c-a)*u.y + (a - b - c + d)*u.x*u.y);
+}
+const mat2 m2 = mat2(  0.80,  0.60,
+                      -0.60,  0.80 );
+float fbm_9( in vec2 x )
+{
+    float f = 1.9;
+    float s = 0.55;
+    float a = 0.0;
+    float b = 0.5;
+    for( int i=0; i<9; i++ )
+    {
+        float n = noise(x);
+        a += b*n;
+        b *= s;
+        x = f*m2*x;
+    }
+    
+	return a;
+}
+
+vec2 terrainMap( in vec2 p )
+{
+    float e = fbm_9( p + vec2(1.0,-2.0) );
+    float a = 1.0-smoothstep( 0.12, 0.13, abs(e+0.12) ); // flag high-slope areas (-0.25, 0.0)
+    e += 0.15*smoothstep( -0.08, -0.01, e );
+    return vec2(e,a);
 }
 
 const float pi = atan(1.0) * 4.0;
@@ -279,6 +322,14 @@ vec3 sphereTangent(vec3 normal)
         return tan2;
     }
     return tangentFromSpherical(theta1, phi1);
+}
+
+float terrainElevation(vec3 p)
+{
+    /*float elev = 1.0 - fbm6(p*200);
+    return (elev*elev*elev-0.00031)/0.81415;*/
+    vec2 uv = toUV(p);
+    return (terrainMap(uv*10).r+0.94)/(1.01712+0.94);
 }
 
 #endif

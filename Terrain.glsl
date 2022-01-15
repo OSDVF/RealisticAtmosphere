@@ -1,6 +1,7 @@
 //?#version 440
 #include "Random.glsl"
 #include "Buffers.glsl"
+#include "Intersections.glsl"
 
 float getSampleParameters(Planet planet, Ray ray, float currentDistance, out vec3 sphNormal, out vec3 worldSamplePos);
 
@@ -38,16 +39,16 @@ vec3 triplanarSample(sampler2D sampl, vec3 pos, vec3 normal)
 	vec4 texY = textureLod(sampl, triUVy, mip_map_level(pos.xz));
 	vec4 texZ = textureLod(sampl, triUVz, mip_map_level(pos.xy));
 	#else
-	const float bigUvFrac = 100;
+	const float bigUvFrac = 10;
 	vec2 biggerUV = triUVx/bigUvFrac;
-	vec4 texX = textureGrad(sampl, triUVx, dFdx(triUVx),dFdy(triUVx));
-	texX *= textureGrad(sampl, biggerUV, dFdx(biggerUV),dFdy(biggerUV));
-	vec4 texY = textureGrad(sampl, triUVy, dFdx(triUVy),dFdy(triUVy));
+	vec4 texX = texture(sampl, triUVx);
+	texX *= texture(sampl, biggerUV);
+	vec4 texY = texture(sampl, triUVy);
 	biggerUV = triUVy/bigUvFrac;
-	texY *= textureGrad(sampl, biggerUV, dFdx(biggerUV),dFdy(biggerUV));
-	vec4 texZ = textureGrad(sampl, triUVz, dFdx(triUVz),dFdy(triUVz));
+	texY *= texture(sampl, biggerUV);
+	vec4 texZ = texture(sampl, triUVz);
 	biggerUV = triUVz/bigUvFrac;
-	texZ *= textureGrad(sampl, biggerUV, dFdx(biggerUV),dFdy(biggerUV));
+	texZ *= texture(sampl, biggerUV);
 	#endif
 
 	vec3 weights = abs(normal);
@@ -61,7 +62,7 @@ vec3 terrainColor(Planet planet, vec3 camPos, vec3 pos, vec3 normal)
 {
 	// Triplanar texture mapping in world space
 	float distFromSurface = distance(pos, planet.center) - planet.surfaceRadius;
-	float elev = terrainElevation(pos);
+	float elev = 1000;//terrainElevation(pos);
 	float gradHeight = 5000 * elev;
 	float randomStrength = 10000;
 	distFromSurface -= randomStrength * elev;
@@ -103,20 +104,25 @@ vec3 biLerp(vec3 a, vec3 b, vec3 c, vec3 d, float s, float t)
 vec3 terrainNormal(vec2 normalMap, vec3 sphNormal)
 {
 	// Compute normal in world space
-	vec2 map = (normalMap) * 2 - 1;
+	vec2 map = (normalMap*RaymarchingSteps.w) * 2 - 1;
 	vec3 t = sphereTangent(sphNormal);
 	vec3 bitangent = sphNormal * t;
 	float normalZ = sqrt(1-dot(map.xy, map.xy));
 	return normalize(map.x * t + map.y * bitangent + normalZ * sphNormal);
 }
 
+vec2 planetUV(vec3 planetNormal)
+{
+	return mod(toUV(planetNormal)*100,1);
+}
+
 float terrainSDF(Planet planet, float sampleHeight /*above sea level*/, vec3 sphNormal, out vec2 outNormalMap)
 {
 	vec3 bump;
-	#if 1
+	#if 0
 	// Perform hermite bilinear interpolation of texture
 	ivec2 mapSize = textureSize(heightmapTexture,0);
-	vec2 uvScaled = toUV(sphNormal) * mapSize;
+	vec2 uvScaled = planetUV(sphNormal) * mapSize;
 	ivec2 coords = ivec2(uvScaled);
 	vec2 coordDiff = uvScaled - coords;
 	vec3 bump1 = texelFetch(heightmapTexture, coords, 0).xyz;
@@ -128,7 +134,7 @@ float terrainSDF(Planet planet, float sampleHeight /*above sea level*/, vec3 sph
 	// Result interpolated texture
 	bump = biLerp(bump1,bump2,bump3,bump4,sm.y,sm.x);
 	#else
-	bump = texture(heightmapTexture,toUV(sphNormal)).xyz;
+	bump = texture(heightmapTexture,planetUV(sphNormal)).xyz;
 	#endif
 
 	float mountainHeight = planet.mountainsRadius -  planet.surfaceRadius;
@@ -150,27 +156,80 @@ float getSampleParameters(Planet planet, Ray ray, float currentDistance, out vec
 /**
   * @returns world-space position of intersection
   */
-vec3 bisectTerrain(Planet planet, Ray ray, float fromT, inout float toT, out vec2 outNormalMap, out vec3 sphNormal)
+vec3 bisectTerrain(Planet planet, Ray ray, float fromT, /*inout*/ float toT, out vec2 outNormalMap, out vec3 sphNormal)
 {
+	vec3 worldSamplePos;
+	float lastValue = 0;
+	float currentT = (toT - fromT)/2;
 	for(int i = 0; i < QualitySettings_steps; i++)
 	{
-		float currentT = (toT - fromT)/2;
-		vec3 worldSamplePos;
 		float sampleHeight = getSampleParameters(planet, ray, currentT, sphNormal, worldSamplePos);
 
 		float terrainDistance = terrainSDF(planet, sampleHeight, sphNormal, outNormalMap);
-		if(abs(terrainDistance) < QualitySettings_precision)
+		if(abs(terrainDistance - lastValue) < RaymarchingSteps.w)
 		{
 			return worldSamplePos;
 		}
-		if(terrainDistance < 0)
+		if(abs(terrainDistance)<QualitySettings_precision)
+				return worldSamplePos;
+		/*if(terrainDistance < 0)
 		{
 			toT = currentT;
 		}
 		else
 		{
 			fromT = currentT;
+		}*/
+		currentT += terrainDistance;
+		lastValue = terrainDistance;
+	}
+	return worldSamplePos;
+}
+
+bool raymarchTerrain(Planet planet, Ray ray, float fromDistance, inout float toDistance, out vec3 color)
+{
+	// Check if there is terrain at this sample
+	float t0, t1;
+	if(!(raySphereIntersection(planet.center, planet.mountainsRadius, ray, t0, t1)&&t1>0))
+		return false;
+
+	fromDistance = max(fromDistance, t0);
+
+	float currentT = fromDistance;
+	vec3 sphNormal, worldSamplePos;
+	vec2 planetNormalMap;
+
+	for(int i = 0; i < floatBitsToInt(RaymarchingSteps.x);i++)
+	{
+		if(currentT <= QualitySettings_farPlane)
+		{
+			float sampleHeight = getSampleParameters(planet, ray, currentT, sphNormal, worldSamplePos);
+			float terrainDistance = terrainSDF(planet, sampleHeight, /*out*/ sphNormal, /*out*/ planetNormalMap);
+			if(abs(terrainDistance) < RaymarchingSteps.y * currentT)
+			{
+				// Sufficient distance to claim as "hit"
+				toDistance = currentT;
+				//worldSamplePos = bisectTerrain(planet, ray, previousDistance, subStepDistance,
+				//								/*out*/ planetNormalMap, /*out*/ sphNormal);
+						//terrainColor(planet, ray.origin, worldSamplePos, worldNormal
+				vec3 worldNormal = terrainNormal(planetNormalMap, sphNormal);
+				if(DEBUG_NORMALS)
+				{
+					color = worldNormal * 0.5 + 0.5;
+					//color = vec3(length(worldSamplePos - betterIntersection)/1000);
+					//color = vec3(previousDistance,subStepDistance,terrainDistance);
+					return true;
+				}
+				color = terrainColor(planet, ray.origin, worldSamplePos*RaymarchingSteps.z, worldNormal);
+				return true;
+			}
+
+			currentT += QualitySettings_optimism * terrainDistance;
+		}
+		else
+		{
+			return false;
 		}
 	}
-	return vec3(0);
+	return false;
 }
