@@ -1,6 +1,12 @@
 //?#version 440
 #ifndef INTERSECTIONS
 #define INTERSECTIONS
+struct Ray
+{
+    vec3 origin;
+    vec3 direction;
+};
+
 #include "SceneObjects.glsl"
 bool solveQuadratic(float a, float b, float c, out float x1, out float x2) 
 { 

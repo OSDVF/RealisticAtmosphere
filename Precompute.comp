@@ -1,0 +1,47 @@
+//?#version 440
+#include "Intersections.glsl"
+
+layout(local_size_x=16, local_size_y=16, local_size_z = 1) in;
+uniform vec4 AtmoParameters;
+//x = H0 for rayleigh
+//y = radius of planet surface
+//z = radius of atmosphere
+//w = H0 for mie
+layout(rg32f, binding=0) writeonly uniform image2D opticalDepth;//r = rayleigh, g = mie
+
+void main()
+{
+	vec4 color;
+	vec2 tc = vec2(gl_GlobalInvocationID.xy) / float(gl_WorkGroupSize * gl_NumWorkGroups);
+	
+	/*float p = 1 - tc.y;
+	float radius = AtmoParameters.x * log(p) + AtmoParameters.y;*/
+	float cosAlpha = tc.x*1.5-0.5;
+	float sunToViewRayAngle = acos(cosAlpha);
+	float atmoThickness = (AtmoParameters.z - AtmoParameters.y);
+	float sampleHeight = tc.y * atmoThickness + AtmoParameters.y;
+
+	float x = sin(sunToViewRayAngle) * sampleHeight;
+	float y = cosAlpha * sampleHeight;
+	vec3 samplePos = vec3(x,y,0);
+
+	int sampleCount = 300;
+	float fromT,toT;
+	raySphereIntersection(vec3(0), AtmoParameters.z, Ray(samplePos, vec3(0,1,0)), fromT, toT);
+	float lSegmentLength = toT / sampleCount;
+
+	float tCurrentLight = 0;
+	float lOpticalDepthR = 0,lOpticalDepthM = 0;
+
+	for (int l = 0; l < sampleCount; ++l) { 
+		vec3 lSamplePos = samplePos + (tCurrentLight + lSegmentLength * 0.5) * vec3(0,1,0); 
+		float lCenterDist = length(lSamplePos);
+        float lSampleHeight /*above sea*/ = lCenterDist - AtmoParameters.y; 
+
+        lOpticalDepthR += exp(-lSampleHeight / AtmoParameters.x) * lSegmentLength;
+		lOpticalDepthM += exp(-lSampleHeight / AtmoParameters.w) * lSegmentLength; 
+		tCurrentLight += lSegmentLength; 
+	}
+
+	imageStore(opticalDepth, ivec2(gl_GlobalInvocationID.xy), vec4(lOpticalDepthR,lOpticalDepthM,0,0));
+}

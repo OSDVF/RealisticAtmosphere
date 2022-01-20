@@ -185,24 +185,28 @@ bool raymarchTerrain(Planet planet, Ray ray, float fromDistance, inout float toD
 }
 
 // Reduced version, that uses different uniform parameters
-void raymarchTerrainL(Planet planet, Ray ray, float fromDistance, inout float toDistance, out vec2 normalMap, out vec3 sphNormal, out vec3 worldSamplePos, out float sampleHeight)
+bool raymarchTerrainL(Planet planet, Ray ray, float fromDistance, float toDistance)
 {
 	float currentT = fromDistance;
-	float terrainDistance;
+	toDistance = min(toDistance, HQSettings_lightFarPlane);
 
 	for(int i = 0; i < floatBitsToInt(PlanetMaterial.z);i++)
 	{
-		sampleHeight = getSampleParameters(planet, ray, currentT, /*out*/sphNormal, /*out*/worldSamplePos);
-		terrainDistance = terrainSDF(planet, sampleHeight, sphNormal, /*out*/ normalMap);
+		vec2 normalMap;
+		vec3 sphNormal;
+		vec3 worldSamplePos;
+
+		float sampleHeight = getSampleParameters(planet, ray, currentT, /*out*/sphNormal, /*out*/worldSamplePos);
+		float terrainDistance = terrainSDF(planet, sampleHeight, sphNormal, /*out*/ normalMap);
 		if(terrainDistance < QualitySettings_lightPrecision * currentT)
 		{
 			// Sufficient distance to claim as "hit"
-			toDistance = currentT;
-			return;
+			return true;
 		}
-		if(terrainDistance > HQSettings_lightFarPlane)
-			return;
+		if(terrainDistance > toDistance)
+			return false;
 
 		currentT += QualitySettings_optimism * terrainDistance;
 	}
+	return false;
 }

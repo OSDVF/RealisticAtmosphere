@@ -107,6 +107,9 @@
     <None Include="Debug.glsl">
       <Filter>Shader Programs</Filter>
     </None>
+    <None Include="Precompute.comp">
+      <Filter>Shader Programs\Compute Render</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="TestCube.h">

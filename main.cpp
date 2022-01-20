@@ -44,6 +44,7 @@ const Material _materialBuffer[] = {
 };
 
 const float earthRadius = 6360000; // cit. E. Bruneton page 3
+const float atmosphereRadius = 6420000;
 Sphere _objectBuffer[] = {
 	{//Sun
 		{0, 0, earthRadius * 60}, //Position
@@ -70,20 +71,22 @@ const vec3 precomputedRayleighScatteringCoefficients = vec3(0.0000058, 0.0000135
 /*Scattering coefficient for Mie scattering βˢₘ */
 const float precomputedMieScaterringCoefficient = 21e-6f;
 const float mieAssymetryFactor = 0.76;
+const float mieScaleHeight = 1200;
+const float rayleighScaleHeight = 7994;
 
 std::array<Planet, 1> _planetBuffer = {
 	Planet{
 		vec3(0, 0, 0),//center
 		earthRadius,//start radius
-		6420000,//end radius
+		atmosphereRadius,//end radius
 		precomputedMieScaterringCoefficient,
 		mieAssymetryFactor,
-		1200,//Mie scale height
+		mieScaleHeight,
 		//These values are based on Nishita's measurements
 		//This means that atmospheric thickness of 60 Km covers troposphere, stratosphere and a bit of mezosphere
 		//I am usnure of the "completeness" of this model, but Nishita and Bruneton used this
 		precomputedRayleighScatteringCoefficients,
-		7994,//Rayleigh scale heigh
+		rayleighScaleHeight,
 		20, //Sun intensity
 		0, // Sun object index
 		6365000, // Mountains radius
@@ -134,15 +137,20 @@ namespace RealisticAtmosphere
 		bgfx::ShaderHandle _computeShaderHandle;
 		bgfx::ShaderHandle _pathTracerHandle;
 		bgfx::ShaderHandle _heightmapShaderHandle;
+		bgfx::ShaderHandle _precomputeShaderHandle;
+		bgfx::ProgramHandle _precomputeProgram;
 	    bgfx::ProgramHandle _heightmapShaderProgram;
 		bgfx::TextureHandle _heightmapTextureHandle;
 		bgfx::UniformHandle _heightmapSampler;
 		bgfx::TextureHandle _texture1Handle;
 		bgfx::TextureHandle _texture2Handle;
 		bgfx::TextureHandle _texture3Handle;
+		bgfx::TextureHandle _opticalDepthTable;
 		bgfx::UniformHandle _texSampler1;
 		bgfx::UniformHandle _texSampler2;
 		bgfx::UniformHandle _texSampler3;
+		bgfx::UniformHandle _opticalDepthSampler;
+		bgfx::UniformHandle _atmoParameters;
 
 		bgfx::UniformHandle _cameraHandle;
 		bgfx::UniformHandle _planetMaterialHandle;
@@ -203,6 +211,8 @@ namespace RealisticAtmosphere
 			_raymarchingStepsHandle = bgfx::createUniform("RaymarchingSteps", bgfx::UniformType::Vec4);
 			_raytracerOutputSampler = bgfx::createUniform("computeShaderOutput", bgfx::UniformType::Sampler);
 			_heightmapSampler = bgfx::createUniform("heightmapTexture", bgfx::UniformType::Sampler);
+			_opticalDepthSampler = bgfx::createUniform("opticalDepthTable", bgfx::UniformType::Sampler);
+			_atmoParameters = bgfx::createUniform("AtmoParameters", bgfx::UniformType::Vec4);
 			_texSampler1 = bgfx::createUniform("texSampler1", bgfx::UniformType::Sampler);
 			_texSampler2 = bgfx::createUniform("texSampler2", bgfx::UniformType::Sampler);
 			_texSampler3 = bgfx::createUniform("texSampler3", bgfx::UniformType::Sampler);
@@ -219,10 +229,11 @@ namespace RealisticAtmosphere
 			_pathTracingProgram = bgfx::createProgram(_pathTracerHandle);
 			_heightmapShaderHandle = loadShader("Heightmap.comp");
 			_heightmapShaderProgram = bgfx::createProgram(_heightmapShaderHandle);
+			_precomputeShaderHandle = loadShader("Precompute.comp");
+			_precomputeProgram = bgfx::createProgram(_precomputeShaderHandle);
 			_texture1Handle = loadTexture("textures/grass.dds");
 			_texture2Handle = loadTexture("textures/dirt.dds");
 			_texture3Handle = loadTexture("textures/rock.dds");
-			_heightmapTextureHandle = bgfx::createTexture2D(4096, 4096, false, 1, bgfx::TextureFormat::RGBA32F, BGFX_TEXTURE_COMPUTE_WRITE);
 
 			/*auto data = imageLoad("textures/grass.ktx", bgfx::TextureFormat::RGB8);
 			bgfx::updateTexture2D(_texturesHandle, 0, 0, 0, 0, 2048, 2048, bgfx::makeRef(data->m_data, data->m_size));
@@ -239,13 +250,32 @@ namespace RealisticAtmosphere
 			resetBufferSize();
 
 			// Render heighmap
-			bgfx::setImage(0, _heightmapTextureHandle, 0, bgfx::Access::Write);
-			bgfx::dispatch(0, _heightmapShaderProgram, bx::ceil(4096 / 16.0f), bx::ceil(4096 / 16.0f));
+			heightMap();
+
+			//Render optical depth
+			precompute();
 
 			// Create Immediate GUI graphics context
 			imguiCreate();
 			_lastTicks = SDL_GetPerformanceCounter();
 			_freq = SDL_GetPerformanceFrequency();
+		}
+
+		void heightMap()
+		{
+			_heightmapTextureHandle = bgfx::createTexture2D(4096, 4096, false, 1, bgfx::TextureFormat::RGBA32F, BGFX_TEXTURE_COMPUTE_WRITE);
+			bgfx::setImage(0, _heightmapTextureHandle, 0, bgfx::Access::Write);
+			bgfx::dispatch(0, _heightmapShaderProgram, bx::ceil(4096 / 16.0f), bx::ceil(4096 / 16.0f));
+		}
+
+		void precompute()
+		{
+			_opticalDepthTable = bgfx::createTexture2D(4096, 4096, false, 1, bgfx::TextureFormat::RG32F, BGFX_TEXTURE_COMPUTE_WRITE);
+			//steps are locked to 300
+			vec4 _atmoParametersValues = { rayleighScaleHeight,earthRadius, atmosphereRadius, mieScaleHeight };
+			bgfx::setUniform(_atmoParameters, &_atmoParametersValues);
+			bgfx::setImage(0, _opticalDepthTable, 0, bgfx::Access::Write, bgfx::TextureFormat::RG32F);
+			bgfx::dispatch(0, _precomputeProgram, bx::ceil(4096 / 16.0f), bx::ceil(4096 / 16.0f));
 		}
 
 		void resetBufferSize()
@@ -290,6 +320,13 @@ namespace RealisticAtmosphere
 			bgfx::destroy(_debugAttributesHandle);
 			bgfx::destroy(_planetMaterialHandle);
 			bgfx::destroy(_raymarchingStepsHandle);
+			bgfx::destroy(_heightmapShaderHandle);
+			bgfx::destroy(_heightmapShaderProgram);
+			bgfx::destroy(_precomputeShaderHandle);
+			bgfx::destroy(_precomputeProgram);
+			bgfx::destroy(_opticalDepthSampler);
+			bgfx::destroy(_opticalDepthTable);
+			bgfx::destroy(_atmoParameters);
 
 			_screenSpaceQuad.destroy();
 
@@ -457,6 +494,7 @@ namespace RealisticAtmosphere
 			bgfx::setTexture(6, _texSampler2, _texture2Handle);
 			bgfx::setTexture(7, _texSampler3, _texture3Handle);
 			bgfx::setTexture(8, _heightmapSampler, _heightmapTextureHandle);
+			bgfx::setTexture(9, _opticalDepthSampler, _opticalDepthTable, BGFX_SAMPLER_UVW_CLAMP);
 		}
 
 		void viewportActions()

@@ -43,11 +43,6 @@ int planetSteps = 200;
 vec4 RaymarchingSteps = {*(float*)&planetSteps, 4, 0.005, 0.4};
 #endif
 
-struct Ray
-{
-    vec3 origin;
-    vec3 direction;
-};
 #define Multisampling_perPixel MultisamplingSettings.x
 #define Multisampling_perLightRay MultisamplingSettings.y
 #define Multisampling_perAtmospherePixel MultisamplingSettings.z

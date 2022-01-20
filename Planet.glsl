@@ -3,6 +3,8 @@
 #include "Intersections.glsl"
 #include "Terrain.glsl"
 #include "Lighting.glsl"
+
+uniform sampler2D opticalDepthTable;
 #define PI pi
 
 float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistance, inout vec3 color);
@@ -66,7 +68,6 @@ float getSampleAtmParams(Planet planet, Ray ray, float currentDistance, out vec3
 float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistance, inout vec3 color)
 {
 	float t0, t1;
-	bool terrainCanBeHit = raySphereIntersection(planet.center, planet.mountainsRadius, ray, t0, t1) && t1 > 0;
 
 	float segmentLength = (maxDistance - minDistance) / Multisampling_perAtmospherePixel;
 	float currentDistance = minDistance;
@@ -98,50 +99,62 @@ float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistanc
 		opticalDepthR += rayleighHF; 
         opticalDepthM += mieHF;
 
+		//
 		//Compute light optical depth
+		//
+
         float lightFromT, lightToT; 
 		// Intersect light ray with outer shell of the planet
 		Ray shadowRay = Ray(worldSamplePos, sunVector);
         raySphereIntersection(planet.center, planet.atmosphereRadius,
 							shadowRay, lightFromT, lightToT);
 		
-		float surfaceT = POSITIVE_INFINITY;
 		if(distance(worldSamplePos, planet.center) < planet.mountainsRadius)
 		{
-			//If we can hit the mountains
-			vec2 normalMap;
-			vec3 sphNormal, worldSamplePos;
-			float sampleHeight;
-			
-			raymarchTerrainL(planet, shadowRay, 0, surfaceT, normalMap, sphNormal, worldSamplePos, sampleHeight);
+			//If we hit the mountains			
+			if(raymarchTerrainL(planet, shadowRay, 0, lightToT))
+			{
+				previousDistance = currentDistance;
+				currentDistance += segmentLength;
+				continue;//Skip to next sample. This effectively creates light rays
+			}
 		}
-        float lSegmentLength = lightToT / Multisampling_perLightRay;
+		//Firstly check if sun is in shadow of the planet
+		float sunToViewAngleCos = dot(sunVector, normalize(worldSamplePos));
+		/*
+		if(sunToViewAngleCos < 0)
+		{
+			previousDistance = currentDistance;
+			currentDistance += segmentLength;
+			continue;//Skip to next sample
+		}
+		*/
+		// The lookup table is from alpha angle value from -0.5 to 1.0, so we must remap the X coord
+		vec2 tableCoords = vec2((0.5 + sunToViewAngleCos)/1.5, sampleHeight/(planet.atmosphereRadius - planet.surfaceRadius));
+		vec4 lOpticalDepth = texture2D(opticalDepthTable, tableCoords);
+
+        /*float lSegmentLength = lightToT / Multisampling_perLightRay;
 		float tCurrentLight = 0; 
-        float lOpticalDepthR = 0, lOpticalDepthM = 0; 
+        float lOpticalDepthM = 0, lOpticalDepthR = 0; 
 
 		int l;
 		for (l = 0; l < Multisampling_perLightRay; ++l) { 
-			if(tCurrentLight > surfaceT)
-			{
-				break;
-			}
             vec3 lSamplePos = worldSamplePos + (tCurrentLight + lSegmentLength * 0.5) * sunVector; 
 			float lCenterDist = distance(lSamplePos, planet.center);
             float lSampleHeight = lCenterDist - planet.surfaceRadius; 
-            if (lSampleHeight < 0) break;
 
             lOpticalDepthR += exp(-lSampleHeight / planet.rayleighScaleHeight) * lSegmentLength; 
             lOpticalDepthM += exp(-lSampleHeight / planet.mieScaleHeight) * lSegmentLength; 
             tCurrentLight += lSegmentLength; 
-        }
-		if(l == Multisampling_perLightRay)
+        }*/
+		//if(l == Multisampling_perLightRay)
 		{
 			//Finalize the computation and commit to the result color
 
 			//There should be extinction coefficients, but for Rayleigh, they are the same as scattering coeff.s and for Mie, it is 1.11 times the s.c.
 			float mieExtinction = 1.11 * planet.mieCoefficient;
-			vec3 depth = planet.rayleighCoefficients * (lOpticalDepthR + opticalDepthR)
-							+ mieExtinction * (lOpticalDepthM + opticalDepthM);
+			vec3 depth = planet.rayleighCoefficients * (lOpticalDepth.x + opticalDepthR)
+							+ mieExtinction * (lOpticalDepth.y + opticalDepthM);
 			vec3 attenuation = exp(-depth);
 
 			rayleighColor += attenuation * rayleighHF;

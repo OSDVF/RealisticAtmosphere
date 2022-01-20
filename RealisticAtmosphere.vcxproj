@@ -259,6 +259,7 @@
     <None Include="normal_render.frag" />
     <None Include="normal_render.vert" />
     <None Include="Planet.glsl" />
+    <None Include="Precompute.comp" />
     <None Include="Random.glsl" />
     <None Include="raytracer.glsl" />
     <None Include="SceneObjects.glsl" />
