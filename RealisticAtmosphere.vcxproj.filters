@@ -104,6 +104,9 @@
     <None Include="Lighting.glsl">
       <Filter>Shader Programs</Filter>
     </None>
+    <None Include="Debug.glsl">
+      <Filter>Shader Programs</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="TestCube.h">

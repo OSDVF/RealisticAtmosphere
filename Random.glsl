@@ -46,58 +46,41 @@ float random( vec3  v ) { return floatConstruct(hash(floatBitsToUint(v))); }
 float random( vec4  v ) { return floatConstruct(hash(floatBitsToUint(v))); }
 
 
-// https://www.shadertoy.com/view/4dffRH
-
-vec3 hash( vec3 p ) // replace this by something better. really. do
+// https://www.shadertoy.com/view/4dXBRH
+float hash( in vec2 p )  // replace this by something better
 {
-	p = vec3( dot(p,vec3(127.1,311.7, 74.7)),
-			  dot(p,vec3(269.5,183.3,246.1)),
-			  dot(p,vec3(113.5,271.9,124.6)));
-
-	return -1.0 + 2.0*fract(sin(p)*43758.5453123);
+    p  = 50.0*fract( p*0.3183099 + vec2(0.71,0.113));
+    return -1.0+2.0*fract( p.x*p.y*(p.x+p.y) );
 }
 
-// return value noise (in x) and its derivatives (in yzw)
-vec4 noised( in vec3 x )
+// return value noise (in x) and its derivatives (in yz)
+vec3 noised( in vec2 p )
 {
-    // grid
-    vec3 i = floor(x);
-    vec3 w = fract(x);
-    
-    #if 1
-    // quintic interpolant
-    vec3 u = w*w*w*(w*(w*6.0-15.0)+10.0);
-    vec3 du = 30.0*w*w*(w*(w-2.0)+1.0);
-    #else
-    // cubic interpolant
-    vec3 u = w*w*(3.0-2.0*w);
-    vec3 du = 6.0*w*(1.0-w);
-    #endif    
-    
-    // gradients
-    vec3 ga = hash( i+vec3(0.0,0.0,0.0) );
-    vec3 gb = hash( i+vec3(1.0,0.0,0.0) );
-    vec3 gc = hash( i+vec3(0.0,1.0,0.0) );
-    vec3 gd = hash( i+vec3(1.0,1.0,0.0) );
-    vec3 ge = hash( i+vec3(0.0,0.0,1.0) );
-	vec3 gf = hash( i+vec3(1.0,0.0,1.0) );
-    vec3 gg = hash( i+vec3(0.0,1.0,1.0) );
-    vec3 gh = hash( i+vec3(1.0,1.0,1.0) );
-    
-    // projections
-    float va = dot( ga, w-vec3(0.0,0.0,0.0) );
-    float vb = dot( gb, w-vec3(1.0,0.0,0.0) );
-    float vc = dot( gc, w-vec3(0.0,1.0,0.0) );
-    float vd = dot( gd, w-vec3(1.0,1.0,0.0) );
-    float ve = dot( ge, w-vec3(0.0,0.0,1.0) );
-    float vf = dot( gf, w-vec3(1.0,0.0,1.0) );
-    float vg = dot( gg, w-vec3(0.0,1.0,1.0) );
-    float vh = dot( gh, w-vec3(1.0,1.0,1.0) );
+    vec2 i = floor( p );
+    vec2 f = fract( p );
 	
-    // interpolations
-    return vec4(0.5,0,0,0) + vec4(0.5,1,1,1) * vec4( va + u.x*(vb-va) + u.y*(vc-va) + u.z*(ve-va) + u.x*u.y*(va-vb-vc+vd) + u.y*u.z*(va-vc-ve+vg) + u.z*u.x*(va-vb-ve+vf) + (-va+vb+vc-vd+ve-vf-vg+vh)*u.x*u.y*u.z,    // value
-                 ga + u.x*(gb-ga) + u.y*(gc-ga) + u.z*(ge-ga) + u.x*u.y*(ga-gb-gc+gd) + u.y*u.z*(ga-gc-ge+gg) + u.z*u.x*(ga-gb-ge+gf) + (-ga+gb+gc-gd+ge-gf-gg+gh)*u.x*u.y*u.z +   // derivatives
-                 du * (vec3(vb,vc,ve) - va + u.yzx*vec3(va-vb-vc+vd,va-vc-ve+vg,va-vb-ve+vf) + u.zxy*vec3(va-vb-ve+vf,va-vb-vc+vd,va-vc-ve+vg) + u.yzx*u.zxy*(-va+vb+vc-vd+ve-vf-vg+vh) ));
+#if 1
+    // quintic interpolation
+    vec2 u = f*f*f*(f*(f*6.0-15.0)+10.0);
+    vec2 du = 30.0*f*f*(f*(f-2.0)+1.0);
+#else
+    // cubic interpolation
+    vec2 u = f*f*(3.0-2.0*f);
+    vec2 du = 6.0*f*(1.0-f);
+#endif    
+    
+    float va = hash( i + vec2(0.0,0.0) );
+    float vb = hash( i + vec2(1.0,0.0) );
+    float vc = hash( i + vec2(0.0,1.0) );
+    float vd = hash( i + vec2(1.0,1.0) );
+    
+    float k0 = va;
+    float k1 = vb - va;
+    float k2 = vc - va;
+    float k4 = va - vb - vc + vd;
+
+    return vec3( va+(vb-va)*u.x+(vc-va)*u.y+(va-vb-vc+vd)*u.x*u.y, // value
+                du*(u.yx*(va-vb-vc+vd) + vec2(vb,vc) - va) );     // derivative                
 }
 
 
@@ -330,6 +313,34 @@ float terrainElevation(vec3 p)
     return (elev*elev*elev-0.00031)/0.81415;*/
     vec2 uv = toUV(p);
     return (terrainMap(uv*10).r+0.94)/(1.01712+0.94);
+}
+
+
+vec3 fbmTerrain (vec2 st) {
+	
+    // Initial values
+    float value = 0.0;
+    vec2 derivates = vec2(0);
+	float amplitude = 1.0;
+    
+    // Loop of octaves
+    for (int i = 0; i < 9; i++) {
+		vec3 n = noised(st) * amplitude;
+        value += n.x/(1.0+dot(derivates,derivates));
+		derivates += n.yz;
+        st *= m2*2.0;//lacunarity
+        amplitude *= 0.5;//gain
+    }
+    return vec3(value,derivates.x,derivates.y);
+}
+
+vec3 terrainMap2( in vec2 p )
+{
+	vec3 n = fbmTerrain(p);
+    float e = n.x;
+    float a = 1.0-smoothstep( 0.12, 0.13, abs(e+0.12) ); // flag high-slope areas (-0.25, 0.0)
+    e += 0.15*smoothstep( -0.08, -0.01, e );
+    return vec3(e,n.yz);
 }
 
 #endif

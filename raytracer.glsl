@@ -24,7 +24,6 @@ Hit findObjectHit(Ray ray)
 {
     float closestDistance = POSITIVE_INFINITY;
     uint hitObjectIndex = -1;
-    float t = 0;
     vec3 hitPosition;
     vec3 normalAtHit;
     vec3 closesHitPosition = vec3(0);
@@ -32,9 +31,9 @@ Hit findObjectHit(Ray ray)
     //Firstly try hitting objects
     for (int k = 0; k < objects.length(); ++k)
     {
-        if (getRaySphereIntersection(objects[k], ray, hitPosition, normalAtHit, t)) // Update hit position and normal
+        float lastDistance;
+        if (getRaySphereIntersection(objects[k], ray, hitPosition, normalAtHit, lastDistance)) // Update hit position and normal
         {
-            float lastDistance = distance(Camera_position, hitPosition);
             if (lastDistance < closestDistance) {
                 hitObjectIndex = k;
                 closesHitPosition = hitPosition;
@@ -44,7 +43,7 @@ Hit findObjectHit(Ray ray)
         }
     }
     
-    return Hit(closesHitPosition, closestNormalAtHit, hitObjectIndex, t);
+    return Hit(closesHitPosition, closestNormalAtHit, hitObjectIndex, closestDistance);
 }
 
 vec3 takeSample(vec2 fromPixel)
@@ -56,7 +55,7 @@ vec3 takeSample(vec2 fromPixel)
     Hit hit = findObjectHit(primaryRay);
     vec3 objectColor = AMBIENT_LIGHT;
     // Return color of the object at the hit
-    if (hit.hitObjectIndex != -1)
+    if (hit.hitObjectIndex != POSITIVE_INFINITY)
     {
         vec3 totalLightColor = computeLightColor(hit);
         Material objMaterial = materials[objects[hit.hitObjectIndex].materialIndex];
@@ -64,23 +63,16 @@ vec3 takeSample(vec2 fromPixel)
     }
     
     //Then add the atmosphere color
-    vec3 planetColor;
-    float somePlanetHitT = planetsWithAtmospheres(primaryRay, hit.t, /*out*/ planetColor);
+    vec3 planetNatmoColor;
+    float somePlanetHitT = planetsWithAtmospheres(primaryRay, hit.t, /*out*/ planetNatmoColor);
     if(somePlanetHitT < hit.t)// The planet surface is closer than the object
     {
-        return planetColor;
+        return planetNatmoColor;
     }
     else
     {
-        return objectColor + planetColor;
+        return objectColor;
     } 
-}
-
-vec3 tonemapping(vec3 hdrColor)
-{
-    if(DEBUG_NORMALS || DEBUG_RM)
-        return hdrColor;
-    return min(min(hdrColor.x,hdrColor.y),hdrColor.z) < 1.413 ? /*gamma correction*/ pow(hdrColor * 0.38317, vec3(1.0 / 2.2)) : 1.0 - exp(-hdrColor)/*exposure tone mapping*/;
 }
 
 vec3 raytrace(vec2 fromPixel)
@@ -106,7 +98,7 @@ vec3 raytrace(vec2 fromPixel)
                 resultColor += takeSample(fromPixel + mix(griddedOffset,randomOffset,0.5));
             }
         }
-        return tonemapping(resultColor / sampleNum);
+        return resultColor / sampleNum;
     case 2:
         for(int x = 0; x < Multisampling_perPixel; x++)
         {
@@ -116,7 +108,7 @@ vec3 raytrace(vec2 fromPixel)
                 resultColor += takeSample(fromPixel + griddedOffset);
             }
         }
-        return tonemapping(resultColor / sampleNum);
+        return resultColor / sampleNum;
 
     default:
         resultColor += takeSample(fromPixel);
@@ -126,6 +118,6 @@ vec3 raytrace(vec2 fromPixel)
             vec2 randomOffset = vec2(firstRand,random(firstRand))-0.5;
             resultColor += takeSample(fromPixel + randomOffset);
         }
-        return tonemapping(resultColor / Multisampling_perPixel);
+        return resultColor / Multisampling_perPixel;
     }
 }

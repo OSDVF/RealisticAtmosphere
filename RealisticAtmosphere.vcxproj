@@ -252,6 +252,7 @@
     <None Include="ComputeRender\rt_display.vert" />
     <None Include="ComputeRender\rt_display.frag" />
     <None Include="ComputeRender\compute_render.comp" />
+    <None Include="Debug.glsl" />
     <None Include="Heightmap.comp" />
     <None Include="Intersections.glsl" />
     <None Include="Lighting.glsl" />

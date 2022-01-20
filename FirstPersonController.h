@@ -7,8 +7,8 @@ class FirstPersonController
 public:
 	MouseCamera Camera;
 	bool CanJump = true;
-	float WalkSpeed = .1;
-	float RunSpeed = .4;
+	float WalkSpeed = 1;
+	float RunSpeed = 4;
 	float AirModifier = 1.5f;
 	float Friction = 0.86f;
 	float JumpForce = 40;

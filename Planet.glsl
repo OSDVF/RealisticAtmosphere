@@ -34,7 +34,18 @@ float planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out ve
 		toDistance = min(tMax, toDistance);
 		//Limit the srating point to the screen
 		fromDistance = max(fromDistance, 0);
-		raymarchTerrain(p, ray, fromDistance, /* inout */ toDistance, /* out */ color);
+
+		// Out parameters
+		vec2 normalMap;
+		vec3 worldSamplePos, sphNormal;
+		float sampleHeight;
+
+		if(raymarchTerrain(p, ray, fromDistance, /* inout */ toDistance,
+			/* the rest params are "out" */
+					normalMap, sphNormal, worldSamplePos, sampleHeight ))
+		{
+			color = terrainShader(p, toDistance, worldSamplePos, normalMap, sphNormal, sampleHeight);
+		}
 		if(DEBUG_ATMO_OFF)
 		{
 			return 0;
@@ -88,15 +99,32 @@ float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistanc
         opticalDepthM += mieHF;
 
 		//Compute light optical depth
-        float t0Light, t1Light; 
+        float lightFromT, lightToT; 
 		// Intersect light ray with outer shell of the planet
-        raySphereIntersection(planet.center, planet.atmosphereRadius, Ray(worldSamplePos, sunVector), t0Light, t1Light); 
-        float lSegmentLength = t1Light / Multisampling_perLightRay;
+		Ray shadowRay = Ray(worldSamplePos, sunVector);
+        raySphereIntersection(planet.center, planet.atmosphereRadius,
+							shadowRay, lightFromT, lightToT);
+		
+		float surfaceT = POSITIVE_INFINITY;
+		if(distance(worldSamplePos, planet.center) < planet.mountainsRadius)
+		{
+			//If we can hit the mountains
+			vec2 normalMap;
+			vec3 sphNormal, worldSamplePos;
+			float sampleHeight;
+			
+			raymarchTerrainL(planet, shadowRay, 0, surfaceT, normalMap, sphNormal, worldSamplePos, sampleHeight);
+		}
+        float lSegmentLength = lightToT / Multisampling_perLightRay;
 		float tCurrentLight = 0; 
         float lOpticalDepthR = 0, lOpticalDepthM = 0; 
 
 		int l;
 		for (l = 0; l < Multisampling_perLightRay; ++l) { 
+			if(tCurrentLight > surfaceT)
+			{
+				break;
+			}
             vec3 lSamplePos = worldSamplePos + (tCurrentLight + lSegmentLength * 0.5) * sunVector; 
 			float lCenterDist = distance(lSamplePos, planet.center);
             float lSampleHeight = lCenterDist - planet.surfaceRadius; 

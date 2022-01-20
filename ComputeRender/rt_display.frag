@@ -1,10 +1,22 @@
 //!#version 440
 // This shader just displays output from raytracer in Compute shader
-
 in vec2 texCoord;
-uniform sampler2D computeShaderOutput;
+layout(binding=0) uniform sampler2D computeShaderOutput;
+#include "../Debug.glsl"
+
+float tmFunc(float hdrColor)
+{
+    return hdrColor < 1.4131 ? /*gamma correction*/ pow(hdrColor * 0.38317, 1.0 / 2.2) : 1.0 - exp(-hdrColor)/*exposure tone mapping*/;
+}
+
+vec3 tonemapping(vec3 hdrColor)
+{
+    if(DEBUG_NORMALS || DEBUG_RM)
+        return hdrColor;
+    return vec3(tmFunc(hdrColor.x),tmFunc(hdrColor.y),tmFunc(hdrColor.z));
+}
 
 void main()
 {
-   gl_FragColor = texture2D(computeShaderOutput,texCoord);
+   gl_FragColor.xyz = tonemapping(texture2D(computeShaderOutput,texCoord).xyz);
 }

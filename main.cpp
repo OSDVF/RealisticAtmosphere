@@ -107,22 +107,21 @@ namespace RealisticAtmosphere
 		uint32_t _debugFlags = 0;
 		uint32_t _resetFlags = 0;
 		entry::MouseState _mouseState;
-		float _sunAngle = 0;
+		float _sunAngle = 1.43116999;
 
 		bgfx::UniformHandle _timeHandle;
 		bgfx::UniformHandle _multisamplingSettingsHandle;
 		bgfx::UniformHandle _qualitySettingsHandle;
 		bgfx::TextureHandle _raytracerOutputTexture; /**< Used only when using compute-shader variant */
 		bgfx::UniformHandle _raytracerOutputSampler;
+		bgfx::UniformHandle _hqSettingsHandle;
 
-		//bgfx::ProgramHandle _computeShaderProgram;
-		//bgfx::ProgramHandle _displayingShaderProgram; /**< This program displays output from compute-shader raytracer */
-
-		bgfx::ProgramHandle _raytracerShaderProgram; /**< This program includes full raytracer as fragment shader */
+		bgfx::ProgramHandle _computeShaderProgram;
+		bgfx::ProgramHandle _pathTracingProgram;
+		bgfx::ProgramHandle _displayingShaderProgram; /**< This program displays output from compute-shader raytracer */
 
 		ScreenSpaceQuad _screenSpaceQuad;/**< Output of raytracer (both the compute-shader variant and fragment-shader variant) */
 
-		bool _useComputeShader = false;
 		bool _debugNormals = false;
 		bool _debugAtmoOff = false;
 		bool _debugRm = false;
@@ -132,7 +131,8 @@ namespace RealisticAtmosphere
 		bgfx::DynamicIndexBufferHandle _atmosphereBufferHandle;
 		bgfx::DynamicIndexBufferHandle _materialBufferHandle;
 		bgfx::DynamicIndexBufferHandle _directionalLightBufferHandle;
-		//bgfx::ShaderHandle _computeShaderHandle;
+		bgfx::ShaderHandle _computeShaderHandle;
+		bgfx::ShaderHandle _pathTracerHandle;
 		bgfx::ShaderHandle _heightmapShaderHandle;
 	    bgfx::ProgramHandle _heightmapShaderProgram;
 		bgfx::TextureHandle _heightmapTextureHandle;
@@ -161,7 +161,8 @@ namespace RealisticAtmosphere
 		// The Entry library will call this method after setting up window manager
 		void init(int32_t argc, const char* const* argv, uint32_t width, uint32_t height) override
 		{
-			_person.Camera.SetPosition(glm::vec3(2032, 6362515, 11506));
+			_person.Camera.SetPosition(glm::vec3(-14401, 6362289, 7052));
+			_person.Camera.SetRotation(glm::vec3(3,-272,0));
 
 			entry::setWindowFlags(HANDLE_OF_DEFALUT_WINDOW, ENTRY_WINDOW_FLAG_ASPECT_RATIO, false);
 			entry::setWindowSize(HANDLE_OF_DEFALUT_WINDOW, 1024, 600);
@@ -209,11 +210,13 @@ namespace RealisticAtmosphere
 			_timeHandle = bgfx::createUniform("time", bgfx::UniformType::Vec4);
 			_multisamplingSettingsHandle = bgfx::createUniform("MultisamplingSettings", bgfx::UniformType::Vec4);
 			_qualitySettingsHandle = bgfx::createUniform("QualitySettings", bgfx::UniformType::Vec4);
+			_hqSettingsHandle = bgfx::createUniform("HQSettings", bgfx::UniformType::Vec4);
 
-			//_displayingShaderProgram = loadProgram("rt_display.vert", "rt_display.frag");
-			_raytracerShaderProgram = loadProgram("normal_render.vert", "normal_render.frag");
-			//_computeShaderHandle = loadShader("compute_render.comp");
-			//_computeShaderProgram = bgfx::createProgram(_computeShaderHandle);
+			_displayingShaderProgram = loadProgram("rt_display.vert", "rt_display.frag");
+			_computeShaderHandle = loadShader("compute_render.comp");
+			_computeShaderProgram = bgfx::createProgram(_computeShaderHandle);
+			_pathTracerHandle = loadShader("compute_renderHQ.comp");
+			_pathTracingProgram = bgfx::createProgram(_pathTracerHandle);
 			_heightmapShaderHandle = loadShader("Heightmap.comp");
 			_heightmapShaderProgram = bgfx::createProgram(_heightmapShaderHandle);
 			_texture1Handle = loadTexture("textures/grass.dds");
@@ -254,11 +257,7 @@ namespace RealisticAtmosphere
 				, false
 				, 1
 				,
-#ifdef _DEBUG
 				bgfx::TextureFormat::RGBA32F
-#else
-				bgfx::TextureFormat::RGBA8
-#endif
 				, BGFX_TEXTURE_COMPUTE_WRITE);
 		}
 
@@ -270,6 +269,7 @@ namespace RealisticAtmosphere
 			//Destroy resources
 			bgfx::destroy(_timeHandle);
 			bgfx::destroy(_multisamplingSettingsHandle);
+			bgfx::destroy(_hqSettingsHandle);
 			bgfx::destroy(_qualitySettingsHandle);
 			bgfx::destroy(_heightmapTextureHandle);
 			bgfx::destroy(_raytracerOutputTexture);
@@ -277,10 +277,11 @@ namespace RealisticAtmosphere
 			bgfx::destroy(_texSampler1);
 			bgfx::destroy(_texSampler2);
 			bgfx::destroy(_texSampler3);
-			//bgfx::destroy(_computeShaderHandle);
-			//bgfx::destroy(_computeShaderProgram);
-			//bgfx::destroy(_displayingShaderProgram);
-			bgfx::destroy(_raytracerShaderProgram);
+			bgfx::destroy(_computeShaderHandle);
+			bgfx::destroy(_computeShaderProgram);
+			bgfx::destroy(_pathTracerHandle);
+			bgfx::destroy(_pathTracingProgram);
+			bgfx::destroy(_displayingShaderProgram);
 			bgfx::destroy(_materialBufferHandle);
 			bgfx::destroy(_directionalLightBufferHandle);
 			bgfx::destroy(_atmosphereBufferHandle);
@@ -383,14 +384,7 @@ namespace RealisticAtmosphere
 				updateDebugUniforms();
 #endif
 
-				if (_useComputeShader)
-				{
-					computeShaderRaytracer();
-				}
-				else
-				{
-					fragmentShaderRaytracer();
-				}
+				computeShaderRaytracer();
 
 				// Advance to next frame. Rendering thread will be kicked to
 				// process submitted rendering primitives.
@@ -408,7 +402,7 @@ namespace RealisticAtmosphere
 			{
 				auto& planet = _planetBuffer[i];
 				auto& sun = _objectBuffer[0];
-				glm::quat rotQua(glm::vec3(_sunAngle, 0, 0));
+				glm::quat rotQua(glm::vec3(_sunAngle, 30, 0));
 				glm::vec3 pos(0, bx::length(sun.position), 0);
 				pos = rotQua * pos;
 				sun.position = vec3(pos.x, pos.y, pos.z);
@@ -424,16 +418,10 @@ namespace RealisticAtmosphere
 			bgfx::setUniform(_debugAttributesHandle, &_debugAttributesResult);
 		}
 #endif
-		void fragmentShaderRaytracer()
-		{
-			_screenSpaceQuad.draw();//Draw screen space quad with our shader program
-			bgfx::setState(BGFX_STATE_DEFAULT);
-			bgfx::submit(0, _raytracerShaderProgram);
-		}
 		void computeShaderRaytracer()
 		{
 			bgfx::setImage(0, _raytracerOutputTexture, 0, bgfx::Access::Write);
-			//bgfx::dispatch(0, _computeShaderProgram, bx::ceil(_windowWidth / 16.0f), bx::ceil(_windowHeight / 16.0f));
+			bgfx::dispatch(0, _computeShaderProgram, bx::ceil(_windowWidth / 16.0f), bx::ceil(_windowHeight / 16.0f));
 
 			/** We cannot do a blit into backbuffer - not implemented in BGFX
 			  * e.g. bgfx::blit(0, BGFX_INVALID_HANDLE, 0, 0, _raytracerOutputTexture, 0, 0, _windowWidth, _windowHeight);
@@ -443,7 +431,7 @@ namespace RealisticAtmosphere
 			_screenSpaceQuad.draw();//Draw screen space quad with our shader program
 
 			bgfx::setState(BGFX_STATE_DEFAULT);
-			//bgfx::submit(0, _displayingShaderProgram);
+			bgfx::submit(0, _displayingShaderProgram);
 			bgfx::touch(0);
 		}
 
@@ -464,6 +452,7 @@ namespace RealisticAtmosphere
 			bgfx::setUniform(_qualitySettingsHandle, &QualitySettings);
 			bgfx::setUniform(_planetMaterialHandle, &PlanetMaterial);
 			bgfx::setUniform(_raymarchingStepsHandle, &RaymarchingSteps);
+			bgfx::setUniform(_hqSettingsHandle, &HQSettings);
 			bgfx::setTexture(5, _texSampler1, _texture1Handle);
 			bgfx::setTexture(6, _texSampler2, _texture2Handle);
 			bgfx::setTexture(7, _texSampler3, _texture3Handle);
@@ -523,6 +512,8 @@ namespace RealisticAtmosphere
 				, ImGuiCond_FirstUseEver
 			);
 			ImGui::Begin("Camera");
+			ImGui::InputFloat("Speed", &_person.WalkSpeed);
+			ImGui::InputFloat("RunSpeed", &_person.RunSpeed);
 			ImGui::SliderFloat("Sensitivity", &_person.Camera.Sensitivity, 0, 5.0f);
 			ImGui::InputFloat("FOV", &_fovY);
 			ImGui::PushItemWidth(180);
@@ -545,10 +536,9 @@ namespace RealisticAtmosphere
 				ImVec2(250, 500)
 				, ImGuiCond_FirstUseEver
 			);
+			ImGui::SetNextWindowCollapsed(true, ImGuiCond_FirstUseEver);
 
 			ImGui::Begin("Settings");
-
-			ImGui::Checkbox("Use Compute Shader", &_useComputeShader);
 			ImGui::Checkbox("Debug Normals", &_debugNormals);
 			ImGui::PushItemWidth(90);
 
@@ -568,18 +558,31 @@ namespace RealisticAtmosphere
 			ImGui::Checkbox("Debug RayMarch", &_debugRm);
 			ImGui::PushItemWidth(90);
 			ImGui::InputFloat("Optimism", &QualitySettings_optimism, 0, 1);
-			int steps = QualitySettings_steps;
-			ImGui::InputInt("Bisect Steps", &steps);
-			QualitySettings_steps = steps;
 			ImGui::PopItemWidth();
-			ImGui::InputFloat("Precision", &QualitySettings_precision,0,0,"%.10f");
 			ImGui::InputFloat("Far Plane", &QualitySettings_farPlane);
-			ImGui::SliderFloat("Fog", &PlanetMaterial.w, 0, 1);
 			ImGui::InputInt("Planet Steps", (int*)&RaymarchingSteps.x);
-			ImGui::InputFloat("SubRM Prec", &RaymarchingSteps.y);
-			ImGui::InputFloat("Texture", &RaymarchingSteps.z);
-			ImGui::InputFloat("LOD Bias", &RaymarchingSteps.w, 0,0,"%.10f");
+			ImGui::InputFloat("Precision", &RaymarchingSteps.z,0,0,"%e");
+			ImGui::InputFloat("LOD Div", &RaymarchingSteps.y);
+			ImGui::InputFloat("LOD Bias", &RaymarchingSteps.w);
+			ImGui::InputFloat("Normals",&PlanetMaterial.z);
 			ImGui::End();
+
+			ImGui::SetNextWindowPos(ImVec2(250, 20), ImGuiCond_FirstUseEver);
+			ImGui::SetNextWindowCollapsed(true, ImGuiCond_FirstUseEver);
+			ImGui::Begin("Materials");
+			ImGui::InputFloat("1",&PlanetMaterial.x);
+			ImGui::InputFloat("2", &PlanetMaterial.y);
+			ImGui::InputFloat("rand", &PlanetMaterial.w);
+			ImGui::End();
+
+			ImGui::SetNextWindowPos(ImVec2(250, 40), ImGuiCond_FirstUseEver);
+			ImGui::SetNextWindowCollapsed(true, ImGuiCond_FirstUseEver);
+			ImGui::Begin("Light");
+			ImGui::InputFloat("Precision", &QualitySettings_lightPrecision, 0, 0, "%e");
+			ImGui::InputFloat("Far Plane", &HQSettings_lightFarPlane);
+			ImGui::InputInt("Shdw dtct stps", (int*)&PlanetMaterial.z);
+			ImGui::End();
+
 		}
 	};
 

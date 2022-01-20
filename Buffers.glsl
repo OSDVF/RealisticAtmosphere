@@ -3,16 +3,7 @@
 #ifndef BUFFERS
 #define BUFFERS
 #include "SceneObjects.glsl"
-#ifdef DEBUG
-    uniform vec4 debugAttributes;
-    #define DEBUG_NORMALS (debugAttributes.x == 1.0)
-    #define DEBUG_RM (debugAttributes.y == 1.0)
-    #define DEBUG_ATMO_OFF (debugAttributes.z == 1.0)
-#else
-    #define DEBUG_ATMO_OFF false
-    #define DEBUG_NORMALS false
-    #define DEBUG_RM false
-#endif
+#include "Debug.glsl"
 layout(std430, binding=1) readonly buffer ObjectBuffer
 {
     Sphere objects[];
