@@ -188,7 +188,7 @@ bool raymarchTerrain(Planet planet, Ray ray, float fromDistance, inout float toD
 bool raymarchTerrainL(Planet planet, Ray ray, float fromDistance, float toDistance)
 {
 	float currentT = fromDistance;
-	toDistance = min(toDistance, HQSettings_lightFarPlane);
+	toDistance = min(toDistance, LightSettings_farPlane);
 
 	for(int i = 0; i < floatBitsToInt(PlanetMaterial.z);i++)
 	{
@@ -198,7 +198,7 @@ bool raymarchTerrainL(Planet planet, Ray ray, float fromDistance, float toDistan
 
 		float sampleHeight = getSampleParameters(planet, ray, currentT, /*out*/sphNormal, /*out*/worldSamplePos);
 		float terrainDistance = terrainSDF(planet, sampleHeight, sphNormal, /*out*/ normalMap);
-		if(terrainDistance < QualitySettings_lightPrecision * currentT)
+		if(terrainDistance < LightSettings_precision * currentT)
 		{
 			// Sufficient distance to claim as "hit"
 			return true;

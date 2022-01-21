@@ -110,7 +110,7 @@ namespace RealisticAtmosphere
 		uint32_t _debugFlags = 0;
 		uint32_t _resetFlags = 0;
 		entry::MouseState _mouseState;
-		float _sunAngle = 1.43116999;
+		float _sunAngle = 1.46607657;//84 deg
 
 		bgfx::UniformHandle _timeHandle;
 		bgfx::UniformHandle _multisamplingSettingsHandle;
@@ -118,6 +118,7 @@ namespace RealisticAtmosphere
 		bgfx::TextureHandle _raytracerOutputTexture; /**< Used only when using compute-shader variant */
 		bgfx::UniformHandle _raytracerOutputSampler;
 		bgfx::UniformHandle _hqSettingsHandle;
+		bgfx::UniformHandle _lightSettings;
 
 		bgfx::ProgramHandle _computeShaderProgram;
 		bgfx::ProgramHandle _pathTracingProgram;
@@ -221,6 +222,7 @@ namespace RealisticAtmosphere
 			_multisamplingSettingsHandle = bgfx::createUniform("MultisamplingSettings", bgfx::UniformType::Vec4);
 			_qualitySettingsHandle = bgfx::createUniform("QualitySettings", bgfx::UniformType::Vec4);
 			_hqSettingsHandle = bgfx::createUniform("HQSettings", bgfx::UniformType::Vec4);
+			_lightSettings = bgfx::createUniform("LightSettings", bgfx::UniformType::Vec4);
 
 			_displayingShaderProgram = loadProgram("rt_display.vert", "rt_display.frag");
 			_computeShaderHandle = loadShader("compute_render.comp");
@@ -270,12 +272,12 @@ namespace RealisticAtmosphere
 
 		void precompute()
 		{
-			_opticalDepthTable = bgfx::createTexture2D(4096, 4096, false, 1, bgfx::TextureFormat::RG32F, BGFX_TEXTURE_COMPUTE_WRITE);
+			_opticalDepthTable = bgfx::createTexture2D(2048, 1024, false, 1, bgfx::TextureFormat::RG32F, BGFX_TEXTURE_COMPUTE_WRITE);
 			//steps are locked to 300
 			vec4 _atmoParametersValues = { rayleighScaleHeight,earthRadius, atmosphereRadius, mieScaleHeight };
 			bgfx::setUniform(_atmoParameters, &_atmoParametersValues);
 			bgfx::setImage(0, _opticalDepthTable, 0, bgfx::Access::Write, bgfx::TextureFormat::RG32F);
-			bgfx::dispatch(0, _precomputeProgram, bx::ceil(4096 / 16.0f), bx::ceil(4096 / 16.0f));
+			bgfx::dispatch(0, _precomputeProgram, bx::ceil(2048 / 16.0f), bx::ceil(1024 / 16.0f));
 		}
 
 		void resetBufferSize()
@@ -300,6 +302,7 @@ namespace RealisticAtmosphere
 			bgfx::destroy(_timeHandle);
 			bgfx::destroy(_multisamplingSettingsHandle);
 			bgfx::destroy(_hqSettingsHandle);
+			bgfx::destroy(_lightSettings);
 			bgfx::destroy(_qualitySettingsHandle);
 			bgfx::destroy(_heightmapTextureHandle);
 			bgfx::destroy(_raytracerOutputTexture);
@@ -490,6 +493,7 @@ namespace RealisticAtmosphere
 			bgfx::setUniform(_planetMaterialHandle, &PlanetMaterial);
 			bgfx::setUniform(_raymarchingStepsHandle, &RaymarchingSteps);
 			bgfx::setUniform(_hqSettingsHandle, &HQSettings);
+			bgfx::setUniform(_lightSettings, &LightSettings);
 			bgfx::setTexture(5, _texSampler1, _texture1Handle);
 			bgfx::setTexture(6, _texSampler2, _texture2Handle);
 			bgfx::setTexture(7, _texSampler3, _texture3Handle);
@@ -616,8 +620,10 @@ namespace RealisticAtmosphere
 			ImGui::SetNextWindowPos(ImVec2(250, 40), ImGuiCond_FirstUseEver);
 			ImGui::SetNextWindowCollapsed(true, ImGuiCond_FirstUseEver);
 			ImGui::Begin("Light");
-			ImGui::InputFloat("Precision", &QualitySettings_lightPrecision, 0, 0, "%e");
-			ImGui::InputFloat("Far Plane", &HQSettings_lightFarPlane);
+			ImGui::InputFloat("Precision", &LightSettings_precision, 0, 0, "%e");
+			ImGui::InputFloat("Far Plane", &LightSettings_farPlane);
+			ImGui::InputFloat("NoRayThres", &LightSettings_noRayThres);
+			ImGui::InputFloat("NoSunThres", &LightSettings_noSunThres);
 			ImGui::InputInt("Shdw dtct stps", (int*)&PlanetMaterial.z);
 			ImGui::End();
 

@@ -7,7 +7,7 @@
 uniform sampler2D opticalDepthTable;
 #define PI pi
 
-float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistance, inout vec3 color);
+float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistance, inout vec3 color, bool terrainWasHit);
 
 /**
   * Does a raymarching through the atmosphere and planet
@@ -41,8 +41,8 @@ float planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out ve
 		vec2 normalMap;
 		vec3 worldSamplePos, sphNormal;
 		float sampleHeight;
-
-		if(raymarchTerrain(p, ray, fromDistance, /* inout */ toDistance,
+		bool terrainWasHit;
+		if(terrainWasHit = raymarchTerrain(p, ray, fromDistance, /* inout */ toDistance,
 			/* the rest params are "out" */
 					normalMap, sphNormal, worldSamplePos, sampleHeight ))
 		{
@@ -52,7 +52,7 @@ float planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out ve
 		{
 			return 0;
 		}
-		return raymarchPlanet(p, ray, fromDistance, toDistance, /*inout*/ color);
+		return raymarchPlanet(p, ray, fromDistance, toDistance, /*inout*/ color, terrainWasHit);
 	}
 }
 
@@ -65,7 +65,7 @@ float getSampleAtmParams(Planet planet, Ray ray, float currentDistance, out vec3
 	return centerDist - planet.surfaceRadius;
 }
 
-float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistance, inout vec3 color)
+float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistance, inout vec3 color, bool terrainWasHit)
 {
 	float t0, t1;
 
@@ -108,8 +108,37 @@ float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistanc
 		Ray shadowRay = Ray(worldSamplePos, sunVector);
         raySphereIntersection(planet.center, planet.atmosphereRadius,
 							shadowRay, lightFromT, lightToT);
-		
-		if(distance(worldSamplePos, planet.center) < planet.mountainsRadius)
+
+		//Firstly check if sun is in shadow of the planet
+		float sunToViewAngleCos = dot(sunVector, normalize(worldSamplePos - planet.center));
+
+		bool noSureIfEclipse = true;
+		if(terrainWasHit)
+		{
+			if(sunToViewAngleCos > 0.6)
+			{
+				previousDistance = currentDistance;
+				currentDistance += segmentLength;
+				continue;//Skip to next sample. This effectively creates light rays
+			}
+			if(sunToViewAngleCos < 0.1)
+			{
+				noSureIfEclipse = false;
+			}
+		}
+		else
+		{
+			if(sunToViewAngleCos < 0.4)
+			{
+				noSureIfEclipse = false;
+			}
+			else if(sunToViewAngleCos > 0.6)
+			{
+				noSureIfEclipse = false;
+			}
+		}
+
+		if(noSureIfEclipse && distance(worldSamplePos, planet.center) < planet.mountainsRadius)
 		{
 			//If we hit the mountains			
 			if(raymarchTerrainL(planet, shadowRay, 0, lightToT))
@@ -119,8 +148,7 @@ float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistanc
 				continue;//Skip to next sample. This effectively creates light rays
 			}
 		}
-		//Firstly check if sun is in shadow of the planet
-		float sunToViewAngleCos = dot(sunVector, normalize(worldSamplePos));
+
 		/*
 		if(sunToViewAngleCos < 0)
 		{
