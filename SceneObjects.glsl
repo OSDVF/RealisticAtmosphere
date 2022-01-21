@@ -38,7 +38,7 @@ uint PathTracing = 1;
 uint CastShadows = 2;
 uint HQFlags1 = 0;
 vec4 HQSettings = {*(float*)&HQFlags1};
-vec4 LightSettings = {1000, 0.03, 0.1, 0.6};
+vec4 LightSettings = {1000, 0.03, 0.4, 0.107};
 int lightTerrainDetectSteps = 40;
 vec4 PlanetMaterial = {1700, 2300, *(float*)&lightTerrainDetectSteps, 600};
 int planetSteps = 200;
@@ -58,7 +58,7 @@ vec4 RaymarchingSteps = {*(float*)&planetSteps, 4, 0.005, 0.4};
 #define LightSettings_farPlane LightSettings.x
 #define LightSettings_precision LightSettings.y
 #define LightSettings_noRayThres LightSettings.z
-#define LightSettings_noSunThres LightSettings.w
+#define LightSettings_viewThres LightSettings.w
 
 #define Camera_position (Camera[0].xyz)
 #define Camera_direction (Camera[1].xyz)

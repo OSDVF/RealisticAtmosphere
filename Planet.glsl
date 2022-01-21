@@ -91,7 +91,7 @@ float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistanc
 		// Always sample at the center of sample
 		vec3 worldSamplePos;
 		vec3 sphNormal;
-		float sampleHeight = getSampleAtmParams(planet, ray, currentDistance, /*out*/ worldSamplePos);
+		float sampleHeight = getSampleParameters(planet, ray, currentDistance, /*out*/ sphNormal, /*out*/ worldSamplePos);
 
 		//Compute optical depth; HF = height factor
 		float rayleighHF = exp(-sampleHeight/planet.rayleighScaleHeight) * segmentLength;
@@ -110,32 +110,26 @@ float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistanc
 							shadowRay, lightFromT, lightToT);
 
 		//Firstly check if sun is in shadow of the planet
-		float sunToViewAngleCos = dot(sunVector, normalize(worldSamplePos - planet.center));
+		float sunToNormalCos = dot(sunVector, sphNormal);
+		float sunToViewCos = dot(sunVector, ray.direction);
 
 		bool noSureIfEclipse = true;
 		if(terrainWasHit)
 		{
-			if(sunToViewAngleCos > 0.6)
+			if(sunToNormalCos < LightSettings_viewThres)
 			{
 				previousDistance = currentDistance;
 				currentDistance += segmentLength;
 				continue;//Skip to next sample. This effectively creates light rays
 			}
-			if(sunToViewAngleCos < 0.1)
+			if(sunToNormalCos < LightSettings_viewThres)//The main speedup when looking into light rays
 			{
 				noSureIfEclipse = false;
 			}
 		}
-		else
+		if(sunToNormalCos > LightSettings_noRayThres || sunToViewCos < LightSettings_noRayThres)
 		{
-			if(sunToViewAngleCos < 0.4)
-			{
-				noSureIfEclipse = false;
-			}
-			else if(sunToViewAngleCos > 0.6)
-			{
-				noSureIfEclipse = false;
-			}
+			noSureIfEclipse = false;
 		}
 
 		if(noSureIfEclipse && distance(worldSamplePos, planet.center) < planet.mountainsRadius)
@@ -149,45 +143,20 @@ float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistanc
 			}
 		}
 
-		/*
-		if(sunToViewAngleCos < 0)
-		{
-			previousDistance = currentDistance;
-			currentDistance += segmentLength;
-			continue;//Skip to next sample
-		}
-		*/
 		// The lookup table is from alpha angle value from -0.5 to 1.0, so we must remap the X coord
-		vec2 tableCoords = vec2((0.5 + sunToViewAngleCos)/1.5, sampleHeight/(planet.atmosphereRadius - planet.surfaceRadius));
+		vec2 tableCoords = vec2((0.5 + sunToNormalCos)/1.5, sampleHeight/(planet.atmosphereRadius - planet.surfaceRadius));
 		vec4 lOpticalDepth = texture2D(opticalDepthTable, tableCoords);
+		//Finalize the computation and commit to the result color
 
-        /*float lSegmentLength = lightToT / Multisampling_perLightRay;
-		float tCurrentLight = 0; 
-        float lOpticalDepthM = 0, lOpticalDepthR = 0; 
+		//There should be extinction coefficients, but for Rayleigh, they are the same as scattering coeff.s and for Mie, it is 1.11 times the s.c.
+		float mieExtinction = 1.11 * planet.mieCoefficient;
+		vec3 depth = planet.rayleighCoefficients * (lOpticalDepth.x + opticalDepthR)
+						+ mieExtinction * (lOpticalDepth.y + opticalDepthM);
+		vec3 attenuation = exp(-depth);
 
-		int l;
-		for (l = 0; l < Multisampling_perLightRay; ++l) { 
-            vec3 lSamplePos = worldSamplePos + (tCurrentLight + lSegmentLength * 0.5) * sunVector; 
-			float lCenterDist = distance(lSamplePos, planet.center);
-            float lSampleHeight = lCenterDist - planet.surfaceRadius; 
-
-            lOpticalDepthR += exp(-lSampleHeight / planet.rayleighScaleHeight) * lSegmentLength; 
-            lOpticalDepthM += exp(-lSampleHeight / planet.mieScaleHeight) * lSegmentLength; 
-            tCurrentLight += lSegmentLength; 
-        }*/
-		//if(l == Multisampling_perLightRay)
-		{
-			//Finalize the computation and commit to the result color
-
-			//There should be extinction coefficients, but for Rayleigh, they are the same as scattering coeff.s and for Mie, it is 1.11 times the s.c.
-			float mieExtinction = 1.11 * planet.mieCoefficient;
-			vec3 depth = planet.rayleighCoefficients * (lOpticalDepth.x + opticalDepthR)
-							+ mieExtinction * (lOpticalDepth.y + opticalDepthM);
-			vec3 attenuation = exp(-depth);
-
-			rayleighColor += attenuation * rayleighHF;
-			mieColor += attenuation * mieHF;
-		}
+		rayleighColor += attenuation * rayleighHF;
+		mieColor += attenuation * mieHF;
+		
 		// Shift to next sample
 		previousDistance = currentDistance;
 		currentDistance += segmentLength;

@@ -623,7 +623,7 @@ namespace RealisticAtmosphere
 			ImGui::InputFloat("Precision", &LightSettings_precision, 0, 0, "%e");
 			ImGui::InputFloat("Far Plane", &LightSettings_farPlane);
 			ImGui::InputFloat("NoRayThres", &LightSettings_noRayThres);
-			ImGui::InputFloat("NoSunThres", &LightSettings_noSunThres);
+			ImGui::InputFloat("ViewThres", &LightSettings_viewThres);
 			ImGui::InputInt("Shdw dtct stps", (int*)&PlanetMaterial.z);
 			ImGui::End();
 
