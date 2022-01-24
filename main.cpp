@@ -546,7 +546,8 @@ namespace RealisticAtmosphere
 			ImGui::InputFloat("R.Scale Height", &singlePlanet.rayleighScaleHeight);
 			ImGui::InputFloat("Sun Intensity", &singlePlanet.sunIntensity);
 			ImGui::PopItemWidth();
-			ImGui::SliderAngle("Sun Angle", &_sunAngle, 0, 180);
+			ImGui::InputFloat("Sun Angle", &_sunAngle);
+			ImGui::SliderAngle("", &_sunAngle, 0, 180);
 			ImGui::End();
 
 			ImGui::SetNextWindowPos(
@@ -624,6 +625,8 @@ namespace RealisticAtmosphere
 			ImGui::InputFloat("Far Plane", &LightSettings_farPlane);
 			ImGui::InputFloat("NoRayThres", &LightSettings_noRayThres);
 			ImGui::InputFloat("ViewThres", &LightSettings_viewThres);
+			ImGui::InputFloat("Cutoff", &QualitySettings_lightCutoff);
+			ImGui::InputFloat("CutoffDist", &HQSettings.y);
 			ImGui::InputInt("Shdw dtct stps", (int*)&PlanetMaterial.z);
 			ImGui::End();
 

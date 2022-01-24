@@ -33,11 +33,11 @@ vec4 Camera[] =
     vec4(1,0,0,0)//Right vector, fovX
 };
 vec4 MultisamplingSettings = {1,10,64,0};
-vec4 QualitySettings = {5,0/*unused*/,70000,1};
+vec4 QualitySettings = {5,0,70000,1};
 uint PathTracing = 1;
 uint CastShadows = 2;
 uint HQFlags1 = 0;
-vec4 HQSettings = {*(float*)&HQFlags1};
+vec4 HQSettings = {*(float*)&HQFlags1, 0.5};
 vec4 LightSettings = {1000, 0.03, 0.4, 0.107};
 int lightTerrainDetectSteps = 40;
 vec4 PlanetMaterial = {1700, 2300, *(float*)&lightTerrainDetectSteps, 600};
@@ -51,7 +51,7 @@ vec4 RaymarchingSteps = {*(float*)&planetSteps, 4, 0.005, 0.4};
 #define Multisampling_type MultisamplingSettings.w
 
 #define QualitySettings_steps QualitySettings.x
-#define QualitySettings_unused QualitySettings.y
+#define QualitySettings_lightCutoff QualitySettings.y
 #define QualitySettings_farPlane QualitySettings.z
 #define QualitySettings_optimism QualitySettings.w
 

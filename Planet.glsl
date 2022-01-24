@@ -65,6 +65,10 @@ float getSampleAtmParams(Planet planet, Ray ray, float currentDistance, out vec3
 	return centerDist - planet.surfaceRadius;
 }
 
+float min3 (vec3 v) {
+  return min (min (v.x, v.y), v.z);
+}
+
 float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistance, inout vec3 color, bool terrainWasHit)
 {
 	float t0, t1;
@@ -111,6 +115,8 @@ float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistanc
 
 		//Firstly check if sun is in shadow of the planet
 		float sunToNormalCos = dot(sunVector, sphNormal);
+		vec3 viewOnPlanetPlane = ray.direction - dot(ray.direction,sphNormal) * sphNormal;
+		vec3 sunOnPlanetPlane = sunVector - sunToNormalCos * sphNormal;
 		float sunToViewCos = dot(sunVector, ray.direction);
 
 		bool noSureIfEclipse = true;
@@ -124,11 +130,15 @@ float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistanc
 			}
 			if(sunToNormalCos < LightSettings_viewThres)//The main speedup when looking into light rays
 			{
+				if(DEBUG_RM)
+					color = vec3(0,0,1);
 				noSureIfEclipse = false;
 			}
 		}
 		if(sunToNormalCos > LightSettings_noRayThres || sunToViewCos < LightSettings_noRayThres)
 		{
+			if(DEBUG_RM)
+				color = vec3(0,1,0);
 			noSureIfEclipse = false;
 		}
 
@@ -137,6 +147,13 @@ float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistanc
 			//If we hit the mountains			
 			if(raymarchTerrainL(planet, shadowRay, 0, lightToT))
 			{
+				if(dot(sunOnPlanetPlane,viewOnPlanetPlane) > QualitySettings_lightCutoff && terrainWasHit && currentDistance > maxDistance * HQSettings.y)
+				{
+					if(DEBUG_RM)
+						color = vec3(1,0,0);
+					// In all the later samples, the sun will be also occluded
+					break;//The later samples would all be occluded by the terrain
+				}
 				previousDistance = currentDistance;
 				currentDistance += segmentLength;
 				continue;//Skip to next sample. This effectively creates light rays
