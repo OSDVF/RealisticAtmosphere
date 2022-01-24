@@ -74,7 +74,6 @@ float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistanc
 
 	float segmentLength = (maxDistance - minDistance) / Multisampling_perAtmospherePixel;
 	segmentLength = max(segmentLength, QualitySettings_minStepSize);// Otherwise too close object would evaluate too much steps
-	float previousDistance = 0;
 
 	vec3 rayleighColor = vec3(0);
 	vec3 mieColor = vec3(0);
@@ -90,7 +89,8 @@ float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistanc
 		/ ((2.f + assymetryFactor2) * pow(1.0 + assymetryFactor2 - 2.0 * planet.mieAsymmetryFactor * angleDot, 1.5f));
 
 	float currentDistance;
-	for(currentDistance = minDistance; currentDistance < maxDistance; currentDistance += segmentLength, previousDistance = currentDistance)
+	float i = 0;
+	for(currentDistance = minDistance; currentDistance < maxDistance; currentDistance += segmentLength, i++)
 	{
 		// Always sample at the center of sample
 		vec3 worldSamplePos;
@@ -129,8 +129,13 @@ float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistanc
 			{
 				continue;//Skip to next sample. This effectively creates light rays
 			}
+			float diff = sunToViewCos - LightSettings_noRayThres;
+			if(diff < 0 && mod(i, LightSettings_fieldThres) < 1)
+			{
+				noSureIfEclipse = false;
+			}
 		}
-		if(sunToNormalCos > LightSettings_noRayThres || sunToViewCos < LightSettings_noRayThres)
+		if(sunToNormalCos > LightSettings_noRayThres || currentDistance > QualitySettings_farPlane)
 		{
 			if(DEBUG_RM)
 				color = vec3(0,1,0);
