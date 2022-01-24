@@ -154,11 +154,12 @@ bool raymarchTerrain(Planet planet, Ray ray, float fromDistance, inout float toD
 	fromDistance = max(fromDistance, t0);
 
 	float currentT = fromDistance;
+	float maxDistance = min(toDistance, QualitySettings_farPlane);
 	float terrainDistance;
 
 	for(int i = 0; i < floatBitsToInt(RaymarchingSteps.x);i++)
 	{
-		if(currentT <= QualitySettings_farPlane)
+		if(currentT <= maxDistance)
 		{
 			sampleHeight = getSampleParameters(planet, ray, currentT, /*out*/sphNormal, /*out*/worldSamplePos);
 			terrainDistance = terrainSDF(planet, sampleHeight, sphNormal, /*out*/ normalMap);
@@ -190,7 +191,7 @@ bool raymarchTerrainL(Planet planet, Ray ray, float fromDistance, float toDistan
 	float currentT = fromDistance;
 	toDistance = min(toDistance, LightSettings_farPlane);
 
-	for(int i = 0; i < floatBitsToInt(PlanetMaterial.z);i++)
+	for(int i = 0; i < floatBitsToInt(LightSettings_shadowSteps);i++)
 	{
 		vec2 normalMap;
 		vec3 sphNormal;

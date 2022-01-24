@@ -53,7 +53,7 @@ Sphere _objectBuffer[] = {
 	},
 	{
 		{1, earthRadius + 1, 0}, //Position
-		{5}, //Radius
+		{50}, //Radius
 		1, //Material index
 	}
 };
@@ -119,6 +119,7 @@ namespace RealisticAtmosphere
 		bgfx::UniformHandle _raytracerOutputSampler;
 		bgfx::UniformHandle _hqSettingsHandle;
 		bgfx::UniformHandle _lightSettings;
+		bgfx::UniformHandle _lightSettings2;
 
 		bgfx::ProgramHandle _computeShaderProgram;
 		bgfx::ProgramHandle _pathTracingProgram;
@@ -223,6 +224,7 @@ namespace RealisticAtmosphere
 			_qualitySettingsHandle = bgfx::createUniform("QualitySettings", bgfx::UniformType::Vec4);
 			_hqSettingsHandle = bgfx::createUniform("HQSettings", bgfx::UniformType::Vec4);
 			_lightSettings = bgfx::createUniform("LightSettings", bgfx::UniformType::Vec4);
+			_lightSettings2 = bgfx::createUniform("LightSettings2", bgfx::UniformType::Vec4);
 
 			_displayingShaderProgram = loadProgram("rt_display.vert", "rt_display.frag");
 			_computeShaderHandle = loadShader("compute_render.comp");
@@ -303,6 +305,7 @@ namespace RealisticAtmosphere
 			bgfx::destroy(_multisamplingSettingsHandle);
 			bgfx::destroy(_hqSettingsHandle);
 			bgfx::destroy(_lightSettings);
+			bgfx::destroy(_lightSettings2);
 			bgfx::destroy(_qualitySettingsHandle);
 			bgfx::destroy(_heightmapTextureHandle);
 			bgfx::destroy(_raytracerOutputTexture);
@@ -494,6 +497,7 @@ namespace RealisticAtmosphere
 			bgfx::setUniform(_raymarchingStepsHandle, &RaymarchingSteps);
 			bgfx::setUniform(_hqSettingsHandle, &HQSettings);
 			bgfx::setUniform(_lightSettings, &LightSettings);
+			bgfx::setUniform(_lightSettings2, &LightSettings2);
 			bgfx::setTexture(5, _texSampler1, _texture1Handle);
 			bgfx::setTexture(6, _texSampler2, _texture2Handle);
 			bgfx::setTexture(7, _texSampler3, _texture3Handle);
@@ -592,9 +596,6 @@ namespace RealisticAtmosphere
 			int perAtmo = Multisampling_perAtmospherePixel;
 			ImGui::InputInt("Atmosphere supersampling", &perAtmo);
 			Multisampling_perAtmospherePixel = perAtmo;
-			int perLight = Multisampling_perLightRay;
-			ImGui::InputInt("Light ray supersampling", &perLight);
-			Multisampling_perLightRay = perLight;
 			ImGui::PopItemWidth();
 
 			ImGui::Checkbox("Hide atmosphere", &_debugAtmoOff);
@@ -603,6 +604,7 @@ namespace RealisticAtmosphere
 			ImGui::InputFloat("Optimism", &QualitySettings_optimism, 0, 1);
 			ImGui::PopItemWidth();
 			ImGui::InputFloat("Far Plane", &QualitySettings_farPlane);
+			ImGui::InputFloat("MinStepSize", &QualitySettings_minStepSize);
 			ImGui::InputInt("Planet Steps", (int*)&RaymarchingSteps.x);
 			ImGui::InputFloat("Precision", &RaymarchingSteps.z,0,0,"%e");
 			ImGui::InputFloat("LOD Div", &RaymarchingSteps.y);
@@ -625,9 +627,8 @@ namespace RealisticAtmosphere
 			ImGui::InputFloat("Far Plane", &LightSettings_farPlane);
 			ImGui::InputFloat("NoRayThres", &LightSettings_noRayThres);
 			ImGui::InputFloat("ViewThres", &LightSettings_viewThres);
-			ImGui::InputFloat("Cutoff", &QualitySettings_lightCutoff);
-			ImGui::InputFloat("CutoffDist", &HQSettings.y);
-			ImGui::InputInt("Shdw dtct stps", (int*)&PlanetMaterial.z);
+			ImGui::InputFloat("CutoffDist", &LightSettings_cutoffDist);
+			ImGui::InputInt("Shdw dtct stps", (int*)&LightSettings_shadowSteps);
 			ImGui::End();
 
 		}

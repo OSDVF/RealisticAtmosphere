@@ -1,7 +1,8 @@
 //?#version 440
-#include "Intersections.glsl"
+#include "Hit.glsl"
 #include "Planet.glsl"
 #include "Random.glsl"
+
 
 // Create a primary ray for pixel x, y
 Ray createCameraRay(vec2 fromPixel)
@@ -20,32 +21,6 @@ Ray createCameraRay(vec2 fromPixel)
                                             */
 }
 
-Hit findObjectHit(Ray ray)
-{
-    float closestDistance = POSITIVE_INFINITY;
-    uint hitObjectIndex = -1;
-    vec3 hitPosition;
-    vec3 normalAtHit;
-    vec3 closesHitPosition = vec3(0);
-    vec3 closestNormalAtHit = vec3(0);
-    //Firstly try hitting objects
-    for (int k = 0; k < objects.length(); ++k)
-    {
-        float lastDistance;
-        if (getRaySphereIntersection(objects[k], ray, hitPosition, normalAtHit, lastDistance)) // Update hit position and normal
-        {
-            if (lastDistance < closestDistance) {
-                hitObjectIndex = k;
-                closesHitPosition = hitPosition;
-                closestNormalAtHit = normalAtHit;
-                closestDistance = lastDistance; // Update closest distance
-            }
-        }
-    }
-    
-    return Hit(closesHitPosition, closestNormalAtHit, hitObjectIndex, closestDistance);
-}
-
 vec3 takeSample(vec2 fromPixel)
 {
     // Create primary ray with direction for this pixel
@@ -53,26 +28,18 @@ vec3 takeSample(vec2 fromPixel)
 
     // Cast the ray into the scene and check for the intersection points
     Hit hit = findObjectHit(primaryRay);
-    vec3 objectColor = AMBIENT_LIGHT;
+    vec3 resultColor = vec3(0);
     // Return color of the object at the hit
-    if (hit.hitObjectIndex != POSITIVE_INFINITY)
+    if (hit.hitObjectIndex != -1)
     {
         vec3 totalLightColor = computeLightColor(hit);
         Material objMaterial = materials[objects[hit.hitObjectIndex].materialIndex];
-        objectColor = (objMaterial.albedo.xyz * totalLightColor) + objMaterial.emission;
+        resultColor = (objMaterial.albedo.xyz * totalLightColor) + objMaterial.emission;
     }
     
     //Then add the atmosphere color
-    vec3 planetNatmoColor;
-    float somePlanetHitT = planetsWithAtmospheres(primaryRay, hit.t, /*out*/ planetNatmoColor);
-    if(somePlanetHitT < hit.t)// The planet surface is closer than the object
-    {
-        return planetNatmoColor;
-    }
-    else
-    {
-        return objectColor;
-    } 
+    planetsWithAtmospheres(primaryRay, hit.t, /*inout*/ resultColor);
+    return resultColor;
 }
 
 vec3 raytrace(vec2 fromPixel)

@@ -1,6 +1,7 @@
 //?#version 450
 #include "Buffers.glsl"
 #include "Intersections.glsl"
+#include "Hit.glsl"
 #include "Terrain.glsl"
 #include "Lighting.glsl"
 
@@ -15,22 +16,21 @@ float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistanc
   * @param tMax By tweaking the tMax parameter, you can limit the assumed ray length
   * This is useful when the ray was blocked by some objects
   */
-float planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out vec3 color)
+void planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, inout vec3 color)
 {
-	color = vec3(0);
 	for (int k = 0; k < planets.length(); ++k)
     {
         Planet p = planets[k];
-        float t0, t1, tMax = POSITIVE_INFINITY; 
 		float fromDistance, toDistance;
-		if(!raySphereIntersection(p.center, p.atmosphereRadius, ray, fromDistance, toDistance)
-		|| (t1 < 0 ))// this would mean that the atmosphere and the planet is behind us
+		if(!raySphereIntersection(p.center, p.atmosphereRadius, ray, /*out*/ fromDistance, /*out*/ toDistance)
+		|| (toDistance < 0 ))// this would mean that the atmosphere and the planet is behind us
 		{
-			return 0;
+			return;
 		}
+        float t0, t1; 
         if (raySphereIntersection(p.center, p.surfaceRadius, ray, t0, t1) && t1 > 0) 
         {
-            tMax = min(tMax, max(0, t0));//Limit by planet surface or "some object" distance
+			tMax = min(tMax, max(0, t0));//Limit by planet surface or "some object" distance
         }
 		//Limit the computation bounds according to the Hit
 		toDistance = min(tMax, toDistance);
@@ -41,18 +41,17 @@ float planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out ve
 		vec2 normalMap;
 		vec3 worldSamplePos, sphNormal;
 		float sampleHeight;
-		bool terrainWasHit;
-		if(terrainWasHit = raymarchTerrain(p, ray, fromDistance, /* inout */ toDistance,
+		if(raymarchTerrain(p, ray, fromDistance, /* inout */ toDistance,
 			/* the rest params are "out" */
 					normalMap, sphNormal, worldSamplePos, sampleHeight ))
 		{
 			color = terrainShader(p, toDistance, worldSamplePos, normalMap, sphNormal, sampleHeight);
+			raymarchPlanet(p, ray, fromDistance, toDistance, /*inout*/ color, true);
 		}
-		if(DEBUG_ATMO_OFF)
+		else if(!DEBUG_ATMO_OFF)
 		{
-			return 0;
+			raymarchPlanet(p, ray, fromDistance, toDistance, /*inout*/ color, false);
 		}
-		return raymarchPlanet(p, ray, fromDistance, toDistance, /*inout*/ color, terrainWasHit);
 	}
 }
 
@@ -74,7 +73,7 @@ float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistanc
 	float t0, t1;
 
 	float segmentLength = (maxDistance - minDistance) / Multisampling_perAtmospherePixel;
-	float currentDistance = minDistance;
+	segmentLength = max(segmentLength, QualitySettings_minStepSize);// Otherwise too close object would evaluate too much steps
 	float previousDistance = 0;
 
 	vec3 rayleighColor = vec3(0);
@@ -90,7 +89,8 @@ float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistanc
 		(8.0 * PI) * ((1.0 - assymetryFactor2) * (1.0 + (angleDot * angleDot)))
 		/ ((2.f + assymetryFactor2) * pow(1.0 + assymetryFactor2 - 2.0 * planet.mieAsymmetryFactor * angleDot, 1.5f));
 
-	for(int i = 0; i < Multisampling_perAtmospherePixel; i++)
+	float currentDistance;
+	for(currentDistance = minDistance; currentDistance < maxDistance; currentDistance += segmentLength, previousDistance = currentDistance)
 	{
 		// Always sample at the center of sample
 		vec3 worldSamplePos;
@@ -113,7 +113,10 @@ float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistanc
         raySphereIntersection(planet.center, planet.atmosphereRadius,
 							shadowRay, lightFromT, lightToT);
 
-		//Firstly check if sun is in shadow of the planet
+		//Firstly check for object hits
+		Hit hit = findObjectHit(shadowRay);
+		lightToT = min(hit.t, lightToT);
+		// Secondly check if sun is in shadow of the planet
 		float sunToNormalCos = dot(sunVector, sphNormal);
 		vec3 viewOnPlanetPlane = ray.direction - dot(ray.direction,sphNormal) * sphNormal;
 		vec3 sunOnPlanetPlane = sunVector - sunToNormalCos * sphNormal;
@@ -124,15 +127,7 @@ float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistanc
 		{
 			if(sunToNormalCos < LightSettings_viewThres)
 			{
-				previousDistance = currentDistance;
-				currentDistance += segmentLength;
 				continue;//Skip to next sample. This effectively creates light rays
-			}
-			if(sunToNormalCos < LightSettings_viewThres)//The main speedup when looking into light rays
-			{
-				if(DEBUG_RM)
-					color = vec3(0,0,1);
-				noSureIfEclipse = false;
 			}
 		}
 		if(sunToNormalCos > LightSettings_noRayThres || sunToViewCos < LightSettings_noRayThres)
@@ -147,17 +142,19 @@ float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistanc
 			//If we hit the mountains			
 			if(raymarchTerrainL(planet, shadowRay, 0, lightToT))
 			{
-				if(dot(sunOnPlanetPlane,viewOnPlanetPlane) > QualitySettings_lightCutoff && terrainWasHit && currentDistance > maxDistance * HQSettings.y)
+				if(dot(sunOnPlanetPlane,viewOnPlanetPlane) > 0 && terrainWasHit && currentDistance > maxDistance * LightSettings_cutoffDist)
 				{
 					if(DEBUG_RM)
 						color = vec3(1,0,0);
 					// In all the later samples, the sun will be also occluded
 					break;//The later samples would all be occluded by the terrain
 				}
-				previousDistance = currentDistance;
-				currentDistance += segmentLength;
 				continue;//Skip to next sample. This effectively creates light rays
 			}
+		}
+		if(hit.hitObjectIndex != -1 && hit.hitObjectIndex != 0/*sun*/)
+		{
+			continue;//Light is occluded by a object
 		}
 
 		// The lookup table is from alpha angle value from -0.5 to 1.0, so we must remap the X coord
@@ -173,10 +170,6 @@ float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistanc
 
 		rayleighColor += attenuation * rayleighHF;
 		mieColor += attenuation * mieHF;
-		
-		// Shift to next sample
-		previousDistance = currentDistance;
-		currentDistance += segmentLength;
 	}
 	// Add atmosphere to planet color /* or to nothing */
 	color += (rayleighColor * planet.rayleighCoefficients * rayleightPhase

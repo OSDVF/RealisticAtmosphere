@@ -9,7 +9,7 @@
 #define SCENEOBJECTS
 #define AMBIENT_LIGHT vec3(0)
 #ifdef BGFX_SHADER_LANGUAGE_GLSL
-const float POSITIVE_INFINITY = uintBitsToFloat(0x7F800000);
+const float POSITIVE_INFINITY = 3.402823466e+38;
 const float NEGATIVE_INFINITY = uintBitsToFloat(0xFF800000);
 #define SPACE_COLOR vec3(0.1,0.1,0.3)
 uniform sampler2D texSampler1;
@@ -24,6 +24,7 @@ uniform vec4 PlanetMaterial;
 uniform vec4 RaymarchingSteps;
 uniform vec4 HQSettings;
 uniform vec4 LightSettings;
+uniform vec4 LightSettings2;
 #else
 vec4 Camera[] =
 {
@@ -33,14 +34,15 @@ vec4 Camera[] =
     vec4(1,0,0,0)//Right vector, fovX
 };
 vec4 MultisamplingSettings = {1,10,64,0};
-vec4 QualitySettings = {5,0,70000,1};
+vec4 QualitySettings = {5,10,70000,1};
 uint PathTracing = 1;
 uint CastShadows = 2;
 uint HQFlags1 = 0;
-vec4 HQSettings = {*(float*)&HQFlags1, 0.5};
-vec4 LightSettings = {1000, 0.03, 0.4, 0.107};
+vec4 HQSettings = {*(float*)&HQFlags1};
+vec4 LightSettings = {1000, 0.03, 0.4, 0.05};
 int lightTerrainDetectSteps = 40;
-vec4 PlanetMaterial = {1700, 2300, *(float*)&lightTerrainDetectSteps, 600};
+vec4 LightSettings2 = {0.5, *(float*)&lightTerrainDetectSteps};
+vec4 PlanetMaterial = {1700, 2300, 0, 600};
 int planetSteps = 200;
 vec4 RaymarchingSteps = {*(float*)&planetSteps, 4, 0.005, 0.4};
 #endif
@@ -51,7 +53,7 @@ vec4 RaymarchingSteps = {*(float*)&planetSteps, 4, 0.005, 0.4};
 #define Multisampling_type MultisamplingSettings.w
 
 #define QualitySettings_steps QualitySettings.x
-#define QualitySettings_lightCutoff QualitySettings.y
+#define QualitySettings_minStepSize QualitySettings.y
 #define QualitySettings_farPlane QualitySettings.z
 #define QualitySettings_optimism QualitySettings.w
 
@@ -59,6 +61,8 @@ vec4 RaymarchingSteps = {*(float*)&planetSteps, 4, 0.005, 0.4};
 #define LightSettings_precision LightSettings.y
 #define LightSettings_noRayThres LightSettings.z
 #define LightSettings_viewThres LightSettings.w
+#define LightSettings_cutoffDist LightSettings2.x
+#define LightSettings_shadowSteps LightSettings2.y
 
 #define Camera_position (Camera[0].xyz)
 #define Camera_direction (Camera[1].xyz)

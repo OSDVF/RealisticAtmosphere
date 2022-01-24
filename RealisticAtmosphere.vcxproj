@@ -254,6 +254,7 @@
     <None Include="ComputeRender\compute_render.comp" />
     <None Include="Debug.glsl" />
     <None Include="Heightmap.comp" />
+    <None Include="Hit.glsl" />
     <None Include="Intersections.glsl" />
     <None Include="Lighting.glsl" />
     <None Include="normal_render.frag" />
