@@ -131,6 +131,9 @@ namespace RealisticAtmosphere
 		bool _debugAtmoOff = false;
 		bool _debugRm = false;
 		bool _showGUI = true;
+		bool _pathTracingMode = false;
+
+		vec4 _settingsBackup[5];
 
 		bgfx::DynamicIndexBufferHandle _objectBufferHandle;
 		bgfx::DynamicIndexBufferHandle _atmosphereBufferHandle;
@@ -463,7 +466,7 @@ namespace RealisticAtmosphere
 #endif
 		void computeShaderRaytracer()
 		{
-			bgfx::setImage(0, _raytracerOutputTexture, 0, bgfx::Access::Write);
+			bgfx::setImage(0, _raytracerOutputTexture, 0, bgfx::Access::ReadWrite);
 			bgfx::dispatch(0, _computeShaderProgram, bx::ceil(_windowWidth / 16.0f), bx::ceil(_windowHeight / 16.0f));
 
 			/** We cannot do a blit into backbuffer - not implemented in BGFX
@@ -490,6 +493,7 @@ namespace RealisticAtmosphere
 			bgfx::setBuffer(3, _materialBufferHandle, bgfx::Access::Read);
 			bgfx::setBuffer(4, _directionalLightBufferHandle, bgfx::Access::Read);
 			vec4 timeWrapper = vec4(_frame, 0, 0, 0);
+			HQSettings.y = *(float*)&currentSample;
 			bgfx::setUniform(_timeHandle, &timeWrapper);
 			bgfx::setUniform(_multisamplingSettingsHandle, &MultisamplingSettings);
 			bgfx::setUniform(_qualitySettingsHandle, &QualitySettings);
@@ -503,6 +507,10 @@ namespace RealisticAtmosphere
 			bgfx::setTexture(7, _texSampler3, _texture3Handle);
 			bgfx::setTexture(8, _heightmapSampler, _heightmapTextureHandle);
 			bgfx::setTexture(9, _opticalDepthSampler, _opticalDepthTable, BGFX_SAMPLER_UVW_CLAMP);
+
+			if (currentSample == 0)
+				currentSample = *(int*)&Multisampling_perPixel;
+			currentSample--;
 		}
 
 		void viewportActions()
@@ -535,6 +543,7 @@ namespace RealisticAtmosphere
 				ImVec2(0, 145)
 				, ImGuiCond_FirstUseEver
 			);
+
 			ImGui::Begin("Planet");
 			ImGui::InputFloat3("Center", (float*)&singlePlanet.center);
 			ImGui::PushItemWidth(90);
@@ -559,6 +568,20 @@ namespace RealisticAtmosphere
 				, ImGuiCond_FirstUseEver
 			);
 			ImGui::Begin("Camera");
+			if (_pathTracingMode)
+			{
+				drawPathTracerGUI();
+				return;
+			}
+			if (ImGui::Button("Take HQ sample"))
+			{
+				_pathTracingMode = true;
+				_settingsBackup[0] = QualitySettings;
+				_settingsBackup[1] = MultisamplingSettings;
+				_settingsBackup[2] = RaymarchingSteps;
+				_settingsBackup[3] = LightSettings;
+				_settingsBackup[4] = LightSettings2;
+			}
 			ImGui::InputFloat("Speed", &_person.WalkSpeed);
 			ImGui::InputFloat("RunSpeed", &_person.RunSpeed);
 			ImGui::SliderFloat("Sensitivity", &_person.Camera.Sensitivity, 0, 5.0f);
@@ -579,47 +602,35 @@ namespace RealisticAtmosphere
 				ImVec2(220, 0)
 				, ImGuiCond_FirstUseEver
 			);
-			ImGui::SetNextWindowSize(
-				ImVec2(250, 500)
-				, ImGuiCond_FirstUseEver
-			);
 			ImGui::SetNextWindowCollapsed(true, ImGuiCond_FirstUseEver);
 
 			ImGui::Begin("Settings");
 			ImGui::Checkbox("Debug Normals", &_debugNormals);
-			ImGui::PushItemWidth(90);
-
-			//We need to cast the values to int and back to float because BGFX does not recognize ivec4 uniforms
-			int perPixel = Multisampling_perPixel;
-			ImGui::InputInt("Pixel supersampling", &perPixel);
-			Multisampling_perPixel = perPixel;
-			int perAtmo = Multisampling_perAtmospherePixel;
-			ImGui::InputInt("Atmosphere supersampling", &perAtmo);
-			Multisampling_perAtmospherePixel = perAtmo;
-			ImGui::PopItemWidth();
-
-			ImGui::Checkbox("Hide atmosphere", &_debugAtmoOff);
 			ImGui::Checkbox("Debug RayMarch", &_debugRm);
+			ImGui::Checkbox("Hide atmosphere", &_debugAtmoOff);
+
 			ImGui::PushItemWidth(90);
-			ImGui::InputFloat("Optimism", &QualitySettings_optimism, 0, 1);
+			ImGui::InputInt("Samples", (int*)&Multisampling_perPixel);
+			ImGui::InputInt("Atmosphere supersampling", (int*)&Multisampling_perAtmospherePixel);
 			ImGui::PopItemWidth();
-			ImGui::InputFloat("Far Plane", &QualitySettings_farPlane);
-			ImGui::InputFloat("MinStepSize", &QualitySettings_minStepSize);
-			ImGui::InputInt("Planet Steps", (int*)&RaymarchingSteps.x);
-			ImGui::InputFloat("Precision", &RaymarchingSteps.z,0,0,"%e");
-			ImGui::InputFloat("LOD Div", &RaymarchingSteps.y);
-			ImGui::InputFloat("LOD Bias", &RaymarchingSteps.w);
-			ImGui::InputFloat("Normals",&PlanetMaterial.z);
 			ImGui::End();
+
+			drawTerrainGUI();
 
 			ImGui::SetNextWindowPos(ImVec2(250, 20), ImGuiCond_FirstUseEver);
 			ImGui::SetNextWindowCollapsed(true, ImGuiCond_FirstUseEver);
 			ImGui::Begin("Materials");
 			ImGui::InputFloat("1",&PlanetMaterial.x);
 			ImGui::InputFloat("2", &PlanetMaterial.y);
-			ImGui::InputFloat("rand", &PlanetMaterial.w);
+			ImGui::InputFloat("Gradient", &PlanetMaterial.w);
 			ImGui::End();
 
+			drawLightGUI();
+
+		}
+
+		void drawLightGUI()
+		{
 			ImGui::SetNextWindowPos(ImVec2(250, 40), ImGuiCond_FirstUseEver);
 			ImGui::SetNextWindowCollapsed(true, ImGuiCond_FirstUseEver);
 			ImGui::Begin("Light");
@@ -632,7 +643,45 @@ namespace RealisticAtmosphere
 			ImGui::InputInt("Shdw dtct stps", (int*)&LightSettings_shadowSteps);
 			ImGui::InputFloat("TerrainOptim", &LightSettings_terrainOptimMult);
 			ImGui::End();
+		}
 
+		void drawTerrainGUI()
+		{
+			ImGui::SetNextWindowPos(ImVec2(250, 60), ImGuiCond_FirstUseEver);
+			ImGui::SetNextWindowCollapsed(true, ImGuiCond_FirstUseEver);
+			ImGui::Begin("Terrain");
+			ImGui::InputFloat("Optimism", &QualitySettings_optimism, 0, 1);
+			ImGui::InputFloat("Far Plane", &QualitySettings_farPlane);
+			ImGui::InputFloat("MinStepSize", &QualitySettings_minStepSize);
+			ImGui::InputInt("Planet Steps", (int*)&RaymarchingSteps.x);
+			ImGui::InputFloat("Precision", &RaymarchingSteps.z, 0, 0, "%e");
+			ImGui::InputFloat("LOD Div", &RaymarchingSteps.y);
+			ImGui::InputFloat("LOD Bias", &RaymarchingSteps.w);
+			ImGui::InputFloat("Normals", &PlanetMaterial.z);
+			ImGui::End();
+		}
+
+		void drawPathTracerGUI()
+		{
+			//We continue with the "Camera" window
+			if (ImGui::Button("Back To Realtime"))
+			{
+				_pathTracingMode = false;
+				QualitySettings = _settingsBackup[0];
+				MultisamplingSettings = _settingsBackup[1];
+				RaymarchingSteps = _settingsBackup[2];
+				LightSettings = _settingsBackup[3];
+				LightSettings2 = _settingsBackup[4];
+			}
+			ImGui::PushItemWidth(90);
+			ImGui::InputInt("Samples", (int*)&Multisampling_perPixel);
+			ImGui::InputInt("Bounces", (int*)&Multisampling_maxBounces);
+			ImGui::InputInt("Atmosphere samples", (int*)&Multisampling_perAtmospherePixel);
+			ImGui::PopItemWidth();
+			ImGui::End();
+
+			drawLightGUI();
+			drawTerrainGUI();
 		}
 	};
 

@@ -64,15 +64,11 @@ float getSampleAtmParams(Planet planet, Ray ray, float currentDistance, out vec3
 	return centerDist - planet.surfaceRadius;
 }
 
-float min3 (vec3 v) {
-  return min (min (v.x, v.y), v.z);
-}
-
 float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistance, inout vec3 color, bool terrainWasHit)
 {
 	float t0, t1;
 
-	float segmentLength = (maxDistance - minDistance) / Multisampling_perAtmospherePixel;
+	float segmentLength = (maxDistance - minDistance) / floatBitsToInt(Multisampling_perAtmospherePixel);
 	segmentLength = max(segmentLength, QualitySettings_minStepSize);// Otherwise too close object would evaluate too much steps
 
 	vec3 rayleighColor = vec3(0);
@@ -179,7 +175,6 @@ float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistanc
 		vec3 depth = planet.rayleighCoefficients * (lOpticalDepth.x + opticalDepthR)
 						+ mieExtinction * (lOpticalDepth.y + opticalDepthM);
 		vec3 attenuation = exp(-depth);
-
 		rayleighColor += attenuation * rayleighHF;
 		mieColor += attenuation * mieHF;
 	}

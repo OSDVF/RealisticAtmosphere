@@ -2,10 +2,22 @@
 #define COMPUTE 1
 layout(local_size_x=16, local_size_y=16, local_size_z = 1) in;
 #include "../raytracer.glsl"
-layout(rgba32f, binding=0) writeonly uniform image2D computeShaderOutput;
+layout(rgba32f, binding=0) uniform image2D computeShaderOutput;
 
 void main()
 {
     vec3 raytracerOutputColor = raytrace(gl_GlobalInvocationID.xy);
-	imageStore(computeShaderOutput, ivec2(gl_GlobalInvocationID.xy), vec4(raytracerOutputColor, 1.0) );
+	ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
+	vec3 color;
+	if(floatBitsToInt(HQSettings_sampleNum) == 0)
+	{
+		color = vec3(0);
+	}
+	else
+	{
+		color = imageLoad(computeShaderOutput, coord).xyz;
+	}
+
+	
+	imageStore(computeShaderOutput, coord, vec4(raytracerOutputColor+color, 1.0));
 }

@@ -45,46 +45,43 @@ vec3 takeSample(vec2 fromPixel)
 vec3 raytrace(vec2 fromPixel)
 {
     fromPixel+= 0.5;//Center the ray
-    vec3 resultColor = vec3(0, 0, 0);
-    uint sampleNum = 0;
-    switch(int(Multisampling_type))
+    int sampleNum = floatBitsToInt(HQSettings_sampleNum);
+    int multisampling = floatBitsToInt(Multisampling_perPixel);
+    int x,y;
+    switch(floatBitsToInt(Multisampling_type))
     {
     case 1:
-        for(int x = 0; x < Multisampling_perPixel; x++)
+        x = sampleNum % multisampling;
+        y = sampleNum / multisampling;
+        if(sampleNum == 0)
         {
-            for(int y = 0; y < Multisampling_perPixel; y++,sampleNum++)
-            {
-                if(sampleNum == 0)
-                {
-                    resultColor += takeSample(fromPixel);
-                    continue;
-                }
-                float firstRand = random(x);
-                vec2 randomOffset = vec2(firstRand,random(firstRand))-0.5;
-                vec2 griddedOffset = vec2(x / Multisampling_perPixel, y / Multisampling_perPixel) - 0.5;
-                resultColor += takeSample(fromPixel + mix(griddedOffset,randomOffset,0.5));
-            }
+            return takeSample(fromPixel);
         }
-        return resultColor / sampleNum;
+        else
+        {
+            float firstRand = random(sampleNum);
+            vec2 randomOffset = vec2(firstRand,random(firstRand))-0.5;
+            vec2 griddedOffset = vec2(x / multisampling, y / multisampling) - 0.5;
+            return takeSample(fromPixel + mix(griddedOffset, randomOffset, 0.5));
+        }
     case 2:
-        for(int x = 0; x < Multisampling_perPixel; x++)
         {
-            for(int y = 0; y < Multisampling_perPixel; y++,sampleNum++)
-            {
-                vec2 griddedOffset = vec2(x / (Multisampling_perPixel-1), y / (Multisampling_perPixel-1)) - 0.5;
-                resultColor += takeSample(fromPixel + griddedOffset);
-            }
+            x = sampleNum % multisampling;
+            y = sampleNum / multisampling;
+            vec2 griddedOffset = vec2(x / (multisampling-1), y / (multisampling-1)) - 0.5;
+            return takeSample(fromPixel + griddedOffset);
         }
-        return resultColor / sampleNum;
 
     default:
-        resultColor += takeSample(fromPixel);
-        for(int x = 1; x < Multisampling_perPixel; x++)
+        if(sampleNum == 0)
         {
-            float firstRand = random(x);
-            vec2 randomOffset = vec2(firstRand,random(firstRand))-0.5;
-            resultColor += takeSample(fromPixel + randomOffset);
+            return takeSample(fromPixel);
         }
-        return resultColor / Multisampling_perPixel;
+        else
+        {
+            float firstRand = random(sampleNum);
+            vec2 randomOffset = vec2(firstRand,random(firstRand))-0.5;
+            return takeSample(fromPixel + randomOffset);
+        }
     }
 }

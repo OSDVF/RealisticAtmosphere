@@ -2,6 +2,7 @@
 // This shader just displays output from raytracer in Compute shader
 in vec2 texCoord;
 layout(binding=0) uniform sampler2D computeShaderOutput;
+uniform vec4 MultisamplingSettings;
 #include "../Debug.glsl"
 
 float tmFunc(float hdrColor)
@@ -18,5 +19,5 @@ vec3 tonemapping(vec3 hdrColor)
 
 void main()
 {
-   gl_FragColor.xyz = tonemapping(texture2D(computeShaderOutput,texCoord).xyz);
+   gl_FragColor.xyz = tonemapping(texture2D(computeShaderOutput,texCoord).xyz/float(floatBitsToInt(MultisamplingSettings)));
 }
