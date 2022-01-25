@@ -33,22 +33,21 @@ vec4 Camera[] =
     vec4(0,1,0,0),//Up vector, fovY
     vec4(1,0,0,0)//Right vector, fovX
 };
-vec4 MultisamplingSettings = {1,100,64,0};
-vec4 QualitySettings = {5,10,70000,1};
+vec4 MultisamplingSettings = {1,0,64,0};
+vec4 QualitySettings = {5,50,70000,1};
 uint PathTracing = 1;
 uint CastShadows = 2;
 uint HQFlags1 = 0;
 vec4 HQSettings = {*(float*)&HQFlags1};
 vec4 LightSettings = {1000, 0.03, 0.4, 0.02};
 int lightTerrainDetectSteps = 40;
-vec4 LightSettings2 = {0.5, *(float*)&lightTerrainDetectSteps, 2};
+vec4 LightSettings2 = {0.5, *(float*)&lightTerrainDetectSteps, 3, 0.8};
 vec4 PlanetMaterial = {1700, 2300, 0, 600};
 int planetSteps = 200;
 vec4 RaymarchingSteps = {*(float*)&planetSteps, 4, 0.005, 0.4};
 #endif
 
 #define Multisampling_perPixel MultisamplingSettings.x
-#define Multisampling_perLightRay MultisamplingSettings.y
 #define Multisampling_perAtmospherePixel MultisamplingSettings.z
 #define Multisampling_type MultisamplingSettings.w
 
@@ -63,7 +62,9 @@ vec4 RaymarchingSteps = {*(float*)&planetSteps, 4, 0.005, 0.4};
 #define LightSettings_viewThres LightSettings.w
 #define LightSettings_cutoffDist LightSettings2.x
 #define LightSettings_shadowSteps LightSettings2.y
+#define LightSettings_gradient LightSettings2.z
 #define LightSettings_fieldThres LightSettings2.z
+#define LightSettings_terrainOptimMult LightSettings2.w
 
 #define Camera_position (Camera[0].xyz)
 #define Camera_direction (Camera[1].xyz)

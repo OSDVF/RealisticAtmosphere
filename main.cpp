@@ -627,9 +627,10 @@ namespace RealisticAtmosphere
 			ImGui::InputFloat("Far Plane", &LightSettings_farPlane);
 			ImGui::InputFloat("NoRayThres", &LightSettings_noRayThres);
 			ImGui::InputFloat("ViewThres", &LightSettings_viewThres);
-			ImGui::InputFloat("FieldThres", &LightSettings_fieldThres);
+			ImGui::InputFloat("Gradient", &LightSettings_gradient);
 			ImGui::InputFloat("CutoffDist", &LightSettings_cutoffDist);
 			ImGui::InputInt("Shdw dtct stps", (int*)&LightSettings_shadowSteps);
+			ImGui::InputFloat("TerrainOptim", &LightSettings_terrainOptimMult);
 			ImGui::End();
 
 		}

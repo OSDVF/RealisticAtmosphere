@@ -107,11 +107,11 @@ float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistanc
 		//Compute light optical depth
 		//
 
-        float lightFromT, lightToT; 
+        float lightFromT = 0, dummy, lightToT; 
 		// Intersect light ray with outer shell of the planet
 		Ray shadowRay = Ray(worldSamplePos, sunVector);
         raySphereIntersection(planet.center, planet.atmosphereRadius,
-							shadowRay, lightFromT, lightToT);
+							shadowRay, dummy, lightToT);
 
 		//Firstly check for object hits
 		Hit hit = findObjectHit(shadowRay);
@@ -127,12 +127,19 @@ float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistanc
 		{
 			if(sunToNormalCos < LightSettings_viewThres)
 			{
-				continue;//Skip to next sample. This effectively creates light rays
+				continue;//No light when sun is under the horizon
 			}
+			// When view ray and sun are on the opposite side, there nearly "should not be" any rays
 			float diff = sunToViewCos - LightSettings_noRayThres;
-			if(diff < 0 && mod(i, LightSettings_fieldThres) < 1)
+			// But it whould sometimes create a visible seam, so we create a gradient here
+			if(diff < 0 && mod(i, LightSettings_gradient) < 1)
 			{
 				noSureIfEclipse = false;
+			}
+			else
+			{
+				// We can start terrain raymarching at the distance of the terrain from the camera
+				lightFromT = (maxDistance - currentDistance) * LightSettings_terrainOptimMult;
 			}
 		}
 		if(sunToNormalCos > LightSettings_noRayThres || currentDistance > QualitySettings_farPlane)
@@ -145,7 +152,7 @@ float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistanc
 		if(noSureIfEclipse && distance(worldSamplePos, planet.center) < planet.mountainsRadius)
 		{
 			//If we hit the mountains			
-			if(raymarchTerrainL(planet, shadowRay, 0, lightToT))
+			if(raymarchTerrainL(planet, shadowRay, lightFromT, lightToT))
 			{
 				if(dot(sunOnPlanetPlane,viewOnPlanetPlane) > 0 && terrainWasHit && currentDistance > maxDistance * LightSettings_cutoffDist)
 				{
