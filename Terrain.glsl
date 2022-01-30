@@ -85,7 +85,8 @@ vec3 biLerp(vec3 a, vec3 b, vec3 c, vec3 d, float s, float t)
 vec3 terrainNormal(vec2 normalMap, vec3 sphNormal)
 {
 	// Compute normal in world space
-	vec2 map = (normalMap) * 2 - 1;
+	vec2 map = (normalMap * PlanetMaterial.z) * 2 - 1;
+	map.y = -map.y;
 	vec3 t = sphereTangent(sphNormal);
 	vec3 bitangent = sphNormal * t;
 	float normalZ = sqrt(1-dot(map.xy, map.xy));
@@ -134,15 +135,15 @@ float getSampleParameters(Planet planet, Ray ray, float currentDistance, out vec
 	return centerDist - planet.surfaceRadius;
 }
 
-vec3 terrainShader(Planet p, float T, vec3 worldSamplePos, vec2 planetNormalMap, vec3 sphNormal, float sampleHeight)
+vec3 terrainShader(Planet p, float T, vec3 worldSamplePos, vec2 planetNormalMap, vec3 sphNormal, float sampleHeight, out vec3 worldNormal)
 {
-	vec3 worldNormal = terrainNormal(planetNormalMap, sphNormal);
+	worldNormal = terrainNormal(planetNormalMap, sphNormal);
 	if(DEBUG_NORMALS)
 	{
 		return worldNormal * 0.5 + 0.5;
 	}
 	return terrainColor(p, T, worldSamplePos, worldNormal, sampleHeight)
-			* lightPoint(worldSamplePos, worldNormal);
+		* lightPoint(worldSamplePos, worldNormal);
 }
 
 bool raymarchTerrain(Planet planet, Ray ray, float fromDistance, inout float toDistance, out vec2 normalMap, out vec3 sphNormal, out vec3 worldSamplePos, out float sampleHeight)

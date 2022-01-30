@@ -8,6 +8,7 @@
 // A single iteration of Bob Jenkins' One-At-A-Time hashing algorithm.
 #ifndef TIME_H
 #define TIME_H
+#include "Math.glsl"
 uniform vec4 time;
 uint hash( uint x ) {
     x += ( x << 10u );
@@ -165,8 +166,6 @@ vec2 terrainMap( in vec2 p )
     e += 0.15*smoothstep( -0.08, -0.01, e );
     return vec2(e,a);
 }
-
-const float pi = atan(1.0) * 4.0;
 
 vec2 tcToAngle(vec2 tc)
 {

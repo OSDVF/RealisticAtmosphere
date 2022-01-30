@@ -8,7 +8,7 @@
 uniform sampler2D opticalDepthTable;
 #define PI pi
 
-float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistance, inout vec3 color, bool terrainWasHit);
+float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDistance, inout vec3 color, bool terrainWasHit);
 
 /**
   * Does a raymarching through the atmosphere and planet
@@ -16,7 +16,7 @@ float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistanc
   * @param tMax By tweaking the tMax parameter, you can limit the assumed ray length
   * This is useful when the ray was blocked by some objects
   */
-void planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, inout vec3 color)
+bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, inout vec3 color, out Hit planetHit)
 {
 	for (int k = 0; k < planets.length(); ++k)
     {
@@ -25,7 +25,7 @@ void planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, inout v
 		if(!raySphereIntersection(p.center, p.atmosphereRadius, ray, /*out*/ fromDistance, /*out*/ toDistance)
 		|| (toDistance < 0 ))// this would mean that the atmosphere and the planet is behind us
 		{
-			return;
+			return false;
 		}
         float t0, t1; 
         if (raySphereIntersection(p.center, p.surfaceRadius, ray, t0, t1) && t1 > 0) 
@@ -45,13 +45,17 @@ void planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, inout v
 			/* the rest params are "out" */
 					normalMap, sphNormal, worldSamplePos, sampleHeight ))
 		{
-			color = terrainShader(p, toDistance, worldSamplePos, normalMap, sphNormal, sampleHeight);
-			raymarchPlanet(p, ray, fromDistance, toDistance, /*inout*/ color, true);
+			vec3 worldNormal;
+			color = terrainShader(p, toDistance, worldSamplePos, normalMap, sphNormal, sampleHeight, /*out*/ worldNormal);
+			if(!DEBUG_ATMO_OFF) raymarchAtmosphere(p, ray, fromDistance, toDistance, /*inout*/ color, true);
+			planetHit = Hit(worldSamplePos, worldNormal, -1, toDistance);
+			return true;
 		}
 		else if(!DEBUG_ATMO_OFF)
 		{
-			raymarchPlanet(p, ray, fromDistance, toDistance, /*inout*/ color, false);
+			raymarchAtmosphere(p, ray, fromDistance, toDistance, /*inout*/ color, false);
 		}
+		return false;
 	}
 }
 
@@ -64,7 +68,7 @@ float getSampleAtmParams(Planet planet, Ray ray, float currentDistance, out vec3
 	return centerDist - planet.surfaceRadius;
 }
 
-float raymarchPlanet(Planet planet, Ray ray, float minDistance, float maxDistance, inout vec3 color, bool terrainWasHit)
+float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDistance, inout vec3 color, bool terrainWasHit)
 {
 	float t0, t1;
 

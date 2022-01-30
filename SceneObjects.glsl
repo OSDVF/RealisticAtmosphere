@@ -34,7 +34,7 @@ vec4 Camera[] =
     vec4(1,0,0,0)//Right vector, fovX
 };
 int perPixel = 1;
-int bounces = 5;
+int bounces = 0;
 int perAtmosphere = 64;
 int type = 0;
 vec4 MultisamplingSettings = {*(float*)&perPixel,*(float*)&bounces,*(float*)&perAtmosphere,*(float*)&type};
@@ -47,7 +47,7 @@ vec4 HQSettings = {*(float*)&HQFlags1, *(float*)&currentSample};
 vec4 LightSettings = {1000, 0.03, 0.4, 0.02};
 int lightTerrainDetectSteps = 40;
 vec4 LightSettings2 = {0.5, *(float*)&lightTerrainDetectSteps, 3, 0.8};
-vec4 PlanetMaterial = {1700, 2300, 1.4, 600};
+vec4 PlanetMaterial = {1700, 2300, 1, 600};
 int planetSteps = 200;
 vec4 RaymarchingSteps = {*(float*)&planetSteps, 4, 0.005, 0.4};
 #endif

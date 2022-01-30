@@ -19,7 +19,7 @@ vec3 lightPoint(vec3 p, vec3 normal)
         Ray shadowRay = Ray(p, lDir);
         for (int k = 1; k < objects.length(); ++k) {
             float t0 = 0, t1 = 0;
-            if (raySphereIntersection(objects[k].position, objects[k].radius, shadowRay, t0, t1)) {
+            if (raySphereIntersection(objects[k].position, objects[k].radius, shadowRay, t0, t1) && t1 > 0) {
                 return AMBIENT_LIGHT;
             }
         }
