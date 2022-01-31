@@ -30,7 +30,7 @@ vec3 randomDirection(vec3 normal, vec2 randomValues, float maxTheta) {
     float phi = 2.0 * PI * randomValues.x;
     float theta = randomValues.y * maxTheta;
     float sinTheta = sin(theta);
-    return tangent * cos(phi) * sinTheta + bitangent * sin(phi) * sinTheta + normal * cos(theta);
+    return normalize(tangent * cos(phi) * sinTheta + bitangent * sin(phi) * sinTheta + normal * cos(theta));
 }
 
 Ray createSecondaryRay(Hit fromHit)
@@ -41,31 +41,30 @@ Ray createSecondaryRay(Hit fromHit)
     return Ray(fromHit.position, direction);
 }
 
-vec3 takeSample(vec2 fromPixel, inout vec3 indirectOutput)
+vec3 takeSample(vec2 fromPixel)
 {
     // Create primary ray with direction for this pixel
     Ray primaryRay = createCameraRay(fromPixel);
-
     // Cast the ray into the scene and check for the intersection points
     Hit objectHit = findObjectHit(primaryRay);
-    vec3 resultColor = vec3(0);
+    vec3 radiance = vec3(0);
+    vec3 throughput = vec3(1);
     // Return color of the object at the hit
-    if (objectHit.hitObjectIndex != -1)
-    {
-        Material objMaterial = materials[objects[objectHit.hitObjectIndex].materialIndex];
-        vec3 totalLightColor = computeLightColor(objectHit);
-        resultColor =  totalLightColor * objMaterial.albedo.xyz + objMaterial.emission;
-    }
     
     // Then add the atmosphere color
     Hit planetOrObjHit;
-    bool somethingHit = planetsWithAtmospheres(primaryRay, objectHit.t, /*inout*/ resultColor, /*out*/ planetOrObjHit);
-    
+    bool somethingHit = planetsWithAtmospheres(primaryRay, objectHit.t, /*inout*/ radiance, /*inout*/ throughput, /*out*/ planetOrObjHit);
+    if (!somethingHit && objectHit.hitObjectIndex != -1)
+    {
+        Material objMaterial = materials[objects[objectHit.hitObjectIndex].materialIndex];
+        vec3 totalLightColor = computeLightColor(objectHit);
+        radiance = totalLightColor * objMaterial.albedo.xyz + objMaterial.emission;
+        throughput = objMaterial.albedo.xyz;
+    }
     //
     // Bounces
     //
     int bounces = floatBitsToInt(Multisampling_maxBounces);
-    vec3 indirectTotal = vec3(0);
     if(bounces > 0)
     {
         int b;
@@ -81,17 +80,17 @@ vec3 takeSample(vec2 fromPixel, inout vec3 indirectOutput)
             {
                 vec3 indirectColor = vec3(0);
                 Ray secondaryRay = createSecondaryRay(planetOrObjHit);
+                float cosTheta = dot(planetOrObjHit.normalAtHit, secondaryRay.direction);
 
                 objectHit = findObjectHit(secondaryRay);
-                if (objectHit.hitObjectIndex != -1)
+                somethingHit = planetsWithAtmospheres(secondaryRay, objectHit.t, /*inout*/ indirectColor, /*inout*/ throughput, /*out*/ planetOrObjHit);
+                if (!somethingHit && objectHit.hitObjectIndex != -1)
                 {
                     Material objMaterial = materials[objects[objectHit.hitObjectIndex].materialIndex];
                     vec3 totalLightColor = computeLightColor(objectHit);
-                    indirectColor += totalLightColor * objMaterial.albedo.xyz + objMaterial.emission;
+                    radiance += (objMaterial.emission + totalLightColor * objMaterial.albedo.xyz) * throughput;
+                    throughput *= objMaterial.albedo.xyz;
                 }
-
-                somethingHit = planetsWithAtmospheres(secondaryRay, objectHit.t, /*inout*/ indirectColor, /*out*/ planetOrObjHit);
-                indirectTotal += indirectColor;
             }
             else
             {
@@ -99,12 +98,10 @@ vec3 takeSample(vec2 fromPixel, inout vec3 indirectOutput)
             }
         }
     }
-    indirectOutput += indirectTotal;
-    return resultColor;
-
+    return radiance;
 }
 
-vec3 raytrace(vec2 fromPixel, inout vec3 indirectOutput)
+vec3 raytrace(vec2 fromPixel)
 {
     fromPixel+= 0.5;//Center the ray
     int sampleNum = floatBitsToInt(HQSettings_sampleNum);
@@ -117,33 +114,33 @@ vec3 raytrace(vec2 fromPixel, inout vec3 indirectOutput)
         y = sampleNum / multisampling;
         if(sampleNum == 0)
         {
-            return takeSample(fromPixel, indirectOutput);
+            return takeSample(fromPixel);
         }
         else
         {
             float firstRand = random(sampleNum);
             vec2 randomOffset = vec2(firstRand,random(firstRand))-0.5;
             vec2 griddedOffset = vec2(x / multisampling, y / multisampling) - 0.5;
-            return takeSample(fromPixel + mix(griddedOffset, randomOffset, 0.5), indirectOutput);
+            return takeSample(fromPixel + mix(griddedOffset, randomOffset, 0.5));
         }
     case 2:
         {
             x = sampleNum % multisampling;
             y = sampleNum / multisampling;
             vec2 griddedOffset = vec2(x / (multisampling-1), y / (multisampling-1)) - 0.5;
-            return takeSample(fromPixel + griddedOffset, indirectOutput);
+            return takeSample(fromPixel + griddedOffset);
         }
 
     default:
         if(sampleNum == 0)
         {
-            return takeSample(fromPixel, indirectOutput);
+            return takeSample(fromPixel);
         }
         else
         {
             float firstRand = random(sampleNum);
             vec2 randomOffset = vec2(firstRand,random(firstRand))-0.5;
-            return takeSample(fromPixel + randomOffset, indirectOutput);
+            return takeSample(fromPixel + randomOffset);
         }
     }
 }

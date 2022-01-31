@@ -248,7 +248,7 @@
     <UpToDateCheckInput Include="**\*.glsl" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="BRDF.glsl" />
+    <None Include="Lambert.glsl" />
     <None Include="Buffers.glsl" />
     <None Include="ComputeRender\rt_display.vert" />
     <None Include="ComputeRender\rt_display.frag" />
@@ -265,6 +265,7 @@
     <None Include="Precompute.comp" />
     <None Include="Random.glsl" />
     <None Include="raytracer.glsl" />
+    <None Include="Sampling.glsl" />
     <None Include="SceneObjects.glsl" />
     <None Include="shaders\scripts\shaderc32debug.ps1" />
     <None Include="shaders\scripts\shaderc32release.ps1" />

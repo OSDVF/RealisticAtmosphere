@@ -8,7 +8,7 @@
 uniform sampler2D opticalDepthTable;
 #define PI pi
 
-float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDistance, inout vec3 color, bool terrainWasHit);
+float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDistance, inout vec3 radiance, inout vec3 transmittance, bool terrainWasHit);
 
 /**
   * Does a raymarching through the atmosphere and planet
@@ -16,7 +16,7 @@ float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDis
   * @param tMax By tweaking the tMax parameter, you can limit the assumed ray length
   * This is useful when the ray was blocked by some objects
   */
-bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, inout vec3 color, out Hit planetHit)
+bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, inout vec3 radiance, inout vec3 transmittance, out Hit planetHit)
 {
 	for (int k = 0; k < planets.length(); ++k)
     {
@@ -46,14 +46,16 @@ bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, inout v
 					normalMap, sphNormal, worldSamplePos, sampleHeight ))
 		{
 			vec3 worldNormal;
-			color = terrainShader(p, toDistance, worldSamplePos, normalMap, sphNormal, sampleHeight, /*out*/ worldNormal);
-			if(!DEBUG_ATMO_OFF) raymarchAtmosphere(p, ray, fromDistance, toDistance, /*inout*/ color, true);
+			vec3 terrainColor = terrainShader(p, toDistance, worldSamplePos, normalMap, sphNormal, sampleHeight, /*out*/ worldNormal);
+			if(!DEBUG_ATMO_OFF) raymarchAtmosphere(p, ray, fromDistance, toDistance, /*inout*/ radiance, /*inout*/ transmittance, true);
+			radiance += terrainColor * transmittance;
+			transmittance *= terrainColor;
 			planetHit = Hit(worldSamplePos, worldNormal, -1, toDistance);
 			return true;
 		}
 		else if(!DEBUG_ATMO_OFF)
 		{
-			raymarchAtmosphere(p, ray, fromDistance, toDistance, /*inout*/ color, false);
+			raymarchAtmosphere(p, ray, fromDistance, toDistance, /*inout*/ radiance,/*inout*/ transmittance, false);
 		}
 		return false;
 	}
@@ -68,7 +70,7 @@ float getSampleAtmParams(Planet planet, Ray ray, float currentDistance, out vec3
 	return centerDist - planet.surfaceRadius;
 }
 
-float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDistance, inout vec3 color, bool terrainWasHit)
+float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDistance, inout vec3 radiance, inout vec3 transmittance, bool terrainWasHit)
 {
 	float t0, t1;
 
@@ -77,16 +79,19 @@ float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDis
 
 	vec3 rayleighColor = vec3(0);
 	vec3 mieColor = vec3(0);
+	vec3 lastAttenuation;
 	float opticalDepthR = 0, opticalDepthM = 0; 
 
 	vec3 sunVector = directionalLights[planet.sunDrectionalLightIndex].direction.xyz;
-	float angleDot = dot(sunVector, ray.direction);
+	float sunToViewCos = dot(sunVector, ray.direction);
 
-	float rayleightPhase = 3.0 / (16.0 * PI) * (1 + angleDot * angleDot);
+	float rayleightPhase = 3.0 / (16.0 * PI) * (1 + sunToViewCos * sunToViewCos);
+	//There should be extinction coefficients, but for Rayleigh, they are the same as scattering coeff.s and for Mie, it is 1.11 times the s.c.
+	float mieExtinction = 1.11 * planet.mieCoefficient;
 	float assymetryFactor2 = planet.mieAsymmetryFactor * planet.mieAsymmetryFactor;
 	float miePhase = 3.0 /
-		(8.0 * PI) * ((1.0 - assymetryFactor2) * (1.0 + (angleDot * angleDot)))
-		/ ((2.f + assymetryFactor2) * pow(1.0 + assymetryFactor2 - 2.0 * planet.mieAsymmetryFactor * angleDot, 1.5f));
+		(8.0 * PI) * ((1.0 - assymetryFactor2) * (1.0 + (sunToViewCos * sunToViewCos)))
+		/ ((2.f + assymetryFactor2) * pow(1.0 + assymetryFactor2 - 2.0 * planet.mieAsymmetryFactor * sunToViewCos, 1.5f));
 
 	float currentDistance;
 	float i = 0;
@@ -120,7 +125,6 @@ float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDis
 		float sunToNormalCos = dot(sunVector, sphNormal);
 		vec3 viewOnPlanetPlane = ray.direction - dot(ray.direction,sphNormal) * sphNormal;
 		vec3 sunOnPlanetPlane = sunVector - sunToNormalCos * sphNormal;
-		float sunToViewCos = dot(sunVector, ray.direction);
 
 		bool noSureIfEclipse = true;
 		if(terrainWasHit)
@@ -145,7 +149,7 @@ float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDis
 		if(sunToNormalCos > LightSettings_noRayThres || currentDistance > QualitySettings_farPlane)
 		{
 			if(DEBUG_RM)
-				color = vec3(0,1,0);
+				radiance = vec3(0,1,0);
 			noSureIfEclipse = false;
 		}
 
@@ -157,7 +161,7 @@ float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDis
 				if(dot(sunOnPlanetPlane,viewOnPlanetPlane) > 0 && terrainWasHit && currentDistance > maxDistance * LightSettings_cutoffDist)
 				{
 					if(DEBUG_RM)
-						color = vec3(1,0,0);
+						radiance = vec3(1,0,0);
 					// In all the later samples, the sun will be also occluded
 					break;//The later samples would all be occluded by the terrain
 				}
@@ -174,8 +178,6 @@ float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDis
 		vec4 lOpticalDepth = texture2D(opticalDepthTable, tableCoords);
 		//Finalize the computation and commit to the result color
 
-		//There should be extinction coefficients, but for Rayleigh, they are the same as scattering coeff.s and for Mie, it is 1.11 times the s.c.
-		float mieExtinction = 1.11 * planet.mieCoefficient;
 		vec3 depth = planet.rayleighCoefficients * (lOpticalDepth.x + opticalDepthR)
 						+ mieExtinction * (lOpticalDepth.y + opticalDepthM);
 		vec3 attenuation = exp(-depth);
@@ -183,8 +185,12 @@ float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDis
 		mieColor += attenuation * mieHF;
 	}
 	// Add atmosphere to planet color /* or to nothing */
-	color += (rayleighColor * planet.rayleighCoefficients * rayleightPhase
+	radiance += (rayleighColor * planet.rayleighCoefficients * rayleightPhase
 			+ mieColor * planet.mieCoefficient * miePhase
 			) * planet.sunIntensity;
+	vec3 depth = planet.rayleighCoefficients * opticalDepthR
+						+ mieExtinction * opticalDepthM;
+	vec3 attenuation = exp(-depth);
+	transmittance *= attenuation;
 	return currentDistance;
 }

@@ -17,6 +17,13 @@
 #include <SDL2/SDL.h>
 #include <array>
 
+#define swap(x,y) do \
+   { unsigned char swap_temp[sizeof(x) == sizeof(y) ? (signed)sizeof(x) : -1]; \
+	   memcpy(swap_temp, &y, sizeof(x)); \
+	   memcpy(&y, &x, sizeof(x)); \
+	   memcpy(&x, swap_temp, sizeof(x)); \
+	} while (0)
+
 #define HANDLE_OF_DEFALUT_WINDOW entry::WindowHandle{ 0 }
 
 const Material _materialBuffer[] = {
@@ -116,9 +123,7 @@ namespace RealisticAtmosphere
 		bgfx::UniformHandle _multisamplingSettingsHandle;
 		bgfx::UniformHandle _qualitySettingsHandle;
 		bgfx::TextureHandle _raytracerDirectOutput;
-		bgfx::TextureHandle _raytracerIndirectOutput;
 		bgfx::UniformHandle _directOutputSampler;
-		bgfx::UniformHandle _indirectOutputSampler;
 		bgfx::UniformHandle _hqSettingsHandle;
 		bgfx::UniformHandle _lightSettings;
 		bgfx::UniformHandle _lightSettings2;
@@ -174,6 +179,13 @@ namespace RealisticAtmosphere
 		// The Entry library will call this method after setting up window manager
 		void init(int32_t argc, const char* const* argv, uint32_t width, uint32_t height) override
 		{
+			// Initial backup settings values
+			_settingsBackup[0] = QualitySettings;
+			_settingsBackup[1] = MultisamplingSettings;
+			_settingsBackup[2] = RaymarchingSteps;
+			_settingsBackup[3] = LightSettings;
+			_settingsBackup[4] = LightSettings2;
+
 			_person.Camera.SetPosition(glm::vec3(-14401, 6362289, 7052));
 			_person.Camera.SetRotation(glm::vec3(3,-272,0));
 
@@ -215,7 +227,6 @@ namespace RealisticAtmosphere
 			_planetMaterialHandle = bgfx::createUniform("PlanetMaterial", bgfx::UniformType::Vec4);
 			_raymarchingStepsHandle = bgfx::createUniform("RaymarchingSteps", bgfx::UniformType::Vec4);
 			_directOutputSampler = bgfx::createUniform("directOutput", bgfx::UniformType::Sampler);
-			_indirectOutputSampler = bgfx::createUniform("indirectOutput", bgfx::UniformType::Sampler);
 			_heightmapSampler = bgfx::createUniform("heightmapTexture", bgfx::UniformType::Sampler);
 			_opticalDepthSampler = bgfx::createUniform("opticalDepthTable", bgfx::UniformType::Sampler);
 			_atmoParameters = bgfx::createUniform("AtmoParameters", bgfx::UniformType::Vec4);
@@ -295,14 +306,6 @@ namespace RealisticAtmosphere
 				,
 				bgfx::TextureFormat::RGBA32F
 				, BGFX_TEXTURE_COMPUTE_WRITE);
-			_raytracerIndirectOutput = bgfx::createTexture2D(
-				uint16_t(_windowWidth)
-				, uint16_t(_windowHeight)
-				, false
-				, 1
-				,
-				bgfx::TextureFormat::RGBA32F
-				, BGFX_TEXTURE_COMPUTE_WRITE);
 		}
 
 		virtual int shutdown() override
@@ -319,9 +322,7 @@ namespace RealisticAtmosphere
 			bgfx::destroy(_qualitySettingsHandle);
 			bgfx::destroy(_heightmapTextureHandle);
 			bgfx::destroy(_raytracerDirectOutput);
-			bgfx::destroy(_raytracerIndirectOutput);
 			bgfx::destroy(_directOutputSampler);
-			bgfx::destroy(_indirectOutputSampler);
 			bgfx::destroy(_texSampler1);
 			bgfx::destroy(_texSampler2);
 			bgfx::destroy(_texSampler3);
@@ -445,7 +446,6 @@ namespace RealisticAtmosphere
 				}
 
 				bgfx::setTexture(0, _directOutputSampler, _raytracerDirectOutput);
-				bgfx::setTexture(1, _indirectOutputSampler, _raytracerIndirectOutput);
 				_screenSpaceQuad.draw();//Draw screen space quad with our shader program
 
 				bgfx::setState(BGFX_STATE_DEFAULT);
@@ -499,7 +499,6 @@ namespace RealisticAtmosphere
 		void computeShaderRaytracer()
 		{
 			bgfx::setImage(0, _raytracerDirectOutput, 0, bgfx::Access::ReadWrite);
-			bgfx::setImage(1, _raytracerIndirectOutput, 0, bgfx::Access::ReadWrite);
 			bgfx::dispatch(0, _computeShaderProgram, bx::ceil(_windowWidth / 16.0f), bx::ceil(_windowHeight / 16.0f));
 		}
 
@@ -510,10 +509,10 @@ namespace RealisticAtmosphere
 			bgfx::update(_materialBufferHandle, 0, bgfx::makeRef((void*)_materialBuffer, sizeof(_materialBuffer)));
 			bgfx::update(_directionalLightBufferHandle, 0, bgfx::makeRef((void*)_directionalLightBuffer, sizeof(_directionalLightBuffer)));
 
-			bgfx::setBuffer(2, _objectBufferHandle, bgfx::Access::Read);
-			bgfx::setBuffer(3, _atmosphereBufferHandle, bgfx::Access::Read);
-			bgfx::setBuffer(4, _materialBufferHandle, bgfx::Access::Read);
-			bgfx::setBuffer(5, _directionalLightBufferHandle, bgfx::Access::Read);
+			bgfx::setBuffer(1, _objectBufferHandle, bgfx::Access::Read);
+			bgfx::setBuffer(2, _atmosphereBufferHandle, bgfx::Access::Read);
+			bgfx::setBuffer(3, _materialBufferHandle, bgfx::Access::Read);
+			bgfx::setBuffer(4, _directionalLightBufferHandle, bgfx::Access::Read);
 			vec4 timeWrapper = vec4(_frame, 0, 0, 0);
 			HQSettings_sampleNum = *(float*)&currentSample;
 			bgfx::setUniform(_timeHandle, &timeWrapper);
@@ -524,11 +523,11 @@ namespace RealisticAtmosphere
 			bgfx::setUniform(_hqSettingsHandle, &HQSettings);
 			bgfx::setUniform(_lightSettings, &LightSettings);
 			bgfx::setUniform(_lightSettings2, &LightSettings2);
-			bgfx::setTexture(6, _texSampler1, _texture1Handle);
-			bgfx::setTexture(7, _texSampler2, _texture2Handle);
-			bgfx::setTexture(8, _texSampler3, _texture3Handle);
-			bgfx::setTexture(9, _heightmapSampler, _heightmapTextureHandle);
-			bgfx::setTexture(10, _opticalDepthSampler, _opticalDepthTable, BGFX_SAMPLER_UVW_CLAMP);
+			bgfx::setTexture(5, _texSampler1, _texture1Handle);
+			bgfx::setTexture(6, _texSampler2, _texture2Handle);
+			bgfx::setTexture(7, _texSampler3, _texture3Handle);
+			bgfx::setTexture(8, _heightmapSampler, _heightmapTextureHandle);
+			bgfx::setTexture(9, _opticalDepthSampler, _opticalDepthTable, BGFX_SAMPLER_UVW_CLAMP);
 		}
 
 		void viewportActions()
@@ -552,6 +551,15 @@ namespace RealisticAtmosphere
 			Camera[2] = vec4(camUp.x, camUp.y, camUp.z, _tanFovY);
 			Camera[3] = vec4(camRight.x, camRight.y, camRight.z, _tanFovX);
 			bgfx::setUniform(_cameraHandle, Camera, 4);
+		}
+
+		void swapSettingsBackup()
+		{
+			swap(_settingsBackup[0], QualitySettings);
+			swap(_settingsBackup[1], MultisamplingSettings);
+			swap(_settingsBackup[2], RaymarchingSteps);
+			swap(_settingsBackup[3], LightSettings);
+			swap(_settingsBackup[4], LightSettings2);
 		}
 
 		void drawSettingsDialogUI()
@@ -594,11 +602,7 @@ namespace RealisticAtmosphere
 			if (ImGui::Button("Go Path Tracing"))
 			{
 				_pathTracingMode = true;
-				_settingsBackup[0] = QualitySettings;
-				_settingsBackup[1] = MultisamplingSettings;
-				_settingsBackup[2] = RaymarchingSteps;
-				_settingsBackup[3] = LightSettings;
-				_settingsBackup[4] = LightSettings2;
+				swapSettingsBackup();
 			}
 			ImGui::InputFloat("Speed", &_person.WalkSpeed);
 			ImGui::InputFloat("RunSpeed", &_person.RunSpeed);
@@ -685,11 +689,7 @@ namespace RealisticAtmosphere
 			if (ImGui::Button("Back To Realtime"))
 			{
 				_pathTracingMode = false;
-				QualitySettings = _settingsBackup[0];
-				MultisamplingSettings = _settingsBackup[1];
-				RaymarchingSteps = _settingsBackup[2];
-				LightSettings = _settingsBackup[3];
-				LightSettings2 = _settingsBackup[4];
+				swapSettingsBackup();
 			}
 			if (ImGui::Button("Re-render"))
 			{
