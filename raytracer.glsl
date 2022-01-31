@@ -20,25 +20,49 @@ Ray createCameraRay(vec2 fromPixel)
                                             */
 }
 
-//https://computergraphics.stackexchange.com/a/10623
-vec3 randomDirection(vec3 normal, vec2 randomValues, float maxTheta) {
-    // pick an orthogonal tangent vector using the method described here: http://lolengine.net/blog/2013/09/21/picking-orthogonal-vector-combing-coconuts
-    vec3 tangent = (normal.x > normal.z) ? vec3(-normal.y, normal.x, 0.0) : vec3(0.0, -normal.z, normal.y);
-    // and a bitangent vector orthogonal to both
-    vec3 bitangent = cross(normal, tangent);
+// https://www.shadertoy.com/view/4lfcDr
+vec2
+sample_disk(vec2 uv)
+{
+	float theta = 2.0 * 3.141592653589 * uv.x;
+	float r = sqrt(uv.y);
+	return vec2(cos(theta), sin(theta)) * r;
+}
 
-    float phi = 2.0 * PI * randomValues.x;
-    float theta = randomValues.y * maxTheta;
-    float sinTheta = sin(theta);
-    return normalize(tangent * cos(phi) * sinTheta + bitangent * sin(phi) * sinTheta + normal * cos(theta));
+vec3
+sample_cos_hemisphere(vec2 uv)
+{
+	vec2 disk = sample_disk(uv);
+	return vec3(disk.x, sqrt(max(0.0, 1.0 - dot(disk, disk))), disk.y);
+}
+
+mat3
+construct_ONB_frisvad(vec3 normal)
+{
+	mat3 ret;
+	ret[1] = normal;
+	if(normal.z < -0.999805696) {
+		ret[0] = vec3(0.0, -1.0, 0.0);
+		ret[2] = vec3(-1.0, 0.0, 0.0);
+	}
+	else {
+		float a = 1.0 / (1.0 + normal.z);
+		float b = -normal.x * normal.y * a;
+		ret[0] = vec3(1.0 - normal.x * normal.x * a, b, -normal.x);
+		ret[2] = vec3(b, 1.0 - normal.y * normal.y * a, -normal.y);
+	}
+	return ret;
 }
 
 Ray createSecondaryRay(Hit fromHit)
 {
     float seed = time.x*fromHit.position.x;
-    vec2 randomValues = vec2(random(seed),random(seed*2));
-    vec3 direction = randomDirection(fromHit.normalAtHit, randomValues, pi/2); 
-    return Ray(fromHit.position, direction);
+    vec2 randomValues = vec2(random(seed),random(seed+1));
+    mat3 onb = construct_ONB_frisvad(fromHit.normalAtHit);
+    vec3 dir = normalize(onb * sample_cos_hemisphere(randomValues));
+    Ray ray_next = Ray(fromHit.position, dir);
+	ray_next.origin += ray_next.direction * 1e-5;
+    return ray_next;
 }
 
 vec3 takeSample(vec2 fromPixel)
@@ -58,7 +82,7 @@ vec3 takeSample(vec2 fromPixel)
     {
         Material objMaterial = materials[objects[objectHit.hitObjectIndex].materialIndex];
         vec3 totalLightColor = computeLightColor(objectHit);
-        radiance = totalLightColor * objMaterial.albedo.xyz + objMaterial.emission;
+        radiance = (totalLightColor * objMaterial.albedo.xyz + objMaterial.emission);
         throughput = objMaterial.albedo.xyz;
     }
     //
@@ -78,12 +102,10 @@ vec3 takeSample(vec2 fromPixel)
             }
             if(somethingHit)
             {
-                vec3 indirectColor = vec3(0);
                 Ray secondaryRay = createSecondaryRay(planetOrObjHit);
-                float cosTheta = dot(planetOrObjHit.normalAtHit, secondaryRay.direction);
 
                 objectHit = findObjectHit(secondaryRay);
-                somethingHit = planetsWithAtmospheres(secondaryRay, objectHit.t, /*inout*/ indirectColor, /*inout*/ throughput, /*out*/ planetOrObjHit);
+                somethingHit = planetsWithAtmospheres(secondaryRay, objectHit.t, /*inout*/ radiance, /*inout*/ throughput, /*out*/ planetOrObjHit);
                 if (!somethingHit && objectHit.hitObjectIndex != -1)
                 {
                     Material objMaterial = materials[objects[objectHit.hitObjectIndex].materialIndex];

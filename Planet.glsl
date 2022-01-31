@@ -45,11 +45,19 @@ bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, inout v
 			/* the rest params are "out" */
 					normalMap, sphNormal, worldSamplePos, sampleHeight ))
 		{
-			vec3 worldNormal;
-			vec3 terrainColor = terrainShader(p, toDistance, worldSamplePos, normalMap, sphNormal, sampleHeight, /*out*/ worldNormal);
+			vec3 worldNormal = terrainNormal(normalMap, sphNormal);
+			vec3 planetAlbedo;
+			if(DEBUG_NORMALS)
+			{
+				planetAlbedo = worldNormal * 0.5 + 0.5;
+			}
+			else
+			{
+				planetAlbedo = terrainColor(p, toDistance, worldSamplePos, worldNormal, sampleHeight);
+			}
 			if(!DEBUG_ATMO_OFF) raymarchAtmosphere(p, ray, fromDistance, toDistance, /*inout*/ radiance, /*inout*/ transmittance, true);
-			radiance += terrainColor * transmittance;
-			transmittance *= terrainColor;
+			radiance += planetAlbedo * lightPoint(worldSamplePos, worldNormal) * transmittance;
+			transmittance *= planetAlbedo;
 			planetHit = Hit(worldSamplePos, worldNormal, -1, toDistance);
 			return true;
 		}
@@ -187,7 +195,7 @@ float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDis
 	// Add atmosphere to planet color /* or to nothing */
 	radiance += (rayleighColor * planet.rayleighCoefficients * rayleightPhase
 			+ mieColor * planet.mieCoefficient * miePhase
-			) * planet.sunIntensity;
+			) * planet.sunIntensity * transmittance;
 	vec3 depth = planet.rayleighCoefficients * opticalDepthR
 						+ mieExtinction * opticalDepthM;
 	vec3 attenuation = exp(-depth);

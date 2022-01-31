@@ -31,14 +31,14 @@ const Material _materialBuffer[] = {
 		{1,1,1,1},// White
 		{0,0,0},// No Specular part
 		{0},// No Roughness
-		{10,10,10}, // Max emission
+		{20,20,20}, // Max emission
 		0
 	},
 	{
 		{1, 0.5, 1 / 39, 1},// Orange albedo
 		{0.5,0.5,0.5},// Half specular
 		{0.5},// Half Roughness
-		{0,0,0}, // No emission
+		{10,10,10}, // No emission
 		0
 	},
 	{
@@ -59,9 +59,14 @@ Sphere _objectBuffer[] = {
 		0 //Material index
 	},
 	{
-		{1, earthRadius + 1, 0}, //Position
+		{-14401, 6362270, 7000}, //Position
 		{50}, //Radius
 		1, //Material index
+	},
+	{
+		{-14401, 6362230, 7052}, //Position
+		{50}, //Radius
+		2, //Material index
 	}
 };
 

@@ -135,17 +135,6 @@ float getSampleParameters(Planet planet, Ray ray, float currentDistance, out vec
 	return centerDist - planet.surfaceRadius;
 }
 
-vec3 terrainShader(Planet p, float T, vec3 worldSamplePos, vec2 planetNormalMap, vec3 sphNormal, float sampleHeight, out vec3 worldNormal)
-{
-	worldNormal = terrainNormal(planetNormalMap, sphNormal);
-	if(DEBUG_NORMALS)
-	{
-		return worldNormal * 0.5 + 0.5;
-	}
-	return terrainColor(p, T, worldSamplePos, worldNormal, sampleHeight)
-		* lightPoint(worldSamplePos, worldNormal);
-}
-
 bool raymarchTerrain(Planet planet, Ray ray, float fromDistance, inout float toDistance, out vec2 normalMap, out vec3 sphNormal, out vec3 worldSamplePos, out float sampleHeight)
 {
 	float t0, t1;

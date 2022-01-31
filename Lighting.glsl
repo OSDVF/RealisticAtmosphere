@@ -50,7 +50,7 @@ vec3 computeLightColor(Hit hit)
                 continue;
             }
             float t0 = 0, t1 = 0;
-            if (raySphereIntersection(objects[k].position, objects[k].radius, shadowRay, t0, t1)) {
+            if (raySphereIntersection(objects[k].position, objects[k].radius, shadowRay, t0, t1) && t1 > 0) {
                 return AMBIENT_LIGHT;
             }
         }
