@@ -43,7 +43,8 @@ uint PathTracing = 1;
 uint TerrainShadows = 2;
 uint HQFlags1 = 0;
 int currentSample = 0;
-vec4 HQSettings = {*(float*)&HQFlags1, *(float*)&currentSample};
+int directSamples = 1;//Direct samples per all samples
+vec4 HQSettings = {*(float*)&HQFlags1, *(float*)&currentSample, *(float*)&directSamples};
 vec4 LightSettings = {1000, 0.03, 0.4, 0.02};
 int lightTerrainDetectSteps = 40;
 vec4 LightSettings2 = {0.5, *(float*)&lightTerrainDetectSteps, 3, 0.8};
@@ -52,7 +53,7 @@ int planetSteps = 200;
 vec4 RaymarchingSteps = {*(float*)&planetSteps, 4, 0.005, 0.4};
 #endif
 
-#define Multisampling_perPixel MultisamplingSettings.x
+#define Multisampling_indirect MultisamplingSettings.x
 #define Multisampling_maxBounces MultisamplingSettings.y
 #define Multisampling_perAtmospherePixel MultisamplingSettings.z
 #define Multisampling_type MultisamplingSettings.w
@@ -73,6 +74,7 @@ vec4 RaymarchingSteps = {*(float*)&planetSteps, 4, 0.005, 0.4};
 #define LightSettings_terrainOptimMult LightSettings2.w
 
 #define HQSettings_sampleNum HQSettings.y
+#define HQSettings_directSamples HQSettings.z
 
 #define Camera_position (Camera[0].xyz)
 #define Camera_direction (Camera[1].xyz)

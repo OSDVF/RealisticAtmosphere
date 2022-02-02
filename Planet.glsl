@@ -16,8 +16,9 @@ float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDis
   * @param tMax By tweaking the tMax parameter, you can limit the assumed ray length
   * This is useful when the ray was blocked by some objects
   */
-bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, inout vec3 radiance, inout vec3 transmittance, out Hit planetHit)
+bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out vec3 radiance, inout vec3 transmittance, out Hit planetHit)
 {
+	radiance = vec3(0);
 	for (int k = 0; k < planets.length(); ++k)
     {
         Planet p = planets[k];

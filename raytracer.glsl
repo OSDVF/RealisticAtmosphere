@@ -54,115 +54,133 @@ construct_ONB_frisvad(vec3 normal)
 	return ret;
 }
 
-Ray createSecondaryRay(Hit fromHit)
+Ray createSecondaryRay(vec3 pos, vec3 normal)
 {
-    float seed = time.x*fromHit.position.x;
-    vec2 randomValues = vec2(random(seed),random(seed+1));
-    mat3 onb = construct_ONB_frisvad(fromHit.normalAtHit);
+    float seed = time.x*pos.x*pos.z;
+    vec2 randomValues = vec2(random(seed),random(seed*pos.y));
+    mat3 onb = construct_ONB_frisvad(normal);
     vec3 dir = normalize(onb * sample_cos_hemisphere(randomValues));
-    Ray ray_next = Ray(fromHit.position, dir);
-	ray_next.origin += ray_next.direction * 1e-5;
+    Ray ray_next = Ray(pos, dir);
+	ray_next.origin += ray_next.direction;
     return ray_next;
 }
 
-vec3 takeSample(vec2 fromPixel)
-{
-    // Create primary ray with direction for this pixel
-    Ray primaryRay = createCameraRay(fromPixel);
-    // Cast the ray into the scene and check for the intersection points
-    Hit objectHit = findObjectHit(primaryRay);
-    vec3 radiance = vec3(0);
-    vec3 throughput = vec3(1);
-    // Return color of the object at the hit
-    
-    // Then add the atmosphere color
-    Hit planetOrObjHit;
-    bool somethingHit = planetsWithAtmospheres(primaryRay, objectHit.t, /*inout*/ radiance, /*inout*/ throughput, /*out*/ planetOrObjHit);
-    if (!somethingHit && objectHit.hitObjectIndex != -1)
-    {
-        Material objMaterial = materials[objects[objectHit.hitObjectIndex].materialIndex];
-        vec3 totalLightColor = computeLightColor(objectHit);
-        radiance = (totalLightColor * objMaterial.albedo.xyz + objMaterial.emission);
-        throughput = objMaterial.albedo.xyz;
-    }
-    //
-    // Bounces
-    //
-    int bounces = floatBitsToInt(Multisampling_maxBounces);
-    if(bounces > 0)
-    {
-        int b;
-        // Create secondary rays
-        for(b = 0; b < bounces; b++)
-        {
-            if(objectHit.hitObjectIndex != -1)
-            {
-                somethingHit = true;
-                planetOrObjHit = objectHit;
-            }
-            if(somethingHit)
-            {
-                Ray secondaryRay = createSecondaryRay(planetOrObjHit);
-
-                objectHit = findObjectHit(secondaryRay);
-                somethingHit = planetsWithAtmospheres(secondaryRay, objectHit.t, /*inout*/ radiance, /*inout*/ throughput, /*out*/ planetOrObjHit);
-                if (!somethingHit && objectHit.hitObjectIndex != -1)
-                {
-                    Material objMaterial = materials[objects[objectHit.hitObjectIndex].materialIndex];
-                    vec3 totalLightColor = computeLightColor(objectHit);
-                    radiance += (objMaterial.emission + totalLightColor * objMaterial.albedo.xyz) * throughput;
-                    throughput *= objMaterial.albedo.xyz;
-                }
-            }
-            else
-            {
-                break;
-            }
-        }
-    }
-    return radiance;
-}
-
-vec3 raytrace(vec2 fromPixel)
+vec2 getSubpixelCoords(vec2 fromPixel, int directSampleNum)
 {
     fromPixel+= 0.5;//Center the ray
-    int sampleNum = floatBitsToInt(HQSettings_sampleNum);
-    int multisampling = floatBitsToInt(Multisampling_perPixel);
+    int multisampling = floatBitsToInt(HQSettings_directSamples);
     int x,y;
     switch(floatBitsToInt(Multisampling_type))
     {
     case 1:
-        x = sampleNum % multisampling;
-        y = sampleNum / multisampling;
-        if(sampleNum == 0)
+        x = directSampleNum % multisampling;
+        y = directSampleNum / multisampling;
+        if(directSampleNum == 0)
         {
-            return takeSample(fromPixel);
+            return fromPixel;
         }
         else
         {
-            float firstRand = random(sampleNum);
+            float firstRand = random(directSampleNum);
             vec2 randomOffset = vec2(firstRand,random(firstRand))-0.5;
             vec2 griddedOffset = vec2(x / multisampling, y / multisampling) - 0.5;
-            return takeSample(fromPixel + mix(griddedOffset, randomOffset, 0.5));
+            return fromPixel + mix(griddedOffset, randomOffset, 0.5);
         }
     case 2:
         {
-            x = sampleNum % multisampling;
-            y = sampleNum / multisampling;
+            x = directSampleNum % multisampling;
+            y = directSampleNum / multisampling;
             vec2 griddedOffset = vec2(x / (multisampling-1), y / (multisampling-1)) - 0.5;
-            return takeSample(fromPixel + griddedOffset);
+            return fromPixel + griddedOffset;
         }
 
     default:
-        if(sampleNum == 0)
+        if(directSampleNum == 0)
         {
-            return takeSample(fromPixel);
+            return fromPixel;
         }
         else
         {
-            float firstRand = random(sampleNum);
+            float firstRand = random(directSampleNum);
             vec2 randomOffset = vec2(firstRand,random(firstRand))-0.5;
-            return takeSample(fromPixel + randomOffset);
+            return fromPixel + randomOffset;
         }
+    }
+}
+
+void raytraceSecondary(inout vec3 colorOut, in vec3 origin, in vec3 normal, in vec3 throughput, in float invIndirectCount)
+{
+    // Traces secondary ray from the point specified by "normal, albedo, depth = primary ray length" parameters
+    int bounces = floatBitsToInt(Multisampling_maxBounces);
+    // Create secondary rays
+    for(int b = 0; b < bounces; b++)
+    {
+        Ray secondaryRay = createSecondaryRay(origin, normal);
+
+        Hit objectHit = findObjectHit(secondaryRay);
+        Hit planetHit;
+        vec3 atmColor;
+        bool planetWasHit = planetsWithAtmospheres(secondaryRay, objectHit.t, /*out*/ atmColor, /*inout*/ throughput, /*out*/ planetHit);
+        colorOut += atmColor * invIndirectCount;
+        if(planetWasHit)
+        {
+            origin = planetHit.position;
+            normal = planetHit.normalAtHit;
+        }
+        else if (objectHit.hitObjectIndex != -1)
+        {
+            Material objMaterial = materials[objects[objectHit.hitObjectIndex].materialIndex];
+            vec3 totalLightColor = computeLightColor(objectHit);
+            colorOut += (objMaterial.emission + totalLightColor * objMaterial.albedo.xyz) * throughput * invIndirectCount;
+            throughput *= objMaterial.albedo.xyz;
+
+            origin = objectHit.position;
+            normal = objectHit.normalAtHit;
+        }
+        else
+        {
+            // No hit -> add atmosphere color end
+            return;
+        }
+    }
+}
+
+void raytracePrimSec(vec2 subpixelCoord, out vec3 colorOut, out vec3 normal, out vec3 albedo, out float depth, in float invIndirectCount)
+{
+    // Traces both primary and secondary ray
+    colorOut = vec3(0);
+    Ray primaryRay = createCameraRay(subpixelCoord);
+
+    // Cast the ray into the scene and check for the intersection points with analytical objects
+    Hit objectHit = findObjectHit(primaryRay);
+    Hit planetHit;
+    // Add the atmosphere and planet color
+    albedo = vec3(1);// save initial throughput to albedo
+    vec3 atmColor;
+    bool planetWasHit = planetsWithAtmospheres(primaryRay, objectHit.t, /*out*/ atmColor, /*inout*/ albedo, /*out*/ planetHit);
+    colorOut += atmColor;
+    if(planetWasHit)
+    {
+        normal = planetHit.normalAtHit;
+        depth = planetHit.t;
+
+        raytraceSecondary(colorOut, planetHit.position, normal, albedo, invIndirectCount);
+    }
+    else if (objectHit.hitObjectIndex != -1)
+    {
+        // Add color of the object at the hit
+        Material objMaterial = materials[objects[objectHit.hitObjectIndex].materialIndex];
+        vec3 totalLightColor = computeLightColor(objectHit);
+
+        colorOut += objMaterial.albedo.xyz * totalLightColor + objMaterial.emission.xyz;
+        albedo *= objMaterial.albedo.xyz;
+        normal = objectHit.normalAtHit;
+        depth = objectHit.t;
+
+        raytraceSecondary(colorOut, objectHit.position, normal, albedo, invIndirectCount);
+    }
+    else
+    {
+        depth = 0;//No hit
     }
 }

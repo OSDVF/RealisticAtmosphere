@@ -127,8 +127,10 @@ namespace RealisticAtmosphere
 		bgfx::UniformHandle _timeHandle;
 		bgfx::UniformHandle _multisamplingSettingsHandle;
 		bgfx::UniformHandle _qualitySettingsHandle;
-		bgfx::TextureHandle _raytracerDirectOutput;
-		bgfx::UniformHandle _directOutputSampler;
+		bgfx::TextureHandle _raytracerColorOutput;
+		bgfx::TextureHandle _raytracerNormalsOutput;
+		bgfx::TextureHandle _raytracerDepthBuffer;
+		bgfx::UniformHandle _colorOutputSampler;
 		bgfx::UniformHandle _hqSettingsHandle;
 		bgfx::UniformHandle _lightSettings;
 		bgfx::UniformHandle _lightSettings2;
@@ -144,7 +146,7 @@ namespace RealisticAtmosphere
 		bool _showGUI = true;
 		bool _pathTracingMode = false;
 
-		vec4 _settingsBackup[5];
+		vec4 _settingsBackup[6];
 
 		bgfx::DynamicIndexBufferHandle _objectBufferHandle;
 		bgfx::DynamicIndexBufferHandle _atmosphereBufferHandle;
@@ -184,15 +186,18 @@ namespace RealisticAtmosphere
 		// The Entry library will call this method after setting up window manager
 		void init(int32_t argc, const char* const* argv, uint32_t width, uint32_t height) override
 		{
-			// Initial backup settings values
+			// Initial pathtracing settings values
 			_settingsBackup[0] = QualitySettings;
 			_settingsBackup[1] = MultisamplingSettings;
 			_settingsBackup[2] = RaymarchingSteps;
 			_settingsBackup[3] = LightSettings;
 			_settingsBackup[4] = LightSettings2;
+			_settingsBackup[5] = HQSettings;
 
-			_person.Camera.SetPosition(glm::vec3(-14401, 6362289, 7052));
-			_person.Camera.SetRotation(glm::vec3(3,-272,0));
+			//_person.Camera.SetPosition(glm::vec3(-14401, 6362289, 7052));
+			_person.Camera.SetPosition(glm::vec3(-15557, 6362424, 7172));
+			//_person.Camera.SetRotation(glm::vec3(3,-272,0));
+			_person.Camera.SetRotation(glm::vec3(-14, -95, 0));
 
 			entry::setWindowFlags(HANDLE_OF_DEFALUT_WINDOW, ENTRY_WINDOW_FLAG_ASPECT_RATIO, false);
 			entry::setWindowSize(HANDLE_OF_DEFALUT_WINDOW, 1024, 600);
@@ -231,7 +236,7 @@ namespace RealisticAtmosphere
 			_cameraHandle = bgfx::createUniform("Camera", bgfx::UniformType::Vec4, 4);//It is an array of 4 vec4
 			_planetMaterialHandle = bgfx::createUniform("PlanetMaterial", bgfx::UniformType::Vec4);
 			_raymarchingStepsHandle = bgfx::createUniform("RaymarchingSteps", bgfx::UniformType::Vec4);
-			_directOutputSampler = bgfx::createUniform("directOutput", bgfx::UniformType::Sampler);
+			_colorOutputSampler = bgfx::createUniform("colorOutput", bgfx::UniformType::Sampler);
 			_heightmapSampler = bgfx::createUniform("heightmapTexture", bgfx::UniformType::Sampler);
 			_opticalDepthSampler = bgfx::createUniform("opticalDepthTable", bgfx::UniformType::Sampler);
 			_atmoParameters = bgfx::createUniform("AtmoParameters", bgfx::UniformType::Vec4);
@@ -303,7 +308,7 @@ namespace RealisticAtmosphere
 		void resetBufferSize()
 		{
 			_screenSpaceQuad = ScreenSpaceQuad((float)_windowWidth, (float)_windowHeight);//Init internal vertex layout
-			_raytracerDirectOutput = bgfx::createTexture2D(
+			_raytracerColorOutput = bgfx::createTexture2D(
 				uint16_t(_windowWidth)
 				, uint16_t(_windowHeight)
 				, false
@@ -311,6 +316,23 @@ namespace RealisticAtmosphere
 				,
 				bgfx::TextureFormat::RGBA32F
 				, BGFX_TEXTURE_COMPUTE_WRITE);
+			_raytracerNormalsOutput = bgfx::createTexture2D(
+				uint16_t(_windowWidth)
+				, uint16_t(_windowHeight)
+				, false
+				, 1
+				,
+				bgfx::TextureFormat::RGBA8
+				, BGFX_TEXTURE_COMPUTE_WRITE);
+			_raytracerDepthBuffer = bgfx::createTexture2D(
+				uint16_t(_windowWidth)
+				, uint16_t(_windowHeight)
+				, false
+				, 1
+				,
+				bgfx::TextureFormat::R32F
+				, BGFX_TEXTURE_COMPUTE_WRITE);
+			currentSample = 0;//Reset sample counter - otherwise the sampling would continue with wrong number of samples
 		}
 
 		virtual int shutdown() override
@@ -326,8 +348,10 @@ namespace RealisticAtmosphere
 			bgfx::destroy(_lightSettings2);
 			bgfx::destroy(_qualitySettingsHandle);
 			bgfx::destroy(_heightmapTextureHandle);
-			bgfx::destroy(_raytracerDirectOutput);
-			bgfx::destroy(_directOutputSampler);
+			bgfx::destroy(_raytracerDepthBuffer);
+			bgfx::destroy(_raytracerColorOutput);
+			bgfx::destroy(_raytracerNormalsOutput);
+			bgfx::destroy(_colorOutputSampler);
 			bgfx::destroy(_texSampler1);
 			bgfx::destroy(_texSampler2);
 			bgfx::destroy(_texSampler3);
@@ -436,7 +460,7 @@ namespace RealisticAtmosphere
 				// 
 
 				viewportActions();
-				int maxSamples = *(int*)&Multisampling_perPixel;
+				int maxSamples = *(int*)&HQSettings_directSamples * *(int*)&Multisampling_indirect;
 				if (currentSample >= maxSamples)
 				{
 					if (!_pathTracingMode)
@@ -444,13 +468,20 @@ namespace RealisticAtmosphere
 						currentSample = 0;
 						renderScene();
 					}
+					else
+					{
+						currentSample = INT_MAX;
+					}
 				}
 				else
 				{
 					renderScene();
 				}
 
-				bgfx::setTexture(0, _directOutputSampler, _raytracerDirectOutput);
+				if(_debugNormals)
+					bgfx::setTexture(0, _colorOutputSampler, _raytracerNormalsOutput);
+				else
+					bgfx::setTexture(0, _colorOutputSampler, _raytracerColorOutput);
 				_screenSpaceQuad.draw();//Draw screen space quad with our shader program
 
 				bgfx::setState(BGFX_STATE_DEFAULT);
@@ -503,7 +534,9 @@ namespace RealisticAtmosphere
 #endif
 		void computeShaderRaytracer()
 		{
-			bgfx::setImage(0, _raytracerDirectOutput, 0, bgfx::Access::ReadWrite);
+			bgfx::setImage(0, _raytracerColorOutput, 0, bgfx::Access::ReadWrite);
+			bgfx::setImage(1, _raytracerNormalsOutput, 0, bgfx::Access::ReadWrite);
+			bgfx::setImage(2, _raytracerDepthBuffer, 0, bgfx::Access::ReadWrite);
 			bgfx::dispatch(0, _computeShaderProgram, bx::ceil(_windowWidth / 16.0f), bx::ceil(_windowHeight / 16.0f));
 		}
 
@@ -514,10 +547,10 @@ namespace RealisticAtmosphere
 			bgfx::update(_materialBufferHandle, 0, bgfx::makeRef((void*)_materialBuffer, sizeof(_materialBuffer)));
 			bgfx::update(_directionalLightBufferHandle, 0, bgfx::makeRef((void*)_directionalLightBuffer, sizeof(_directionalLightBuffer)));
 
-			bgfx::setBuffer(1, _objectBufferHandle, bgfx::Access::Read);
-			bgfx::setBuffer(2, _atmosphereBufferHandle, bgfx::Access::Read);
-			bgfx::setBuffer(3, _materialBufferHandle, bgfx::Access::Read);
-			bgfx::setBuffer(4, _directionalLightBufferHandle, bgfx::Access::Read);
+			bgfx::setBuffer(3, _objectBufferHandle, bgfx::Access::Read);
+			bgfx::setBuffer(4, _atmosphereBufferHandle, bgfx::Access::Read);
+			bgfx::setBuffer(5, _materialBufferHandle, bgfx::Access::Read);
+			bgfx::setBuffer(6, _directionalLightBufferHandle, bgfx::Access::Read);
 			vec4 timeWrapper = vec4(_frame, 0, 0, 0);
 			HQSettings_sampleNum = *(float*)&currentSample;
 			bgfx::setUniform(_timeHandle, &timeWrapper);
@@ -528,11 +561,11 @@ namespace RealisticAtmosphere
 			bgfx::setUniform(_hqSettingsHandle, &HQSettings);
 			bgfx::setUniform(_lightSettings, &LightSettings);
 			bgfx::setUniform(_lightSettings2, &LightSettings2);
-			bgfx::setTexture(5, _texSampler1, _texture1Handle);
-			bgfx::setTexture(6, _texSampler2, _texture2Handle);
-			bgfx::setTexture(7, _texSampler3, _texture3Handle);
-			bgfx::setTexture(8, _heightmapSampler, _heightmapTextureHandle);
-			bgfx::setTexture(9, _opticalDepthSampler, _opticalDepthTable, BGFX_SAMPLER_UVW_CLAMP);
+			bgfx::setTexture(7, _texSampler1, _texture1Handle);
+			bgfx::setTexture(8, _texSampler2, _texture2Handle);
+			bgfx::setTexture(9, _texSampler3, _texture3Handle);
+			bgfx::setTexture(10, _heightmapSampler, _heightmapTextureHandle);
+			bgfx::setTexture(11, _opticalDepthSampler, _opticalDepthTable, BGFX_SAMPLER_UVW_CLAMP);
 		}
 
 		void viewportActions()
@@ -565,6 +598,7 @@ namespace RealisticAtmosphere
 			swap(_settingsBackup[2], RaymarchingSteps);
 			swap(_settingsBackup[3], LightSettings);
 			swap(_settingsBackup[4], LightSettings2);
+			swap(_settingsBackup[5], HQSettings);
 		}
 
 		void drawSettingsDialogUI()
@@ -637,7 +671,7 @@ namespace RealisticAtmosphere
 			ImGui::Checkbox("Hide atmosphere", &_debugAtmoOff);
 
 			ImGui::PushItemWidth(90);
-			ImGui::InputInt("Samples", (int*)&Multisampling_perPixel);
+			ImGui::InputInt("Samples", (int*)&HQSettings_directSamples);
 			ImGui::InputInt("Atmosphere supersampling", (int*)&Multisampling_perAtmospherePixel);
 			ImGui::PopItemWidth();
 			ImGui::End();
@@ -700,9 +734,18 @@ namespace RealisticAtmosphere
 			{
 				currentSample = 0;
 			}
-			ImGui::Text("%d sampled", currentSample);
+			if (currentSample >= *(int*)&HQSettings_directSamples * *(int*)&Multisampling_indirect)
+			{
+				ImGui::Text("Completed", currentSample);
+			}
+			else
+			{
+				ImGui::Text("%d sampled", currentSample);
+			}
 			ImGui::PushItemWidth(90);
-			ImGui::InputInt("Samples", (int*)&Multisampling_perPixel);
+			ImGui::InputInt("Direct rays", (int*)&HQSettings_directSamples);
+			ImGui::InputInt("Secondary rays", (int*)&Multisampling_indirect);
+			
 			ImGui::InputInt("Bounces", (int*)&Multisampling_maxBounces);
 			ImGui::InputInt("Atmosphere samples", (int*)&Multisampling_perAtmospherePixel);
 			ImGui::PopItemWidth();
