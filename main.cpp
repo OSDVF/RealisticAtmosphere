@@ -2,6 +2,7 @@
  * Copyright 2021 Ondřej Sabela
  */
 #include <bx/uint32_t.h>
+#include <bx/file.h>
 #define ENTRY_CONFIG_USE_SDL
  // Library for controlling aplication flow (init() and update() methods) and event system (mouse & keyboard)
 #include "entry/entry.h"
@@ -16,6 +17,7 @@
 #include <entry/input.h>
 #include <SDL2/SDL.h>
 #include <array>
+#include <sstream>
 
 #define swap(x,y) do \
    { unsigned char swap_temp[sizeof(x) == sizeof(y) ? (signed)sizeof(x) : -1]; \
@@ -114,6 +116,8 @@ namespace RealisticAtmosphere
 		RealisticAtmosphere(const char* name, const char* description, const char* projectUrl)
 			: entry::AppI(name, description, projectUrl) {}
 
+		float* _readedTexture;
+		uint32_t _screenshotFrame = -1;
 		Uint64 _freq;
 		uint32_t _frame = 0;
 		Uint64 _lastTicks;
@@ -315,7 +319,7 @@ namespace RealisticAtmosphere
 				, 1
 				,
 				bgfx::TextureFormat::RGBA32F
-				, BGFX_TEXTURE_COMPUTE_WRITE);
+				, BGFX_TEXTURE_COMPUTE_WRITE | BGFX_TEXTURE_READ_BACK);
 			_raytracerNormalsOutput = bgfx::createTexture2D(
 				uint16_t(_windowWidth)
 				, uint16_t(_windowHeight)
@@ -490,7 +494,10 @@ namespace RealisticAtmosphere
 
 				// Advance to next frame. Rendering thread will be kicked to
 				// process submitted rendering primitives.
-				bgfx::frame();
+				if (bgfx::frame() == _screenshotFrame)
+				{
+					savePng();
+				}
 				_frame++;
 				return true;
 			}
@@ -643,6 +650,10 @@ namespace RealisticAtmosphere
 				_pathTracingMode = true;
 				swapSettingsBackup();
 			}
+			if (ImGui::Button("Save Image"))
+			{
+				requestSavePng();
+			}
 			ImGui::InputFloat("Speed", &_person.WalkSpeed);
 			ImGui::InputFloat("RunSpeed", &_person.RunSpeed);
 			ImGui::SliderFloat("Sensitivity", &_person.Camera.Sensitivity, 0, 5.0f);
@@ -734,6 +745,10 @@ namespace RealisticAtmosphere
 			{
 				currentSample = 0;
 			}
+			if (ImGui::Button("Save Image"))
+			{
+				requestSavePng();
+			}
 			if (currentSample >= *(int*)&HQSettings_directSamples * *(int*)&Multisampling_indirect)
 			{
 				ImGui::Text("Completed", currentSample);
@@ -753,6 +768,54 @@ namespace RealisticAtmosphere
 
 			drawLightGUI();
 			drawTerrainGUI();
+		}
+
+		float tmFunc(float hdrColor)
+		{
+			return hdrColor < 1.4131 ? /*gamma correction*/ pow(hdrColor * 0.38317, 1.0 / 2.2) : 1.0 - exp(-hdrColor)/*exposure tone mapping*/;
+		}
+
+		void savePng()
+		{
+			bx::FileWriter writer;
+			bx::Error err;
+			std::ostringstream fileName;
+			fileName << _frame;
+			fileName << ".png";
+			if (bx::open(&writer, fileName.str().c_str(), false, &err))
+			{
+				char* converted = new char[_windowHeight * _windowWidth * 4];
+				for (int x = 0; x < _windowWidth * _windowHeight * 4; x+=4)
+				{
+					_readedTexture[x] = tmFunc(_readedTexture[x]);
+					_readedTexture[x+1] = tmFunc(_readedTexture[x+1]);
+					_readedTexture[x+2] = tmFunc(_readedTexture[x+2]);
+					_readedTexture[x + 3] = 1.0f;
+				}
+				bimg::imageConvert(entry::getAllocator(), converted, bimg::TextureFormat::RGBA8, _readedTexture, bimg::TextureFormat::RGBA32F, _windowWidth, _windowHeight, 1);
+				bimg::imageWritePng(&writer, _windowWidth, _windowHeight, _windowWidth*4, converted, bimg::TextureFormat::RGBA8, false, &err);
+				bx::close(&writer);
+				if (err.isOk())
+				{
+					bx::debugOutput("Screenshot successfull");
+				}
+				else
+				{
+					bx::debugOutput(err.getMessage());
+				}
+				delete[] converted;
+				delete[] _readedTexture;
+			}
+			else
+			{
+				bx::debugOutput("Screenshot failed.");
+			}
+		}
+
+		void requestSavePng()
+		{
+			_readedTexture = new float[_windowHeight * _windowWidth * 4];
+			_screenshotFrame = bgfx::readTexture(_raytracerColorOutput, _readedTexture);
 		}
 	};
 
