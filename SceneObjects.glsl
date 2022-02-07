@@ -44,7 +44,7 @@ uint TerrainShadows = 2;
 uint HQFlags1 = 0;
 int currentSample = 0;
 int directSamples = 1;//Direct samples per all samples
-vec4 HQSettings = {*(float*)&HQFlags1, *(float*)&currentSample, *(float*)&directSamples};
+vec4 HQSettings = {*(float*)&HQFlags1, *(float*)&currentSample, *(float*)&directSamples, 1};
 vec4 LightSettings = {1000, 0.03, 0.4, 0.02};
 int lightTerrainDetectSteps = 40;
 vec4 LightSettings2 = {0.5, *(float*)&lightTerrainDetectSteps, 3, 0.8};
@@ -75,6 +75,7 @@ vec4 RaymarchingSteps = {*(float*)&planetSteps, 4, 0.005, 0.4};
 
 #define HQSettings_sampleNum HQSettings.y
 #define HQSettings_directSamples HQSettings.z
+#define HQSettings_exposure HQSettings.w
 
 #define Camera_position (Camera[0].xyz)
 #define Camera_direction (Camera[1].xyz)

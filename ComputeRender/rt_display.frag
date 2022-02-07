@@ -3,13 +3,10 @@
 in vec2 texCoord;
 layout(binding=0) uniform sampler2D colorOutput;
 uniform vec4 HQSettings;
+#define HQSettings_exposure HQSettings.w
 uniform vec4 MultisamplingSettings;
 #include "../Debug.glsl"
-
-float tmFunc(float hdrColor)
-{
-    return hdrColor < 1.4131 ? /*gamma correction*/ pow(hdrColor * 0.38317, 1.0 / 2.2) : 1.0 - exp(-hdrColor)/*exposure tone mapping*/;
-}
+#include "../Tonemapping.h"
 
 vec3 tonemapping(vec3 hdrColor)
 {
@@ -30,7 +27,17 @@ void main()
             (
                 texture2D(colorOutput,texCoord).xyz
             )
-            /float((floatBitsToInt(HQSettings.y/*sampleNum*/)+1)/floatBitsToInt(MultisamplingSettings.x)/*indirectSamples*/)
+            /
+            max
+            (
+                float
+                (
+                    (floatBitsToInt(HQSettings.y/*sampleNum*/)+1)
+                    /
+                    floatBitsToInt(MultisamplingSettings.x)/*indirectSamples*/
+                ),
+                0
+            )
         );
     }
 }

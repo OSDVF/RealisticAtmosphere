@@ -23,7 +23,7 @@ vec3 lightPoint(vec3 p, vec3 normal)
                 return AMBIENT_LIGHT;
             }
         }
-        totalLightColor += light.color.xyz * dot(lDir, normal);
+        totalLightColor += light.color.xyz * max(dot(lDir, normal),0);
     }
     return totalLightColor;
 }
@@ -61,7 +61,7 @@ vec3 computeLightColor(Hit hit)
                 return vec3(0,0,1);
             }
         }*/
-        totalLightColor += light.color.xyz * dot(lDir, hit.normalAtHit);
+        totalLightColor += light.color.xyz * max(dot(lDir, hit.normalAtHit),0);
     }
     return totalLightColor;
 }

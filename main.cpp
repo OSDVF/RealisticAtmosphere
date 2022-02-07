@@ -18,6 +18,7 @@
 #include <SDL2/SDL.h>
 #include <array>
 #include <sstream>
+#include "Tonemapping.h"
 
 #define swap(x,y) do \
    { unsigned char swap_temp[sizeof(x) == sizeof(y) ? (signed)sizeof(x) : -1]; \
@@ -37,14 +38,14 @@ const Material _materialBuffer[] = {
 		0
 	},
 	{
-		{1, 0.5, 1 / 39, 1},// Orange albedo
+		{1, 1, 1, 1},// White albedo
 		{0.5,0.5,0.5},// Half specular
 		{0.5},// Half Roughness
-		{10,10,10}, // No emission
+		{0,0,0}, // No emission
 		0
 	},
 	{
-		{0, 0.1, 1, 1},// Blue albedo
+		{0, 0, 1, 1},// Blue albedo
 		{0.5,0.5,0.5},// Half specular
 		{0.5},// Half Roughness
 		{0,0,0}, // No emission
@@ -61,21 +62,22 @@ Sphere _objectBuffer[] = {
 		0 //Material index
 	},
 	{
-		{-14401, 6362270, 7000}, //Position
-		{50}, //Radius
+		{-14401, 1998, 7000}, //Position
+		{1}, //Radius
 		1, //Material index
 	},
 	{
-		{-14401, 6362230, 7052}, //Position
-		{50}, //Radius
+		{-14401, 1998, 7001.7}, //Position
+		{1}, //Radius
 		2, //Material index
 	}
 };
+vec4 _sunColor = { 1, 1, 1, 1 };// color
 
 DirectionalLight _directionalLightBuffer[] = {
 	{
 		{0,0,0,0},//Direction will be assigned automatically
-		{1, .9, .8, 1}// color
+		_sunColor
 	}
 };
 
@@ -90,7 +92,7 @@ const float rayleighScaleHeight = 7994;
 
 std::array<Planet, 1> _planetBuffer = {
 	Planet{
-		vec3(0, 0, 0),//center
+		vec3(0, -earthRadius, 0),//center
 		earthRadius,//start radius
 		atmosphereRadius,//end radius
 		precomputedMieScaterringCoefficient,
@@ -160,7 +162,7 @@ namespace RealisticAtmosphere
 		bgfx::ShaderHandle _heightmapShaderHandle;
 		bgfx::ShaderHandle _precomputeShaderHandle;
 		bgfx::ProgramHandle _precomputeProgram;
-	    bgfx::ProgramHandle _heightmapShaderProgram;
+		bgfx::ProgramHandle _heightmapShaderProgram;
 		bgfx::TextureHandle _heightmapTextureHandle;
 		bgfx::UniformHandle _heightmapSampler;
 		bgfx::TextureHandle _texture1Handle;
@@ -198,10 +200,8 @@ namespace RealisticAtmosphere
 			_settingsBackup[4] = LightSettings2;
 			_settingsBackup[5] = HQSettings;
 
-			//_person.Camera.SetPosition(glm::vec3(-14401, 6362289, 7052));
-			_person.Camera.SetPosition(glm::vec3(-15557, 6362424, 7172));
-			//_person.Camera.SetRotation(glm::vec3(3,-272,0));
-			_person.Camera.SetRotation(glm::vec3(-14, -95, 0));
+			_person.Camera.SetPosition(glm::vec3(-14401, 2289, 7052));
+			_person.Camera.SetRotation(glm::vec3(3, -272, 0));
 
 			entry::setWindowFlags(HANDLE_OF_DEFALUT_WINDOW, ENTRY_WINDOW_FLAG_ASPECT_RATIO, false);
 			entry::setWindowSize(HANDLE_OF_DEFALUT_WINDOW, 1024, 600);
@@ -428,6 +428,10 @@ namespace RealisticAtmosphere
 				case 'r':
 					_objectBuffer[1].position = vec3(Camera[0].x, Camera[0].y, Camera[0].z);
 					break;
+				case 't':
+					_person.Camera.SetPosition(glm::vec3(-14409.8f, 1997.61f, 6999.89));
+					_person.Camera.SetRotation(glm::vec3(3, -85, 0));
+					break;
 				}
 				if (_mouseLock)
 				{
@@ -482,7 +486,7 @@ namespace RealisticAtmosphere
 					renderScene();
 				}
 
-				if(_debugNormals)
+				if (_debugNormals)
 					bgfx::setTexture(0, _colorOutputSampler, _raytracerNormalsOutput);
 				else
 					bgfx::setTexture(0, _colorOutputSampler, _raytracerColorOutput);
@@ -529,6 +533,11 @@ namespace RealisticAtmosphere
 				sun.position = vec3(pos.x, pos.y, pos.z);
 
 				auto& sunLight = _directionalLightBuffer[planet.sunDrectionalLightIndex];
+				sunLight.color = _sunColor;
+				auto intensity = _planetBuffer[0].sunIntensity / 10;
+				sunLight.color.x *= intensity;
+				sunLight.color.y *= intensity;
+				sunLight.color.z *= intensity;
 				sunLight.direction = vec4::fromVec3(bx::sub(sun.position, planet.center /* light direction is reverse */)).normalize();
 			}
 		}
@@ -692,7 +701,7 @@ namespace RealisticAtmosphere
 			ImGui::SetNextWindowPos(ImVec2(250, 20), ImGuiCond_FirstUseEver);
 			ImGui::SetNextWindowCollapsed(true, ImGuiCond_FirstUseEver);
 			ImGui::Begin("Materials");
-			ImGui::InputFloat("1",&PlanetMaterial.x);
+			ImGui::InputFloat("1", &PlanetMaterial.x);
 			ImGui::InputFloat("2", &PlanetMaterial.y);
 			ImGui::InputFloat("Gradient", &PlanetMaterial.w);
 			ImGui::End();
@@ -706,6 +715,7 @@ namespace RealisticAtmosphere
 			ImGui::SetNextWindowPos(ImVec2(250, 40), ImGuiCond_FirstUseEver);
 			ImGui::SetNextWindowCollapsed(true, ImGuiCond_FirstUseEver);
 			ImGui::Begin("Light");
+			ImGui::InputFloat("Exposure", &HQSettings_exposure);
 			ImGui::InputFloat("Precision", &LightSettings_precision, 0, 0, "%e");
 			ImGui::InputFloat("Far Plane", &LightSettings_farPlane);
 			ImGui::InputFloat("NoRayThres", &LightSettings_noRayThres);
@@ -760,7 +770,7 @@ namespace RealisticAtmosphere
 			ImGui::PushItemWidth(90);
 			ImGui::InputInt("Direct rays", (int*)&HQSettings_directSamples);
 			ImGui::InputInt("Secondary rays", (int*)&Multisampling_indirect);
-			
+
 			ImGui::InputInt("Bounces", (int*)&Multisampling_maxBounces);
 			ImGui::InputInt("Atmosphere samples", (int*)&Multisampling_perAtmospherePixel);
 			ImGui::PopItemWidth();
@@ -768,11 +778,6 @@ namespace RealisticAtmosphere
 
 			drawLightGUI();
 			drawTerrainGUI();
-		}
-
-		float tmFunc(float hdrColor)
-		{
-			return hdrColor < 1.4131 ? /*gamma correction*/ pow(hdrColor * 0.38317, 1.0 / 2.2) : 1.0 - exp(-hdrColor)/*exposure tone mapping*/;
 		}
 
 		void savePng()
@@ -785,15 +790,16 @@ namespace RealisticAtmosphere
 			if (bx::open(&writer, fileName.str().c_str(), false, &err))
 			{
 				char* converted = new char[_windowHeight * _windowWidth * 4];
-				for (int x = 0; x < _windowWidth * _windowHeight * 4; x+=4)
+				for (int x = 0; x < _windowWidth * _windowHeight * 4; x += 4)
 				{
-					_readedTexture[x] = tmFunc(_readedTexture[x]);
-					_readedTexture[x+1] = tmFunc(_readedTexture[x+1]);
-					_readedTexture[x+2] = tmFunc(_readedTexture[x+2]);
+					auto dirSamp = *(int*)&HQSettings_directSamples;
+					_readedTexture[x] = tmFunc(_readedTexture[x] / dirSamp);
+					_readedTexture[x + 1] = tmFunc(_readedTexture[x + 1] / dirSamp);
+					_readedTexture[x + 2] = tmFunc(_readedTexture[x + 2] / dirSamp);
 					_readedTexture[x + 3] = 1.0f;
 				}
 				bimg::imageConvert(entry::getAllocator(), converted, bimg::TextureFormat::RGBA8, _readedTexture, bimg::TextureFormat::RGBA32F, _windowWidth, _windowHeight, 1);
-				bimg::imageWritePng(&writer, _windowWidth, _windowHeight, _windowWidth*4, converted, bimg::TextureFormat::RGBA8, false, &err);
+				bimg::imageWritePng(&writer, _windowWidth, _windowHeight, _windowWidth * 4, converted, bimg::TextureFormat::RGBA8, false, &err);
 				bx::close(&writer);
 				if (err.isOk())
 				{

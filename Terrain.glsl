@@ -101,7 +101,7 @@ vec2 planetUV(vec3 planetNormal)
 float terrainSDF(Planet planet, float sampleHeight /*above sea level*/, vec3 sphNormal, out vec2 outNormalMap)
 {
 	vec3 bump;
-	#if 0
+	#if 1
 	// Perform hermite bilinear interpolation of texture
 	ivec2 mapSize = textureSize(heightmapTexture,0);
 	vec2 uvScaled = planetUV(sphNormal) * mapSize;
@@ -119,10 +119,10 @@ float terrainSDF(Planet planet, float sampleHeight /*above sea level*/, vec3 sph
 	bump = texture(heightmapTexture,planetUV(sphNormal)).xyz;
 	#endif
 
-	float mountainHeight = planet.mountainsRadius -  planet.surfaceRadius;
-	float surfaceHeight = bump.x * mountainHeight;
+	double mountainHeight = double(planet.mountainsRadius) -  double(planet.surfaceRadius);
+	double surfaceHeight = bump.x * mountainHeight;
 	outNormalMap = bump.gb;
-	return sampleHeight - surfaceHeight;
+	return float(sampleHeight - surfaceHeight);
 }
 
 float getSampleParameters(Planet planet, Ray ray, float currentDistance, out vec3 sphNormal, out vec3 worldSamplePos)
@@ -133,6 +133,17 @@ float getSampleParameters(Planet planet, Ray ray, float currentDistance, out vec
 	float centerDist = length(centerToSample);
 	// Height above the sea level
 	return centerDist - planet.surfaceRadius;
+}
+
+float getSampleParametersH(Planet planet, Ray ray, float currentDistance, out vec3 sphNormal, out vec3 worldSamplePos)
+{
+	dvec3 worldSamplePosH = dvec3(ray.origin) + double(currentDistance) * dvec3(ray.direction);
+	dvec3 centerToSample = worldSamplePosH - dvec3(planet.center);
+	sphNormal = normalize(vec3(centerToSample));
+	double centerDist = length(centerToSample);
+	// Height above the sea level
+	worldSamplePos = vec3(worldSamplePosH);
+	return float(centerDist - double(planet.surfaceRadius));
 }
 
 bool raymarchTerrain(Planet planet, Ray ray, float fromDistance, inout float toDistance, out vec2 normalMap, out vec3 sphNormal, out vec3 worldSamplePos, out float sampleHeight)
@@ -151,7 +162,7 @@ bool raymarchTerrain(Planet planet, Ray ray, float fromDistance, inout float toD
 	{
 		if(currentT <= maxDistance)
 		{
-			sampleHeight = getSampleParameters(planet, ray, currentT, /*out*/sphNormal, /*out*/worldSamplePos);
+			sampleHeight = getSampleParametersH(planet, ray, currentT, /*out*/sphNormal, /*out*/worldSamplePos);
 			terrainDistance = terrainSDF(planet, sampleHeight, sphNormal, /*out*/ normalMap);
 			if(abs(terrainDistance) < RaymarchingSteps.z * currentT || terrainDistance < -100)
 			{

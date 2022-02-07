@@ -70,15 +70,6 @@ bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out vec
 	}
 }
 
-float getSampleAtmParams(Planet planet, Ray ray, float currentDistance, out vec3 worldSamplePos)
-{
-	worldSamplePos = ray.origin + currentDistance * ray.direction;
-	vec3 centerToSample = worldSamplePos - planet.center;
-	float centerDist = length(centerToSample);
-	// Height above the sea level
-	return centerDist - planet.surfaceRadius;
-}
-
 float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDistance, inout vec3 radiance, inout vec3 transmittance, bool terrainWasHit)
 {
 	float t0, t1;

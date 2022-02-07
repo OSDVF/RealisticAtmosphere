@@ -288,6 +288,7 @@
     <ClInclude Include="ScreenSpaceQuad.h" />
     <ClInclude Include="TestCube.h" />
     <ClInclude Include="SceneObjects.h" />
+    <ClInclude Include="Tonemapping.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
