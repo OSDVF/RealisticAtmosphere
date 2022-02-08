@@ -25,6 +25,8 @@ uniform vec4 RaymarchingSteps;
 uniform vec4 HQSettings;
 uniform vec4 LightSettings;
 uniform vec4 LightSettings2;
+uniform vec4 SunRadianceToLuminance;
+uniform vec4 SkyRadianceToLuminance;
 #else
 vec4 Camera[] =
 {
@@ -51,6 +53,8 @@ vec4 LightSettings2 = {0.5, *(float*)&lightTerrainDetectSteps, 3, 0.8};
 vec4 PlanetMaterial = {1700, 2300, 1, 600};
 int planetSteps = 200;
 vec4 RaymarchingSteps = {*(float*)&planetSteps, 4, 0.005, 0.4};
+vec4 SunRadianceToLuminance;
+vec4 SkyRadianceToLuminance;
 #endif
 
 #define Multisampling_indirect MultisamplingSettings.x

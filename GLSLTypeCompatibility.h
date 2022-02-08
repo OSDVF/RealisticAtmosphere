@@ -1,5 +1,6 @@
 #pragma once
 #include "bx/bx.h"
+#include "bx/math.h"
 using vec3 = bx::Vec3;
 struct vec4 {
 	float x;

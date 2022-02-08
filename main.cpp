@@ -19,6 +19,7 @@
 #include <array>
 #include <sstream>
 #include "Tonemapping.h"
+#include "ColorMapping.h"
 
 #define swap(x,y) do \
    { unsigned char swap_temp[sizeof(x) == sizeof(y) ? (signed)sizeof(x) : -1]; \
@@ -103,7 +104,7 @@ std::array<Planet, 1> _planetBuffer = {
 		//I am usnure of the "completeness" of this model, but Nishita and Bruneton used this
 		precomputedRayleighScatteringCoefficients,
 		rayleighScaleHeight,
-		20, //Sun intensity
+		1, //Sun intensity
 		0, // Sun object index
 		6365000, // Mountains radius
 		0 //padding
@@ -174,6 +175,8 @@ namespace RealisticAtmosphere
 		bgfx::UniformHandle _texSampler3;
 		bgfx::UniformHandle _opticalDepthSampler;
 		bgfx::UniformHandle _atmoParameters;
+		bgfx::UniformHandle _sunRadToLumHandle;
+		bgfx::UniformHandle _skyRadToLumHandle;
 
 		bgfx::UniformHandle _cameraHandle;
 		bgfx::UniformHandle _planetMaterialHandle;
@@ -236,8 +239,9 @@ namespace RealisticAtmosphere
 			//
 			// Setup Resources
 			//
-
 			_cameraHandle = bgfx::createUniform("Camera", bgfx::UniformType::Vec4, 4);//It is an array of 4 vec4
+			_sunRadToLumHandle = bgfx::createUniform("SunRadianceToLuminance", bgfx::UniformType::Vec4);
+			_skyRadToLumHandle = bgfx::createUniform("SkyRadianceToLuminance", bgfx::UniformType::Vec4);
 			_planetMaterialHandle = bgfx::createUniform("PlanetMaterial", bgfx::UniformType::Vec4);
 			_raymarchingStepsHandle = bgfx::createUniform("RaymarchingSteps", bgfx::UniformType::Vec4);
 			_colorOutputSampler = bgfx::createUniform("colorOutput", bgfx::UniformType::Sampler);
@@ -262,9 +266,9 @@ namespace RealisticAtmosphere
 			_heightmapShaderProgram = bgfx::createProgram(_heightmapShaderHandle);
 			_precomputeShaderHandle = loadShader("Precompute.comp");
 			_precomputeProgram = bgfx::createProgram(_precomputeShaderHandle);
-			_texture1Handle = loadTexture("textures/grass.dds");
-			_texture2Handle = loadTexture("textures/dirt.dds");
-			_texture3Handle = loadTexture("textures/rock.dds");
+			_texture1Handle = loadTexture("textures/grass.dds", BGFX_TEXTURE_SRGB);
+			_texture2Handle = loadTexture("textures/dirt.dds", BGFX_TEXTURE_SRGB);
+			_texture3Handle = loadTexture("textures/rock.dds", BGFX_TEXTURE_SRGB);
 
 			/*auto data = imageLoad("textures/grass.ktx", bgfx::TextureFormat::RGB8);
 			bgfx::updateTexture2D(_texturesHandle, 0, 0, 0, 0, 2048, 2048, bgfx::makeRef(data->m_data, data->m_size));
@@ -283,8 +287,11 @@ namespace RealisticAtmosphere
 			// Render heighmap
 			heightMap();
 
-			//Render optical depth
+			// Render optical depth
 			precompute();
+
+			// Compute spectrum mapping functions
+			ColorMapping::FillSpectrum(SkyRadianceToLuminance, SunRadianceToLuminance);
 
 			// Create Immediate GUI graphics context
 			imguiCreate();
@@ -377,6 +384,8 @@ namespace RealisticAtmosphere
 			bgfx::destroy(_opticalDepthSampler);
 			bgfx::destroy(_opticalDepthTable);
 			bgfx::destroy(_atmoParameters);
+			bgfx::destroy(_sunRadToLumHandle);
+			bgfx::destroy(_skyRadToLumHandle);
 
 			_screenSpaceQuad.destroy();
 
@@ -534,10 +543,10 @@ namespace RealisticAtmosphere
 
 				auto& sunLight = _directionalLightBuffer[planet.sunDrectionalLightIndex];
 				sunLight.color = _sunColor;
-				auto intensity = _planetBuffer[0].sunIntensity / 10;
+				/*auto intensity = _planetBuffer[0].sunIntensity / 10;
 				sunLight.color.x *= intensity;
 				sunLight.color.y *= intensity;
-				sunLight.color.z *= intensity;
+				sunLight.color.z *= intensity;*/
 				sunLight.direction = vec4::fromVec3(bx::sub(sun.position, planet.center /* light direction is reverse */)).normalize();
 			}
 		}
@@ -577,6 +586,8 @@ namespace RealisticAtmosphere
 			bgfx::setUniform(_hqSettingsHandle, &HQSettings);
 			bgfx::setUniform(_lightSettings, &LightSettings);
 			bgfx::setUniform(_lightSettings2, &LightSettings2);
+			bgfx::setUniform(_sunRadToLumHandle, &SunRadianceToLuminance);
+			bgfx::setUniform(_skyRadToLumHandle, &SkyRadianceToLuminance);
 			bgfx::setTexture(7, _texSampler1, _texture1Handle);
 			bgfx::setTexture(8, _texSampler2, _texture2Handle);
 			bgfx::setTexture(9, _texSampler3, _texture3Handle);

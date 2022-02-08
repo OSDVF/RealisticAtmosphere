@@ -214,6 +214,7 @@
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="ColorMapping.cpp" />
     <ClCompile Include="MouseCamera.cpp" />
     <ClCompile Include="FirstPersonController.cpp" />
     <ClCompile Include="main.cpp" />
@@ -276,6 +277,7 @@
     <None Include="varying.def.sc" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="ColorMapping.h" />
     <ClInclude Include="MouseCamera.h" />
     <ClInclude Include="FirstPersonController.h" />
     <ClInclude Include="GLSLTypeCompatibility.h" />
