@@ -148,7 +148,7 @@ float fbm_9( in vec2 x )
     float s = 0.55;
     float a = 0.0;
     float b = 0.5;
-    for( int i=0; i<9; i++ )
+    for( int i=0; i<12; i++ )
     {
         float n = noise(x);
         a += b*n;
@@ -157,14 +157,6 @@ float fbm_9( in vec2 x )
     }
     
 	return a;
-}
-
-vec2 terrainMap( in vec2 p )
-{
-    float e = fbm_9( p + vec2(1.0,-2.0) );
-    float a = 1.0-smoothstep( 0.12, 0.13, abs(e+0.12) ); // flag high-slope areas (-0.25, 0.0)
-    e += 0.15*smoothstep( -0.08, -0.01, e );
-    return vec2(e,a);
 }
 
 vec2 tcToAngle(vec2 tc)
@@ -306,40 +298,26 @@ vec3 sphereTangent(vec3 normal)
     return tangentFromSpherical(theta1, phi1);
 }
 
-float terrainElevation(vec3 p)
-{
-    /*float elev = 1.0 - fbm6(p*200);
-    return (elev*elev*elev-0.00031)/0.81415;*/
-    vec2 uv = toUV(p);
-    return (terrainMap(uv*10).r+0.94)/(1.01712+0.94);
-}
 
-
-vec3 fbmTerrain (vec2 st) {
+vec4 fbmTerrain (vec2 st) {
 	
     // Initial values
     float value = 0.0;
     vec2 derivates = vec2(0);
 	float amplitude = 1.0;
+    float lastOctave = 0;
     
     // Loop of octaves
-    for (int i = 0; i < 9; i++) {
+    for (int i = 0; i < 10; i++) {
 		vec3 n = noised(st) * amplitude;
         value += n.x/(1.0+dot(derivates,derivates));
 		derivates += n.yz;
         st *= m2*2.0;//lacunarity
         amplitude *= 0.5;//gain
     }
-    return vec3(value,derivates.x,derivates.y);
-}
-
-vec3 terrainMap2( in vec2 p )
-{
-	vec3 n = fbmTerrain(p);
-    float e = n.x;
-    float a = 1.0-smoothstep( 0.12, 0.13, abs(e+0.12) ); // flag high-slope areas (-0.25, 0.0)
-    e += 0.15*smoothstep( -0.08, -0.01, e );
-    return vec3(e,n.yz);
+    vec3 n = noised(st) * amplitude;
+    lastOctave = n.x;
+    return vec4(value, derivates.x, derivates.y, lastOctave);
 }
 
 #endif

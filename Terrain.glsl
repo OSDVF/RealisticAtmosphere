@@ -5,6 +5,7 @@
 #include "Lighting.glsl"
 
 float getSampleParameters(Planet planet, Ray ray, float currentDistance, out vec3 sphNormal, out vec3 worldSamplePos);
+vec2 planetUV(vec2 uv);
 
 #ifdef COMPUTE
 uvec2 quadIndex = gl_LocalInvocationID.xy / 2;
@@ -40,35 +41,23 @@ vec3 triplanarSample(sampler2D sampl, vec3 pos, vec3 normal, float lod)
 vec3 terrainColor(Planet planet, float T, vec3 pos, vec3 normal, float elev)
 {
 	// Triplanar texture mapping in world space
-	float lod = pow(T, RaymarchingSteps.w) / RaymarchingSteps.y;
+	float lod = pow(T, RaymarchingSteps.w) / QualitySettings_lodPow;
+	vec4 gradParams = texture(heightmapTexture, planetUV(pos.xz*5 + 100));
 	float gradHeight = PlanetMaterial.w;
-	if(elev < PlanetMaterial.x)
-	{
-		//return vec3(0);
-		return triplanarSample(texSampler1, pos, normal, lod);
-	}
-	else if(elev < PlanetMaterial.x+gradHeight)
-	{
-		//return vec3(0,0,1);
-		return mix(triplanarSample(texSampler1, pos, normal, lod), triplanarSample(texSampler2, pos, normal, lod),
-					smoothstep(0,gradHeight,elev-PlanetMaterial.x));
-	}
-	else if(elev < PlanetMaterial.y)
-	{
-		//return vec3(0,1,0);
-		return triplanarSample(texSampler2, pos, normal, lod);
-	}
-	else if(elev < PlanetMaterial.y+gradHeight)
-	{
-		//return vec3(0,1,1);
-		return mix(triplanarSample(texSampler2, pos, normal, lod), triplanarSample(texSampler3, pos, normal, lod),
-					smoothstep(0,gradHeight,elev-PlanetMaterial.y));
-	}
-	else
-	{
-		//return vec3(1,0,0);
-		return triplanarSample(texSampler3, pos, normal, lod);
-	}
+	float randomizedElev = elev * (gradParams.x+gradParams.w);
+	float firstRatio = clamp((elev - PlanetMaterial.x) / PlanetMaterial.y,0,1);
+	return mix(
+				mix(
+					mix(
+						triplanarSample(texSampler2, pos, normal, lod),
+						triplanarSample(texSampler3, pos, normal, lod),
+						pow(mix(firstRatio, gradParams.y, gradParams.z*PlanetMaterial.z),2)) + smoothstep(PlanetMaterial.x,PlanetMaterial.y,randomizedElev-800)*0.6,
+					triplanarSample(texSampler1, pos, normal, lod),
+						clamp(pow((gradParams.y+gradParams.z+gradParams.w-PlanetMaterial.w),10), 0,1)
+				),
+			triplanarSample(texSampler4, pos, normal, lod),
+			max(clamp(pow(-(normal.x+normal.z)*7,15),0,1),1 - smoothstep(700,1000,randomizedElev))
+		);
 }
 
 float pow3(float f) {
@@ -85,7 +74,7 @@ vec3 biLerp(vec3 a, vec3 b, vec3 c, vec3 d, float s, float t)
 vec3 terrainNormal(vec2 normalMap, vec3 sphNormal)
 {
 	// Compute normal in world space
-	vec2 map = (normalMap * PlanetMaterial.z) * 2 - 1;
+	vec2 map = (normalMap * 0.9) * 2 - 1;
 	map.x = -map.x;
 	vec3 t = vec3(1,0,0);//sphereTangent(sphNormal);
 	vec3 bitangent = vec3(0,0,1);//sphNormal * t;
@@ -101,7 +90,7 @@ vec2 planetUV(vec2 uv)
 float terrainSDF(Planet planet, float sampleHeight /*above sea level*/, vec2 uv, out vec2 outNormalMap)
 {
 	vec3 bump;
-	#if 1
+	#if 0
 	// Perform hermite bilinear interpolation of texture
 	ivec2 mapSize = textureSize(heightmapTexture,0);
 	vec2 uvScaled = planetUV(uv) * mapSize;

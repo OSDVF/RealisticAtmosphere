@@ -83,14 +83,16 @@ float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDis
 	float opticalDepthR = 0, opticalDepthM = 0; 
 
 	vec3 sunVector = directionalLights[planet.sunDrectionalLightIndex].direction.xyz;
-	float sunToViewCos = dot(sunVector, ray.direction);
+	float sunToViewCos /*cos(Phi)*/ = dot(sunVector, ray.direction);
 
-	float rayleightPhase = 3.0 / (16.0 * PI) * (1 + sunToViewCos * sunToViewCos);
+	float cosPhi2 = sunToViewCos * sunToViewCos;
+
+	float rayleightPhase = 3.0 / (16.0 * PI) * (1 + cosPhi2);
 	//There should be extinction coefficients, but for Rayleigh, they are the same as scattering coeff.s and for Mie, it is 1.11 times the s.c.
 	float mieExtinction = 1.11 * planet.mieCoefficient;
 	float assymetryFactor2 = planet.mieAsymmetryFactor * planet.mieAsymmetryFactor;
 	float miePhase = 3.0 /
-		(8.0 * PI) * ((1.0 - assymetryFactor2) * (1.0 + (sunToViewCos * sunToViewCos)))
+		(8.0 * PI) * ((1.0 - assymetryFactor2) * (1.0 + (cosPhi2)))
 		/ ((2.f + assymetryFactor2) * pow(1.0 + assymetryFactor2 - 2.0 * planet.mieAsymmetryFactor * sunToViewCos, 1.5f));
 
 	float currentDistance;

@@ -3,30 +3,14 @@
 layout(local_size_x=16, local_size_y=16, local_size_z = 1) in;
 layout(rgba32f, binding=0) writeonly uniform image2DArray heightmapOutput;//r = height, bga = normal
 
-// https://www.shadertoy.com/view/3sSSW1
-vec2 texNormalMap(in vec2 uv)
-{
-    const vec2 s = vec2(1.0/float(gl_WorkGroupSize * gl_NumWorkGroups));
-    
-    float p = terrainElevation(toPolar(uv));
-    float h1 = terrainElevation(toPolar(uv + s * vec2(1,0)));
-    float v1 = terrainElevation(toPolar(uv + s * vec2(0,1)));
-       
-   	return normalize(vec3(p - vec2(h1, v1),1)).xy;
-}
-
 void main()
 {
 	vec4 color;
 	vec2 tc = vec2(gl_GlobalInvocationID.xy) / float(gl_WorkGroupSize * gl_NumWorkGroups);
 	
     vec3 p = toPolar(tc);
-	/*color.r = terrainElevation(p);
-    vec2 normal = texNormalMap(tc) / 0.56666;// This constant came from pure debugging. It makes it range -1 to 1
-    color.gb = normal/2+0.5;*/
-    color.xyz = fbmTerrain(tc*10)*0.33+0.5;
+    color = fbmTerrain(tc*10)*0.33+0.5;
     color.yz = normalize(vec3(color.y,3,color.z)).xz*0.5 + 0.5;
-    //color.gb = normal;
 
 	imageStore(heightmapOutput, ivec3(gl_GlobalInvocationID.xy,0), color );
 }

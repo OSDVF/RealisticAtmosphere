@@ -15,6 +15,7 @@ const float NEGATIVE_INFINITY = uintBitsToFloat(0xFF800000);
 uniform sampler2D texSampler1;
 uniform sampler2D texSampler2;
 uniform sampler2D texSampler3;
+uniform sampler2D texSampler4;
 uniform sampler2D heightmapTexture;
 uniform vec4 u_viewRect;
 uniform vec4 Camera[4];
@@ -50,9 +51,9 @@ vec4 HQSettings = {*(float*)&HQFlags1, *(float*)&currentSample, *(float*)&direct
 vec4 LightSettings = {1000, 0.03, 0.4, 0.02};
 int lightTerrainDetectSteps = 40;
 vec4 LightSettings2 = {0.5, *(float*)&lightTerrainDetectSteps, 3, 0.8};
-vec4 PlanetMaterial = {1700, 2300, .9, 600};
+vec4 PlanetMaterial = {1700, 2300, .4, .75};
 int planetSteps = 164;
-vec4 RaymarchingSteps = {*(float*)&planetSteps, 5, 0.005, 0.5};
+vec4 RaymarchingSteps = {*(float*)&planetSteps, 0.01, 0.005, 0.5};
 vec4 SunRadianceToLuminance;
 vec4 SkyRadianceToLuminance;
 #endif
@@ -62,7 +63,7 @@ vec4 SkyRadianceToLuminance;
 #define Multisampling_perAtmospherePixel MultisamplingSettings.z
 #define Multisampling_type MultisamplingSettings.w
 
-#define QualitySettings_steps QualitySettings.x
+#define QualitySettings_lodPow QualitySettings.x
 #define QualitySettings_minStepSize QualitySettings.y
 #define QualitySettings_farPlane QualitySettings.z
 #define QualitySettings_optimism QualitySettings.w

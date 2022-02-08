@@ -54,7 +54,7 @@ const Material _materialBuffer[] = {
 	}
 };
 
-const float earthRadius = 6360000; // cit. E. Bruneton page 3
+const float earthRadius =      6360000; // cit. E. Bruneton page 3
 const float atmosphereRadius = 6420000;
 Sphere _objectBuffer[] = {
 	{//Sun
@@ -170,10 +170,12 @@ namespace RealisticAtmosphere
 		bgfx::TextureHandle _texture1Handle;
 		bgfx::TextureHandle _texture2Handle;
 		bgfx::TextureHandle _texture3Handle;
+		bgfx::TextureHandle _texture4Handle;
 		bgfx::TextureHandle _opticalDepthTable;
 		bgfx::UniformHandle _texSampler1;
 		bgfx::UniformHandle _texSampler2;
 		bgfx::UniformHandle _texSampler3;
+		bgfx::UniformHandle _texSampler4;
 		bgfx::UniformHandle _opticalDepthSampler;
 		bgfx::UniformHandle _atmoParameters;
 		bgfx::UniformHandle _sunRadToLumHandle;
@@ -252,6 +254,7 @@ namespace RealisticAtmosphere
 			_texSampler1 = bgfx::createUniform("texSampler1", bgfx::UniformType::Sampler);
 			_texSampler2 = bgfx::createUniform("texSampler2", bgfx::UniformType::Sampler);
 			_texSampler3 = bgfx::createUniform("texSampler3", bgfx::UniformType::Sampler);
+			_texSampler4 = bgfx::createUniform("texSampler4", bgfx::UniformType::Sampler);
 			_debugAttributesHandle = bgfx::createUniform("debugAttributes", bgfx::UniformType::Vec4);
 			_timeHandle = bgfx::createUniform("time", bgfx::UniformType::Vec4);
 			_multisamplingSettingsHandle = bgfx::createUniform("MultisamplingSettings", bgfx::UniformType::Vec4);
@@ -267,9 +270,10 @@ namespace RealisticAtmosphere
 			_heightmapShaderProgram = bgfx::createProgram(_heightmapShaderHandle);
 			_precomputeShaderHandle = loadShader("Precompute.comp");
 			_precomputeProgram = bgfx::createProgram(_precomputeShaderHandle);
-			_texture1Handle = loadTexture("textures/grass.dds", BGFX_TEXTURE_SRGB);
+			_texture1Handle = loadTexture("textures/rocks.dds", BGFX_TEXTURE_SRGB);
 			_texture2Handle = loadTexture("textures/dirt.dds", BGFX_TEXTURE_SRGB);
-			_texture3Handle = loadTexture("textures/rock.dds", BGFX_TEXTURE_SRGB);
+			_texture3Handle = loadTexture("textures/rock.dds");
+			_texture4Handle = loadTexture("textures/grass.dds", BGFX_TEXTURE_SRGB);
 
 			/*auto data = imageLoad("textures/grass.ktx", bgfx::TextureFormat::RGB8);
 			bgfx::updateTexture2D(_texturesHandle, 0, 0, 0, 0, 2048, 2048, bgfx::makeRef(data->m_data, data->m_size));
@@ -302,9 +306,9 @@ namespace RealisticAtmosphere
 
 		void heightMap()
 		{
-			_heightmapTextureHandle = bgfx::createTexture2D(2048, 2048, false, 1, bgfx::TextureFormat::RGBA32F, BGFX_TEXTURE_COMPUTE_WRITE);
+			_heightmapTextureHandle = bgfx::createTexture2D(8192, 8192, false, 1, bgfx::TextureFormat::RGBA32F, BGFX_TEXTURE_COMPUTE_WRITE);
 			bgfx::setImage(0, _heightmapTextureHandle, 0, bgfx::Access::Write);
-			bgfx::dispatch(0, _heightmapShaderProgram, bx::ceil(2048 / 16.0f), bx::ceil(2048/ 16.0f));
+			bgfx::dispatch(0, _heightmapShaderProgram, bx::ceil(8192 / 16.0f), bx::ceil(8192 / 16.0f));
 		}
 
 		void precompute()
@@ -367,6 +371,7 @@ namespace RealisticAtmosphere
 			bgfx::destroy(_texSampler1);
 			bgfx::destroy(_texSampler2);
 			bgfx::destroy(_texSampler3);
+			bgfx::destroy(_texSampler4);
 			bgfx::destroy(_computeShaderHandle);
 			bgfx::destroy(_computeShaderProgram);
 			bgfx::destroy(_displayingShaderProgram);
@@ -592,8 +597,9 @@ namespace RealisticAtmosphere
 			bgfx::setTexture(7, _texSampler1, _texture1Handle);
 			bgfx::setTexture(8, _texSampler2, _texture2Handle);
 			bgfx::setTexture(9, _texSampler3, _texture3Handle);
-			bgfx::setTexture(10, _heightmapSampler, _heightmapTextureHandle);
-			bgfx::setTexture(11, _opticalDepthSampler, _opticalDepthTable, BGFX_SAMPLER_UVW_CLAMP);
+			bgfx::setTexture(10, _texSampler4, _texture4Handle);
+			bgfx::setTexture(11, _heightmapSampler, _heightmapTextureHandle);
+			bgfx::setTexture(12, _opticalDepthSampler, _opticalDepthTable, BGFX_SAMPLER_UVW_CLAMP);
 		}
 
 		void viewportActions()
@@ -717,6 +723,7 @@ namespace RealisticAtmosphere
 			ImGui::InputFloat("1", &PlanetMaterial.x);
 			ImGui::InputFloat("2", &PlanetMaterial.y);
 			ImGui::InputFloat("Gradient", &PlanetMaterial.w);
+			ImGui::InputFloat("Detail", &RaymarchingSteps.y);
 			ImGui::End();
 
 			drawLightGUI();
@@ -750,7 +757,7 @@ namespace RealisticAtmosphere
 			ImGui::InputFloat("MinStepSize", &QualitySettings_minStepSize);
 			ImGui::InputInt("Planet Steps", (int*)&RaymarchingSteps.x);
 			ImGui::InputFloat("Precision", &RaymarchingSteps.z, 0, 0, "%e");
-			ImGui::InputFloat("LOD Div", &RaymarchingSteps.y);
+			ImGui::InputFloat("LOD Div", &QualitySettings_lodPow);
 			ImGui::InputFloat("LOD Bias", &RaymarchingSteps.w);
 			ImGui::InputFloat("Normals", &PlanetMaterial.z);
 			ImGui::End();
