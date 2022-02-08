@@ -40,7 +40,7 @@ int bounces = 0;
 int perAtmosphere = 64;
 int type = 0;
 vec4 MultisamplingSettings = {*(float*)&perPixel,*(float*)&bounces,*(float*)&perAtmosphere,*(float*)&type};
-vec4 QualitySettings = {5,50,70000,1};
+vec4 QualitySettings = {5,50,9000,0.4};
 uint PathTracing = 1;
 uint TerrainShadows = 2;
 uint HQFlags1 = 0;
@@ -50,9 +50,9 @@ vec4 HQSettings = {*(float*)&HQFlags1, *(float*)&currentSample, *(float*)&direct
 vec4 LightSettings = {1000, 0.03, 0.4, 0.02};
 int lightTerrainDetectSteps = 40;
 vec4 LightSettings2 = {0.5, *(float*)&lightTerrainDetectSteps, 3, 0.8};
-vec4 PlanetMaterial = {1700, 2300, 1, 600};
-int planetSteps = 200;
-vec4 RaymarchingSteps = {*(float*)&planetSteps, 4, 0.005, 0.4};
+vec4 PlanetMaterial = {1700, 2300, .9, 600};
+int planetSteps = 164;
+vec4 RaymarchingSteps = {*(float*)&planetSteps, 5, 0.005, 0.5};
 vec4 SunRadianceToLuminance;
 vec4 SkyRadianceToLuminance;
 #endif

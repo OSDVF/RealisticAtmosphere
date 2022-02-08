@@ -63,12 +63,12 @@ Sphere _objectBuffer[] = {
 		0 //Material index
 	},
 	{
-		{-14401, 1998, 7000}, //Position
+		{-18260, 1706, 16065}, //Position
 		{1}, //Radius
 		1, //Material index
 	},
 	{
-		{-14401, 1998, 7001.7}, //Position
+		{-18260, 1706, 16065.7}, //Position
 		{1}, //Radius
 		2, //Material index
 	}
@@ -130,6 +130,7 @@ namespace RealisticAtmosphere
 		uint32_t _resetFlags = 0;
 		entry::MouseState _mouseState;
 		float _sunAngle = 1.46607657;//84 deg
+		float _secondAngle = -1.6;
 
 		bgfx::UniformHandle _timeHandle;
 		bgfx::UniformHandle _multisamplingSettingsHandle;
@@ -203,8 +204,8 @@ namespace RealisticAtmosphere
 			_settingsBackup[4] = LightSettings2;
 			_settingsBackup[5] = HQSettings;
 
-			_person.Camera.SetPosition(glm::vec3(-14401, 2289, 7052));
-			_person.Camera.SetRotation(glm::vec3(3, -272, 0));
+			_person.Camera.SetPosition(glm::vec3(-15654, 1661, 15875));
+			_person.Camera.SetRotation(glm::vec3(-4, -273, 0));
 
 			entry::setWindowFlags(HANDLE_OF_DEFALUT_WINDOW, ENTRY_WINDOW_FLAG_ASPECT_RATIO, false);
 			entry::setWindowSize(HANDLE_OF_DEFALUT_WINDOW, 1024, 600);
@@ -301,9 +302,9 @@ namespace RealisticAtmosphere
 
 		void heightMap()
 		{
-			_heightmapTextureHandle = bgfx::createTexture2D(4096, 4096, false, 1, bgfx::TextureFormat::RGBA32F, BGFX_TEXTURE_COMPUTE_WRITE);
+			_heightmapTextureHandle = bgfx::createTexture2D(2048, 2048, false, 1, bgfx::TextureFormat::RGBA32F, BGFX_TEXTURE_COMPUTE_WRITE);
 			bgfx::setImage(0, _heightmapTextureHandle, 0, bgfx::Access::Write);
-			bgfx::dispatch(0, _heightmapShaderProgram, bx::ceil(4096 / 16.0f), bx::ceil(4096 / 16.0f));
+			bgfx::dispatch(0, _heightmapShaderProgram, bx::ceil(2048 / 16.0f), bx::ceil(2048/ 16.0f));
 		}
 
 		void precompute()
@@ -438,8 +439,8 @@ namespace RealisticAtmosphere
 					_objectBuffer[1].position = vec3(Camera[0].x, Camera[0].y, Camera[0].z);
 					break;
 				case 't':
-					_person.Camera.SetPosition(glm::vec3(-14409.8f, 1997.61f, 6999.89));
-					_person.Camera.SetRotation(glm::vec3(3, -85, 0));
+					_person.Camera.SetPosition(glm::vec3(-18253, 1709, 16070));
+					_person.Camera.SetRotation(glm::vec3(-5, 113, 0));
 					break;
 				}
 				if (_mouseLock)
@@ -536,7 +537,7 @@ namespace RealisticAtmosphere
 			{
 				auto& planet = _planetBuffer[i];
 				auto& sun = _objectBuffer[0];
-				glm::quat rotQua(glm::vec3(_sunAngle, 30, 0));
+				glm::quat rotQua(glm::vec3(_sunAngle, _secondAngle, 0));
 				glm::vec3 pos(0, bx::length(sun.position), 0);
 				pos = rotQua * pos;
 				sun.position = vec3(pos.x, pos.y, pos.z);
@@ -653,6 +654,7 @@ namespace RealisticAtmosphere
 			ImGui::PopItemWidth();
 			ImGui::InputFloat("Sun Angle", &_sunAngle);
 			ImGui::SliderAngle("", &_sunAngle, 0, 180);
+			ImGui::InputFloat("Second Angle", &_secondAngle);
 			ImGui::End();
 
 			ImGui::SetNextWindowPos(

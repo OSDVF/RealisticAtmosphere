@@ -12,7 +12,7 @@ shared vec3 hitPosition;
 #endif
 vec3 triplanarSample(sampler2D sampl, vec3 pos, vec3 normal, float lod)
 {
-	pos /= 50;
+	pos /= 5;
 	vec2 triUVx = (pos.zy);
 	vec2 triUVy = (pos.xz);
 	vec2 triUVz = (pos.xy);
@@ -86,25 +86,25 @@ vec3 terrainNormal(vec2 normalMap, vec3 sphNormal)
 {
 	// Compute normal in world space
 	vec2 map = (normalMap * PlanetMaterial.z) * 2 - 1;
-	map.y = -map.y;
-	vec3 t = sphereTangent(sphNormal);
-	vec3 bitangent = sphNormal * t;
+	map.x = -map.x;
+	vec3 t = vec3(1,0,0);//sphereTangent(sphNormal);
+	vec3 bitangent = vec3(0,0,1);//sphNormal * t;
 	float normalZ = sqrt(1-dot(map.xy, map.xy));
-	return normalize(map.x * t + map.y * bitangent + normalZ * sphNormal);
+	return normalize(map.x * t + map.y * bitangent + normalZ * vec3(0,1,0));
 }
 
-vec2 planetUV(vec3 planetNormal)
+vec2 planetUV(vec2 uv)
 {
-	return mod(toUV(planetNormal)*500,1);
+	return mod(uv*0.00003, 1);
 }
 
-float terrainSDF(Planet planet, float sampleHeight /*above sea level*/, vec3 sphNormal, out vec2 outNormalMap)
+float terrainSDF(Planet planet, float sampleHeight /*above sea level*/, vec2 uv, out vec2 outNormalMap)
 {
 	vec3 bump;
 	#if 1
 	// Perform hermite bilinear interpolation of texture
 	ivec2 mapSize = textureSize(heightmapTexture,0);
-	vec2 uvScaled = planetUV(sphNormal) * mapSize;
+	vec2 uvScaled = planetUV(uv) * mapSize;
 	ivec2 coords = ivec2(uvScaled);
 	vec2 coordDiff = uvScaled - coords;
 	vec3 bump1 = texelFetch(heightmapTexture, coords, 0).xyz;
@@ -116,7 +116,7 @@ float terrainSDF(Planet planet, float sampleHeight /*above sea level*/, vec3 sph
 	// Result interpolated texture
 	bump = biLerp(bump1,bump2,bump3,bump4,sm.y,sm.x);
 	#else
-	bump = texture(heightmapTexture,planetUV(sphNormal)).xyz;
+	bump = texture(heightmapTexture, planetUV(uv)).xyz;
 	#endif
 
 	double mountainHeight = double(planet.mountainsRadius) -  double(planet.surfaceRadius);
@@ -163,7 +163,7 @@ bool raymarchTerrain(Planet planet, Ray ray, float fromDistance, inout float toD
 		if(currentT <= maxDistance)
 		{
 			sampleHeight = getSampleParametersH(planet, ray, currentT, /*out*/sphNormal, /*out*/worldSamplePos);
-			terrainDistance = terrainSDF(planet, sampleHeight, sphNormal, /*out*/ normalMap);
+			terrainDistance = terrainSDF(planet, sampleHeight, worldSamplePos.xz, /*out*/ normalMap);
 			if(abs(terrainDistance) < RaymarchingSteps.z * currentT || terrainDistance < -100)
 			{
 				// Sufficient distance to claim as "hit"
@@ -199,7 +199,7 @@ bool raymarchTerrainL(Planet planet, Ray ray, float fromDistance, float toDistan
 		vec3 worldSamplePos;
 
 		float sampleHeight = getSampleParameters(planet, ray, currentT, /*out*/sphNormal, /*out*/worldSamplePos);
-		float terrainDistance = terrainSDF(planet, sampleHeight, sphNormal, /*out*/ normalMap);
+		float terrainDistance = terrainSDF(planet, sampleHeight, worldSamplePos.xz, /*out*/ normalMap);
 		if(terrainDistance < LightSettings_precision * currentT)
 		{
 			// Sufficient distance to claim as "hit"

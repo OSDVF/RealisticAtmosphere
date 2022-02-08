@@ -187,7 +187,7 @@ float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDis
 	// Add atmosphere to planet color /* or to nothing */
 	radiance += (rayleighColor * planet.rayleighCoefficients * rayleightPhase
 			+ mieColor * planet.mieCoefficient * miePhase
-			) * planet.sunIntensity * transmittance * SunRadianceToLuminance.rgb;
+			) * planet.sunIntensity * transmittance * SkyRadianceToLuminance.rgb;
 	vec3 depth = planet.rayleighCoefficients * opticalDepthR
 						+ mieExtinction * opticalDepthM;
 	vec3 attenuation = exp(-depth);
