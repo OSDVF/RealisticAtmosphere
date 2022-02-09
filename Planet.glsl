@@ -6,6 +6,7 @@
 #include "Lighting.glsl"
 
 uniform sampler2D opticalDepthTable;
+uniform sampler2D cloudsMieLUT;
 #define PI pi
 
 float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDistance, inout vec3 radiance, inout vec3 transmittance, bool terrainWasHit);

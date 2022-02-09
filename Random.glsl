@@ -305,18 +305,21 @@ vec4 fbmTerrain (vec2 st) {
     float value = 0.0;
     vec2 derivates = vec2(0);
 	float amplitude = 1.0;
-    float lastOctave = 0;
+    float lastOctave = 0.5;
     
     // Loop of octaves
     for (int i = 0; i < 10; i++) {
-		vec3 n = noised(st) * amplitude;
+        vec3 randomWithDerivates = noised(st);
+		vec3 n = randomWithDerivates * amplitude;
+        if(i>=8)
+        {
+            lastOctave *= randomWithDerivates.x; 
+        }
         value += n.x/(1.0+dot(derivates,derivates));
 		derivates += n.yz;
         st *= m2*2.0;//lacunarity
         amplitude *= 0.5;//gain
     }
-    vec3 n = noised(st) * amplitude;
-    lastOctave = n.x;
     return vec4(value, derivates.x, derivates.y, lastOctave);
 }
 

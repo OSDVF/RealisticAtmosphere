@@ -25,6 +25,12 @@
     <Filter Include="Shader Programs\Material Shaders">
       <UniqueIdentifier>{47bb6430-e373-484d-8620-66b57912ff35}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\Phase Functions">
+      <UniqueIdentifier>{b48c8850-6ef6-45aa-a8ac-77b3949701e6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Phase Functions">
+      <UniqueIdentifier>{d40ad230-131d-401b-a5b7-3db1c0c0a93b}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -44,6 +50,15 @@
     </ClCompile>
     <ClCompile Include="ColorMapping.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="CloudsBlue.cpp">
+      <Filter>Source Files\Phase Functions</Filter>
+    </ClCompile>
+    <ClCompile Include="CloudsGreen.cpp">
+      <Filter>Source Files\Phase Functions</Filter>
+    </ClCompile>
+    <ClCompile Include="CloudsRed.cpp">
+      <Filter>Source Files\Phase Functions</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -168,6 +183,9 @@
     </ClInclude>
     <ClInclude Include="ColorMapping.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="PhaseFunctions.h">
+      <Filter>Header Files\Phase Functions</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

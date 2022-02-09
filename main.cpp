@@ -19,6 +19,7 @@
 #include <array>
 #include <sstream>
 #include "Tonemapping.h"
+#include "PhaseFunctions.h"
 #include "ColorMapping.h"
 
 #define swap(x,y) do \
@@ -54,7 +55,7 @@ const Material _materialBuffer[] = {
 	}
 };
 
-const float earthRadius =      6360000; // cit. E. Bruneton page 3
+const float earthRadius = 6360000; // cit. E. Bruneton page 3
 const float atmosphereRadius = 6420000;
 Sphere _objectBuffer[] = {
 	{//Sun
@@ -166,7 +167,9 @@ namespace RealisticAtmosphere
 		bgfx::ProgramHandle _precomputeProgram;
 		bgfx::ProgramHandle _heightmapShaderProgram;
 		bgfx::TextureHandle _heightmapTextureHandle;
+		bgfx::TextureHandle _cloudsPhaseTextureHandle;
 		bgfx::UniformHandle _heightmapSampler;
+		bgfx::UniformHandle _cloudsPhaseSampler;
 		bgfx::TextureHandle _texture1Handle;
 		bgfx::TextureHandle _texture2Handle;
 		bgfx::TextureHandle _texture3Handle;
@@ -249,6 +252,7 @@ namespace RealisticAtmosphere
 			_raymarchingStepsHandle = bgfx::createUniform("RaymarchingSteps", bgfx::UniformType::Vec4);
 			_colorOutputSampler = bgfx::createUniform("colorOutput", bgfx::UniformType::Sampler);
 			_heightmapSampler = bgfx::createUniform("heightmapTexture", bgfx::UniformType::Sampler);
+			_cloudsPhaseSampler = bgfx::createUniform("cloudsMieLUT", bgfx::UniformType::Sampler);
 			_opticalDepthSampler = bgfx::createUniform("opticalDepthTable", bgfx::UniformType::Sampler);
 			_atmoParameters = bgfx::createUniform("AtmoParameters", bgfx::UniformType::Vec4);
 			_texSampler1 = bgfx::createUniform("texSampler1", bgfx::UniformType::Sampler);
@@ -292,6 +296,9 @@ namespace RealisticAtmosphere
 			// Render heighmap
 			heightMap();
 
+			// Render cloud particles Mie phase functions for all wavelengths
+			cloudsMiePhaseFunction();
+
 			// Render optical depth
 			precompute();
 
@@ -309,6 +316,21 @@ namespace RealisticAtmosphere
 			_heightmapTextureHandle = bgfx::createTexture2D(8192, 8192, false, 1, bgfx::TextureFormat::RGBA32F, BGFX_TEXTURE_COMPUTE_WRITE);
 			bgfx::setImage(0, _heightmapTextureHandle, 0, bgfx::Access::Write);
 			bgfx::dispatch(0, _heightmapShaderProgram, bx::ceil(8192 / 16.0f), bx::ceil(8192 / 16.0f));
+		}
+		void cloudsMiePhaseFunction()
+		{
+			auto cloudsMieData = new std::array<float, 1801 * 4>();
+			for (int i = 0; i < 1801 * 4; i += 4)
+			{
+				auto singlePhaseFuncIndex = i / 4;
+
+				(*cloudsMieData)[i] = PhaseFunctions::CloudsRed[singlePhaseFuncIndex];
+				(*cloudsMieData)[i + 1] = PhaseFunctions::CloudsGreen[singlePhaseFuncIndex];
+				(*cloudsMieData)[i + 2] = PhaseFunctions::CloudsBlue[singlePhaseFuncIndex];
+			}
+			_cloudsPhaseTextureHandle = bgfx::createTexture2D(1801, 1, false, 1, bgfx::TextureFormat::RGBA32F, 0,
+				bgfx::makeRef(cloudsMieData->data(), cloudsMieData->size() * sizeof(float), [](void* ptr, void* userData) {delete ptr; })
+			);
 		}
 
 		void precompute()
@@ -392,6 +414,8 @@ namespace RealisticAtmosphere
 			bgfx::destroy(_atmoParameters);
 			bgfx::destroy(_sunRadToLumHandle);
 			bgfx::destroy(_skyRadToLumHandle);
+			bgfx::destroy(_cloudsPhaseSampler);
+			bgfx::destroy(_heightmapSampler);
 
 			_screenSpaceQuad.destroy();
 

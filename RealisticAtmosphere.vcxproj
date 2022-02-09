@@ -214,10 +214,13 @@
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="CloudsBlue.cpp" />
+    <ClCompile Include="CloudsGreen.cpp" />
     <ClCompile Include="ColorMapping.cpp" />
     <ClCompile Include="MouseCamera.cpp" />
     <ClCompile Include="FirstPersonController.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="CloudsRed.cpp" />
     <ClCompile Include="ScreenSpaceQuad.cpp" />
     <ClCompile Include="TestCube.cpp" />
   </ItemGroup>
@@ -282,6 +285,7 @@
     <ClInclude Include="FirstPersonController.h" />
     <ClInclude Include="GLSLTypeCompatibility.h" />
     <ClInclude Include="gl_utils.h" />
+    <ClInclude Include="PhaseFunctions.h" />
     <ClInclude Include="PosColorTexCoordVertex.h" />
     <ClInclude Include="PosColorVertex.h" />
     <ClInclude Include="PosNormalTangentTexcoordVertex.h" />

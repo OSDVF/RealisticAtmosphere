@@ -5,7 +5,7 @@
 #include "Lighting.glsl"
 
 float getSampleParameters(Planet planet, Ray ray, float currentDistance, out vec3 sphNormal, out vec3 worldSamplePos);
-vec2 planetUV(vec2 uv);
+vec2 mirrorTilingUV(vec2 uv);
 
 #ifdef COMPUTE
 uvec2 quadIndex = gl_LocalInvocationID.xy / 2;
@@ -42,7 +42,7 @@ vec3 terrainColor(Planet planet, float T, vec3 pos, vec3 normal, float elev)
 {
 	// Triplanar texture mapping in world space
 	float lod = pow(T, RaymarchingSteps.w) / QualitySettings_lodPow;
-	vec4 gradParams = texture(heightmapTexture, planetUV(pos.xz*5 + 100));
+	vec4 gradParams = texture(heightmapTexture, mirrorTilingUV(pos.xz*5+100));
 	float gradHeight = PlanetMaterial.w;
 	float randomizedElev = elev * (gradParams.x+gradParams.w);
 	float firstRatio = clamp((elev - PlanetMaterial.x) / PlanetMaterial.y,0,1);
@@ -85,6 +85,19 @@ vec3 terrainNormal(vec2 normalMap, vec3 sphNormal)
 vec2 planetUV(vec2 uv)
 {
 	return mod(uv*0.00003, 1);
+}
+vec2 mirrorTilingUV(vec2 uv)
+{
+	vec2 scaled = mod(uv*0.00003,2);
+	if(scaled.x > 1)
+	{
+		scaled.x = 1 - (scaled.x - 1);
+	}
+	if(scaled.y > 1)
+	{
+		scaled.y = 1 - (scaled.y - 1);
+	}
+	return scaled;
 }
 
 float terrainSDF(Planet planet, float sampleHeight /*above sea level*/, vec2 uv, out vec2 outNormalMap)
