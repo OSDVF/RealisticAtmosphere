@@ -108,7 +108,7 @@ std::array<Planet, 1> _planetBuffer = {
 		1, //Sun intensity
 		0, // Sun object index
 		6365000, // Mountains radius
-		0 //padding
+		6370000 // Clouds radius
 	}
 };
 
@@ -120,6 +120,7 @@ namespace RealisticAtmosphere
 		RealisticAtmosphere(const char* name, const char* description, const char* projectUrl)
 			: entry::AppI(name, description, projectUrl) {}
 
+#pragma region Application_State
 		float* _readedTexture;
 		uint32_t _screenshotFrame = -1;
 		Uint64 _freq;
@@ -133,6 +134,27 @@ namespace RealisticAtmosphere
 		float _sunAngle = 1.46607657;//84 deg
 		float _secondAngle = -1.6;
 
+		ScreenSpaceQuad _screenSpaceQuad;/**< Output of raytracer (both the compute-shader variant and fragment-shader variant) */
+
+		bool _debugNormals = false;
+		bool _debugAtmoOff = false;
+		bool _debugRm = false;
+		bool _showGUI = true;
+		bool _pathTracingMode = false;
+		bool _mouseLock = false;
+		float _tanFovY;
+		float _tanFovX;
+		float _fovY = 45;
+		FirstPersonController _person;
+		vec4 _settingsBackup[7];
+#pragma endregion
+
+#if _DEBUG
+		bgfx::UniformHandle _debugAttributesHandle;
+		vec4 _debugAttributesResult = vec4(0, 0, 0, 0);
+#endif
+
+#pragma region Settings_Uniforms
 		bgfx::UniformHandle _timeHandle;
 		bgfx::UniformHandle _multisamplingSettingsHandle;
 		bgfx::UniformHandle _qualitySettingsHandle;
@@ -143,33 +165,33 @@ namespace RealisticAtmosphere
 		bgfx::UniformHandle _hqSettingsHandle;
 		bgfx::UniformHandle _lightSettings;
 		bgfx::UniformHandle _lightSettings2;
+		bgfx::UniformHandle _cloudsSettings;
+		bgfx::UniformHandle _atmoParameters;
+		bgfx::UniformHandle _sunRadToLumHandle;
+		bgfx::UniformHandle _skyRadToLumHandle;
 
+		bgfx::UniformHandle _cameraHandle;
+		bgfx::UniformHandle _planetMaterialHandle;
+		bgfx::UniformHandle _raymarchingStepsHandle;
+#pragma endregion Settings_Uniforms
+#pragma region Shaders_And_Buffers
 		bgfx::ProgramHandle _computeShaderProgram;
 		bgfx::ProgramHandle _displayingShaderProgram; /**< This program displays output from compute-shader raytracer */
 
-		ScreenSpaceQuad _screenSpaceQuad;/**< Output of raytracer (both the compute-shader variant and fragment-shader variant) */
-
-		bool _debugNormals = false;
-		bool _debugAtmoOff = false;
-		bool _debugRm = false;
-		bool _showGUI = true;
-		bool _pathTracingMode = false;
-
-		vec4 _settingsBackup[6];
-
-		bgfx::DynamicIndexBufferHandle _objectBufferHandle;
-		bgfx::DynamicIndexBufferHandle _atmosphereBufferHandle;
-		bgfx::DynamicIndexBufferHandle _materialBufferHandle;
-		bgfx::DynamicIndexBufferHandle _directionalLightBufferHandle;
 		bgfx::ShaderHandle _computeShaderHandle;
 		bgfx::ShaderHandle _heightmapShaderHandle;
 		bgfx::ShaderHandle _precomputeShaderHandle;
 		bgfx::ProgramHandle _precomputeProgram;
 		bgfx::ProgramHandle _heightmapShaderProgram;
+
+		bgfx::DynamicIndexBufferHandle _objectBufferHandle;
+		bgfx::DynamicIndexBufferHandle _atmosphereBufferHandle;
+		bgfx::DynamicIndexBufferHandle _materialBufferHandle;
+		bgfx::DynamicIndexBufferHandle _directionalLightBufferHandle;
+#pragma endregion Shaders_And_Buffers
+#pragma region Textures_And_Samplers
 		bgfx::TextureHandle _heightmapTextureHandle;
 		bgfx::TextureHandle _cloudsPhaseTextureHandle;
-		bgfx::UniformHandle _heightmapSampler;
-		bgfx::UniformHandle _cloudsPhaseSampler;
 		bgfx::TextureHandle _texture1Handle;
 		bgfx::TextureHandle _texture2Handle;
 		bgfx::TextureHandle _texture3Handle;
@@ -180,23 +202,9 @@ namespace RealisticAtmosphere
 		bgfx::UniformHandle _texSampler3;
 		bgfx::UniformHandle _texSampler4;
 		bgfx::UniformHandle _opticalDepthSampler;
-		bgfx::UniformHandle _atmoParameters;
-		bgfx::UniformHandle _sunRadToLumHandle;
-		bgfx::UniformHandle _skyRadToLumHandle;
-
-		bgfx::UniformHandle _cameraHandle;
-		bgfx::UniformHandle _planetMaterialHandle;
-		bgfx::UniformHandle _raymarchingStepsHandle;
-#if _DEBUG
-		bgfx::UniformHandle _debugAttributesHandle;
-		vec4 _debugAttributesResult = vec4(0, 0, 0, 0);
-#endif
-		float _tanFovY;
-		float _tanFovX;
-		float _fovY = 45;
-		bool _mouseLock = false;
-
-		FirstPersonController _person;
+		bgfx::UniformHandle _heightmapSampler;
+		bgfx::UniformHandle _cloudsPhaseSampler;
+#pragma endregion Textures_And_Samplers
 
 		// The Entry library will call this method after setting up window manager
 		void init(int32_t argc, const char* const* argv, uint32_t width, uint32_t height) override
@@ -208,6 +216,7 @@ namespace RealisticAtmosphere
 			_settingsBackup[3] = LightSettings;
 			_settingsBackup[4] = LightSettings2;
 			_settingsBackup[5] = HQSettings;
+			_settingsBackup[6] = CloudsSettings;
 
 			_person.Camera.SetPosition(glm::vec3(-15654, 1661, 15875));
 			_person.Camera.SetRotation(glm::vec3(-4, -273, 0));
@@ -266,6 +275,7 @@ namespace RealisticAtmosphere
 			_hqSettingsHandle = bgfx::createUniform("HQSettings", bgfx::UniformType::Vec4);
 			_lightSettings = bgfx::createUniform("LightSettings", bgfx::UniformType::Vec4);
 			_lightSettings2 = bgfx::createUniform("LightSettings2", bgfx::UniformType::Vec4);
+			_cloudsSettings = bgfx::createUniform("CloudsSettings", bgfx::UniformType::Vec4);
 
 			_displayingShaderProgram = loadProgram("rt_display.vert", "rt_display.frag");
 			_computeShaderHandle = loadShader("compute_render.comp");
@@ -416,6 +426,7 @@ namespace RealisticAtmosphere
 			bgfx::destroy(_skyRadToLumHandle);
 			bgfx::destroy(_cloudsPhaseSampler);
 			bgfx::destroy(_heightmapSampler);
+			bgfx::destroy(_cloudsSettings);
 
 			_screenSpaceQuad.destroy();
 
@@ -618,12 +629,14 @@ namespace RealisticAtmosphere
 			bgfx::setUniform(_lightSettings2, &LightSettings2);
 			bgfx::setUniform(_sunRadToLumHandle, &SunRadianceToLuminance);
 			bgfx::setUniform(_skyRadToLumHandle, &SkyRadianceToLuminance);
+			bgfx::setUniform(_cloudsSettings, &CloudsSettings);
 			bgfx::setTexture(7, _texSampler1, _texture1Handle);
 			bgfx::setTexture(8, _texSampler2, _texture2Handle);
 			bgfx::setTexture(9, _texSampler3, _texture3Handle);
 			bgfx::setTexture(10, _texSampler4, _texture4Handle);
 			bgfx::setTexture(11, _heightmapSampler, _heightmapTextureHandle);
 			bgfx::setTexture(12, _opticalDepthSampler, _opticalDepthTable, BGFX_SAMPLER_UVW_CLAMP);
+			bgfx::setTexture(13, _cloudsPhaseSampler, _cloudsPhaseTextureHandle, BGFX_SAMPLER_UVW_MIRROR);
 		}
 
 		void viewportActions()
@@ -657,6 +670,7 @@ namespace RealisticAtmosphere
 			swap(_settingsBackup[3], LightSettings);
 			swap(_settingsBackup[4], LightSettings2);
 			swap(_settingsBackup[5], HQSettings);
+			swap(_settingsBackup[6], CloudsSettings);
 		}
 
 		void drawSettingsDialogUI()
@@ -741,7 +755,7 @@ namespace RealisticAtmosphere
 
 			drawTerrainGUI();
 
-			ImGui::SetNextWindowPos(ImVec2(250, 20), ImGuiCond_FirstUseEver);
+			ImGui::SetNextWindowPos(ImVec2(250, 00), ImGuiCond_FirstUseEver);
 			ImGui::SetNextWindowCollapsed(true, ImGuiCond_FirstUseEver);
 			ImGui::Begin("Materials");
 			ImGui::InputFloat("1", &PlanetMaterial.x);
@@ -756,7 +770,7 @@ namespace RealisticAtmosphere
 
 		void drawLightGUI()
 		{
-			ImGui::SetNextWindowPos(ImVec2(250, 40), ImGuiCond_FirstUseEver);
+			ImGui::SetNextWindowPos(ImVec2(250, 20), ImGuiCond_FirstUseEver);
 			ImGui::SetNextWindowCollapsed(true, ImGuiCond_FirstUseEver);
 			ImGui::Begin("Light");
 			ImGui::InputFloat("Exposure", &HQSettings_exposure);
@@ -773,7 +787,7 @@ namespace RealisticAtmosphere
 
 		void drawTerrainGUI()
 		{
-			ImGui::SetNextWindowPos(ImVec2(250, 60), ImGuiCond_FirstUseEver);
+			ImGui::SetNextWindowPos(ImVec2(250, 40), ImGuiCond_FirstUseEver);
 			ImGui::SetNextWindowCollapsed(true, ImGuiCond_FirstUseEver);
 			ImGui::Begin("Terrain");
 			ImGui::InputFloat("Optimism", &QualitySettings_optimism, 0, 1);
@@ -784,6 +798,18 @@ namespace RealisticAtmosphere
 			ImGui::InputFloat("LOD Div", &QualitySettings_lodPow);
 			ImGui::InputFloat("LOD Bias", &RaymarchingSteps.w);
 			ImGui::InputFloat("Normals", &PlanetMaterial.z);
+			ImGui::End();
+		}
+
+		void drawCloudsGUI()
+		{
+			ImGui::SetNextWindowPos(ImVec2(250, 60), ImGuiCond_FirstUseEver);
+			ImGui::SetNextWindowCollapsed(true, ImGuiCond_FirstUseEver);
+			ImGui::Begin("Clouds");
+			ImGui::InputFloat("Steps", &Clouds_iter, 1, 1);
+			ImGui::InputFloat("Size", &Clouds_size);
+			ImGui::InputFloat("Density", &Clouds_density);
+			ImGui::InputFloat("Edges", &Clouds_edges);
 			ImGui::End();
 		}
 

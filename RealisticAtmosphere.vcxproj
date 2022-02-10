@@ -252,6 +252,7 @@
     <UpToDateCheckInput Include="**\*.glsl" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="Clouds.glsl" />
     <None Include="Lambert.glsl" />
     <None Include="Buffers.glsl" />
     <None Include="ComputeRender\rt_display.vert" />

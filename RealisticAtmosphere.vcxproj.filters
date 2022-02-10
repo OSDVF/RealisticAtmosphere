@@ -25,9 +25,6 @@
     <Filter Include="Shader Programs\Material Shaders">
       <UniqueIdentifier>{47bb6430-e373-484d-8620-66b57912ff35}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Header Files\Phase Functions">
-      <UniqueIdentifier>{b48c8850-6ef6-45aa-a8ac-77b3949701e6}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Source Files\Phase Functions">
       <UniqueIdentifier>{d40ad230-131d-401b-a5b7-3db1c0c0a93b}</UniqueIdentifier>
     </Filter>
@@ -140,6 +137,9 @@
     <None Include="Sampling.glsl">
       <Filter>Shader Programs\Material Shaders</Filter>
     </None>
+    <None Include="Clouds.glsl">
+      <Filter>Shader Programs\Material Shaders</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="TestCube.h">
@@ -185,7 +185,7 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="PhaseFunctions.h">
-      <Filter>Header Files\Phase Functions</Filter>
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
