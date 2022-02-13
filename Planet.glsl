@@ -4,9 +4,9 @@
 #include "Hit.glsl"
 #include "Terrain.glsl"
 #include "Lighting.glsl"
+#include "Clouds.glsl"
 
 uniform sampler2D opticalDepthTable;
-uniform sampler2D cloudsMieLUT;
 #define PI pi
 
 float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDistance, inout vec3 radiance, inout vec3 transmittance, bool terrainWasHit);
@@ -57,6 +57,7 @@ bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out vec
 			{
 				planetAlbedo = terrainColor(p, toDistance, worldSamplePos, worldNormal, sampleHeight);
 			}
+			cloudsForPlanet(p,ray,fromDistance,toDistance,transmittance,radiance);
 			if(!DEBUG_ATMO_OFF) raymarchAtmosphere(p, ray, fromDistance, toDistance, /*inout*/ radiance, /*inout*/ transmittance, true);
 			radiance += planetAlbedo * lightPoint(worldSamplePos, worldNormal) * transmittance;
 			transmittance *= planetAlbedo;
@@ -65,6 +66,7 @@ bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out vec
 		}
 		else if(!DEBUG_ATMO_OFF)
 		{
+			cloudsForPlanet(p,ray,fromDistance,toDistance,transmittance,radiance);
 			raymarchAtmosphere(p, ray, fromDistance, toDistance, /*inout*/ radiance,/*inout*/ transmittance, false);
 		}
 		return false;

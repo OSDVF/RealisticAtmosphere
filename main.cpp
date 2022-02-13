@@ -755,7 +755,7 @@ namespace RealisticAtmosphere
 
 			drawTerrainGUI();
 
-			ImGui::SetNextWindowPos(ImVec2(250, 00), ImGuiCond_FirstUseEver);
+			ImGui::SetNextWindowPos(ImVec2(250, 20), ImGuiCond_FirstUseEver);
 			ImGui::SetNextWindowCollapsed(true, ImGuiCond_FirstUseEver);
 			ImGui::Begin("Materials");
 			ImGui::InputFloat("1", &PlanetMaterial.x);
@@ -765,12 +765,13 @@ namespace RealisticAtmosphere
 			ImGui::End();
 
 			drawLightGUI();
+			drawCloudsGUI();
 
 		}
 
 		void drawLightGUI()
 		{
-			ImGui::SetNextWindowPos(ImVec2(250, 20), ImGuiCond_FirstUseEver);
+			ImGui::SetNextWindowPos(ImVec2(250, 40), ImGuiCond_FirstUseEver);
 			ImGui::SetNextWindowCollapsed(true, ImGuiCond_FirstUseEver);
 			ImGui::Begin("Light");
 			ImGui::InputFloat("Exposure", &HQSettings_exposure);
@@ -787,7 +788,7 @@ namespace RealisticAtmosphere
 
 		void drawTerrainGUI()
 		{
-			ImGui::SetNextWindowPos(ImVec2(250, 40), ImGuiCond_FirstUseEver);
+			ImGui::SetNextWindowPos(ImVec2(250, 60), ImGuiCond_FirstUseEver);
 			ImGui::SetNextWindowCollapsed(true, ImGuiCond_FirstUseEver);
 			ImGui::Begin("Terrain");
 			ImGui::InputFloat("Optimism", &QualitySettings_optimism, 0, 1);
@@ -803,11 +804,11 @@ namespace RealisticAtmosphere
 
 		void drawCloudsGUI()
 		{
-			ImGui::SetNextWindowPos(ImVec2(250, 60), ImGuiCond_FirstUseEver);
+			ImGui::SetNextWindowPos(ImVec2(250, 80), ImGuiCond_FirstUseEver);
 			ImGui::SetNextWindowCollapsed(true, ImGuiCond_FirstUseEver);
 			ImGui::Begin("Clouds");
 			ImGui::InputFloat("Steps", &Clouds_iter, 1, 1);
-			ImGui::InputFloat("Size", &Clouds_size);
+			ImGui::InputFloat("Size", &Clouds_size, 0,0, "%7f");
 			ImGui::InputFloat("Density", &Clouds_density);
 			ImGui::InputFloat("Edges", &Clouds_edges);
 			ImGui::End();
@@ -848,6 +849,7 @@ namespace RealisticAtmosphere
 
 			drawLightGUI();
 			drawTerrainGUI();
+			drawCloudsGUI();
 		}
 
 		void savePng()

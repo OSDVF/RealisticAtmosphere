@@ -28,6 +28,7 @@ uniform vec4 LightSettings;
 uniform vec4 LightSettings2;
 uniform vec4 SunRadianceToLuminance;
 uniform vec4 SkyRadianceToLuminance;
+uniform vec4 CloudsSettings;
 #else
 vec4 Camera[] =
 {
@@ -56,6 +57,7 @@ int planetSteps = 164;
 vec4 RaymarchingSteps = {*(float*)&planetSteps, 0.01, 0.005, 0.5};
 vec4 SunRadianceToLuminance;
 vec4 SkyRadianceToLuminance;
+vec4 CloudsSettings = {0.0001, -0.6, 1, 30};
 #endif
 
 #define Multisampling_indirect MultisamplingSettings.x
@@ -88,6 +90,11 @@ vec4 SkyRadianceToLuminance;
 #define Camera_right (Camera[3].xyz)
 #define Camera_fovX (Camera[3].w)
 #define Camera_fovY (Camera[2].w)
+
+#define Clouds_size CloudsSettings.x
+#define Clouds_density CloudsSettings.y
+#define Clouds_edges CloudsSettings.z
+#define Clouds_iter CloudsSettings.w
 
 struct DirectionalLight
 {
@@ -133,7 +140,7 @@ struct Planet
     float sunIntensity;
     uint sunDrectionalLightIndex;
     float mountainsRadius;
-    float _pad2;
+    float cloudRadius;
 };
 
 struct Hit
