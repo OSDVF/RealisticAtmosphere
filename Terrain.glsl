@@ -158,7 +158,7 @@ bool raymarchTerrain(Planet planet, Ray ray, float fromDistance, inout float toD
 
 	float currentT = fromDistance;
 	float maxDistance = min(toDistance, QualitySettings_farPlane);
-	float terrainDistance;
+	float terrainDistance = POSITIVE_INFINITY;
 
 	for(int i = 0; i < floatBitsToInt(RaymarchingSteps.x);i++)
 	{

@@ -56,6 +56,8 @@ const Material _materialBuffer[] = {
 };
 
 const float earthRadius = 6360000; // cit. E. Bruneton page 3
+const float cloudsStart = earthRadius + 2000;
+const float cloudsEnd = earthRadius + 15000;
 const float atmosphereRadius = 6420000;
 Sphere _objectBuffer[] = {
 	{//Sun
@@ -107,8 +109,10 @@ std::array<Planet, 1> _planetBuffer = {
 		rayleighScaleHeight,
 		1, //Sun intensity
 		0, // Sun object index
-		6365000, // Mountains radius
-		6370000 // Clouds radius
+		earthRadius + 5000, // Mountains radius
+		cloudsStart, // Clouds start radius
+		cloudsEnd, // Clouds end radius
+		cloudsEnd - cloudsStart // Clouds layer thickness
 	}
 };
 
@@ -140,13 +144,17 @@ namespace RealisticAtmosphere
 		bool _debugAtmoOff = false;
 		bool _debugRm = false;
 		bool _showGUI = true;
-		bool _pathTracingMode = false;
+		bool _pathTracingMode = true;
 		bool _mouseLock = false;
 		float _tanFovY;
 		float _tanFovX;
 		float _fovY = 45;
 		FirstPersonController _person;
 		vec4 _settingsBackup[7];
+
+		// Save these to be returned in place when the terrain rendering is re-enabled
+		float prevTerrainSteps;
+		float prevLightSteps;
 #pragma endregion
 
 #if _DEBUG
@@ -216,7 +224,9 @@ namespace RealisticAtmosphere
 			_settingsBackup[3] = LightSettings;
 			_settingsBackup[4] = LightSettings2;
 			_settingsBackup[5] = HQSettings;
-			_settingsBackup[6] = CloudsSettings;
+			/*_settingsBackup[6] = CloudsSettings[0];
+			_settingsBackup[7] = CloudsSettings[1];
+			_settingsBackup[8] = CloudsSettings[2];*/
 
 			_person.Camera.SetPosition(glm::vec3(-15654, 1661, 15875));
 			_person.Camera.SetRotation(glm::vec3(-4, -273, 0));
@@ -275,7 +285,7 @@ namespace RealisticAtmosphere
 			_hqSettingsHandle = bgfx::createUniform("HQSettings", bgfx::UniformType::Vec4);
 			_lightSettings = bgfx::createUniform("LightSettings", bgfx::UniformType::Vec4);
 			_lightSettings2 = bgfx::createUniform("LightSettings2", bgfx::UniformType::Vec4);
-			_cloudsSettings = bgfx::createUniform("CloudsSettings", bgfx::UniformType::Vec4);
+			_cloudsSettings = bgfx::createUniform("CloudsSettings", bgfx::UniformType::Vec4, sizeof(CloudsSettings) / sizeof(vec4));
 
 			_displayingShaderProgram = loadProgram("rt_display.vert", "rt_display.frag");
 			_computeShaderHandle = loadShader("compute_render.comp");
@@ -629,7 +639,7 @@ namespace RealisticAtmosphere
 			bgfx::setUniform(_lightSettings2, &LightSettings2);
 			bgfx::setUniform(_sunRadToLumHandle, &SunRadianceToLuminance);
 			bgfx::setUniform(_skyRadToLumHandle, &SkyRadianceToLuminance);
-			bgfx::setUniform(_cloudsSettings, &CloudsSettings);
+			bgfx::setUniform(_cloudsSettings, CloudsSettings, sizeof(CloudsSettings)/sizeof(vec4));
 			bgfx::setTexture(7, _texSampler1, _texture1Handle);
 			bgfx::setTexture(8, _texSampler2, _texture2Handle);
 			bgfx::setTexture(9, _texSampler3, _texture3Handle);
@@ -670,7 +680,7 @@ namespace RealisticAtmosphere
 			swap(_settingsBackup[3], LightSettings);
 			swap(_settingsBackup[4], LightSettings2);
 			swap(_settingsBackup[5], HQSettings);
-			swap(_settingsBackup[6], CloudsSettings);
+			//swap(_settingsBackup[6], CloudsSettings);
 		}
 
 		void drawSettingsDialogUI()
@@ -711,11 +721,24 @@ namespace RealisticAtmosphere
 				return;
 			}
 			ImGui::Begin("Realtime Preview");
+			ImGui::BeginGroup();
 			if (ImGui::Button("Go Path Tracing"))
 			{
 				_pathTracingMode = true;
 				swapSettingsBackup();
 			}
+			if (ImGui::Button("CheapQ"))
+			{
+				//Disable terrain
+				prevLightSteps = LightSettings_shadowSteps;
+				prevTerrainSteps = RaymarchingSteps.x;
+				RaymarchingSteps.x = 0;
+				LightSettings_shadowSteps = 0;
+				//Disable atmosphere
+				_debugAtmoOff = true;
+			}
+			ImGui::EndGroup();
+
 			if (ImGui::Button("Save Image"))
 			{
 				requestSavePng();
@@ -791,6 +814,22 @@ namespace RealisticAtmosphere
 			ImGui::SetNextWindowPos(ImVec2(250, 60), ImGuiCond_FirstUseEver);
 			ImGui::SetNextWindowCollapsed(true, ImGuiCond_FirstUseEver);
 			ImGui::Begin("Terrain");
+			bool enabled = RaymarchingSteps.x != 0;
+			if (ImGui::Checkbox("Enabled", &enabled))
+			{
+				if (enabled)
+				{
+					RaymarchingSteps.x = prevTerrainSteps;
+					LightSettings_shadowSteps = prevLightSteps;
+				}
+				else
+				{
+					prevLightSteps = LightSettings_shadowSteps;
+					prevTerrainSteps = RaymarchingSteps.x;
+					RaymarchingSteps.x = 0;
+					LightSettings_shadowSteps = 0;
+				}
+			}
 			ImGui::InputFloat("Optimism", &QualitySettings_optimism, 0, 1);
 			ImGui::InputFloat("Far Plane", &QualitySettings_farPlane);
 			ImGui::InputFloat("MinStepSize", &QualitySettings_minStepSize);
@@ -808,9 +847,18 @@ namespace RealisticAtmosphere
 			ImGui::SetNextWindowCollapsed(true, ImGuiCond_FirstUseEver);
 			ImGui::Begin("Clouds");
 			ImGui::InputFloat("Steps", &Clouds_iter, 1, 1);
+			ImGui::InputFloat("LightSteps", &Clouds_lightSteps, 1, 1);
+			ImGui::InputFloat("LightFarPlane", &Clouds_lightFarPlane);
 			ImGui::InputFloat("Size", &Clouds_size, 0,0, "%7f");
 			ImGui::InputFloat("Density", &Clouds_density);
+			ImGui::InputFloat("Darkness", &HQSettings_cloudsDensity);
 			ImGui::InputFloat("Edges", &Clouds_edges);
+			ImGui::InputFloat("BackStep", &Clouds_backStep);
+			ImGui::InputFloat("Lower Cutoff", &Clouds_terrainFade);
+			ImGui::InputFloat("Upper Cutoff", &Clouds_atmoFade);
+			ImGui::InputFloat("Render Distance", &Clouds_farPlane);
+			ImGui::InputFloat("Downsampling", &Clouds_cheapDownsample);
+			ImGui::InputFloat("Threshold", &Clouds_cheapThreshold);
 			ImGui::End();
 		}
 

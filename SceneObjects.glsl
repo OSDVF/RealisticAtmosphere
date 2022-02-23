@@ -28,7 +28,7 @@ uniform vec4 LightSettings;
 uniform vec4 LightSettings2;
 uniform vec4 SunRadianceToLuminance;
 uniform vec4 SkyRadianceToLuminance;
-uniform vec4 CloudsSettings;
+uniform vec4 CloudsSettings[3];
 #else
 vec4 Camera[] =
 {
@@ -42,13 +42,10 @@ int bounces = 0;
 int perAtmosphere = 64;
 int type = 0;
 vec4 MultisamplingSettings = {*(float*)&perPixel,*(float*)&bounces,*(float*)&perAtmosphere,*(float*)&type};
-vec4 QualitySettings = {5,50,12000,0.4};
-uint PathTracing = 1;
-uint TerrainShadows = 2;
-uint HQFlags1 = 0;
+vec4 QualitySettings = {5, 50, 12000, 0.4};
 int currentSample = 0;
 int directSamples = 1;//Direct samples per all samples
-vec4 HQSettings = {*(float*)&HQFlags1, *(float*)&currentSample, *(float*)&directSamples, 1};
+vec4 HQSettings = {0.1, *(float*)&currentSample, *(float*)&directSamples, 1};
 vec4 LightSettings = {1000, 0.03, 0.4, 0.02};
 int lightTerrainDetectSteps = 40;
 vec4 LightSettings2 = {0.5, *(float*)&lightTerrainDetectSteps, 3, 0.8};
@@ -57,7 +54,12 @@ int planetSteps = 164;
 vec4 RaymarchingSteps = {*(float*)&planetSteps, 0.01, 0.005, 0.5};
 vec4 SunRadianceToLuminance;
 vec4 SkyRadianceToLuminance;
-vec4 CloudsSettings = {0.0001, -0.6, 1, 30};
+int cloudsOrders = 1;
+vec4 CloudsSettings[] = {
+                            vec4(0.00005, 2, 4, 60),
+                            vec4(10, 2500, 2500, 1000),
+                            vec4(1, 150000, 4, 0.01)
+                        };
 #endif
 
 #define Multisampling_indirect MultisamplingSettings.x
@@ -77,9 +79,9 @@ vec4 CloudsSettings = {0.0001, -0.6, 1, 30};
 #define LightSettings_cutoffDist LightSettings2.x
 #define LightSettings_shadowSteps LightSettings2.y
 #define LightSettings_gradient LightSettings2.z
-#define LightSettings_fieldThres LightSettings2.z
 #define LightSettings_terrainOptimMult LightSettings2.w
 
+#define HQSettings_cloudsDensity HQSettings.x
 #define HQSettings_sampleNum HQSettings.y
 #define HQSettings_directSamples HQSettings.z
 #define HQSettings_exposure HQSettings.w
@@ -91,10 +93,18 @@ vec4 CloudsSettings = {0.0001, -0.6, 1, 30};
 #define Camera_fovX (Camera[3].w)
 #define Camera_fovY (Camera[2].w)
 
-#define Clouds_size CloudsSettings.x
-#define Clouds_density CloudsSettings.y
-#define Clouds_edges CloudsSettings.z
-#define Clouds_iter CloudsSettings.w
+#define Clouds_size CloudsSettings[0].x
+#define Clouds_density CloudsSettings[0].y
+#define Clouds_edges CloudsSettings[0].z
+#define Clouds_iter CloudsSettings[0].w
+#define Clouds_lightSteps CloudsSettings[1].x
+#define Clouds_terrainFade CloudsSettings[1].y
+#define Clouds_atmoFade CloudsSettings[1].z
+#define Clouds_lightFarPlane CloudsSettings[1].w
+#define Clouds_backStep CloudsSettings[2].x
+#define Clouds_farPlane CloudsSettings[2].y
+#define Clouds_cheapDownsample CloudsSettings[2].z
+#define Clouds_cheapThreshold CloudsSettings[2].w
 
 struct DirectionalLight
 {
@@ -131,16 +141,24 @@ struct Planet
 {
     vec3 center;
     float surfaceRadius;
+
     float atmosphereRadius;
     float mieCoefficient;
     float mieAsymmetryFactor;
     float mieScaleHeight; /* Aerosol density would be uniform if the atmosfere was homogenous and had this "Scale" height */
+
     vec3 rayleighCoefficients;
     float rayleighScaleHeight; /* Air molecular density would be uniform if the atmosfere was homogenous and had this "Scale" height */
+
     float sunIntensity;
     uint sunDrectionalLightIndex;
     float mountainsRadius;
-    float cloudRadius;
+    float cloudsStartRadius;
+
+    float cloudsEndRadius;
+    float cloudLayerThickness;
+    float _padding;
+    float _padding2;
 };
 
 struct Hit

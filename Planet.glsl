@@ -57,17 +57,18 @@ bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out vec
 			{
 				planetAlbedo = terrainColor(p, toDistance, worldSamplePos, worldNormal, sampleHeight);
 			}
-			cloudsForPlanet(p,ray,fromDistance,toDistance,transmittance,radiance);
+			//cloudsForPlanet(p,ray,fromDistance,toDistance,transmittance,radiance);
 			if(!DEBUG_ATMO_OFF) raymarchAtmosphere(p, ray, fromDistance, toDistance, /*inout*/ radiance, /*inout*/ transmittance, true);
 			radiance += planetAlbedo * lightPoint(worldSamplePos, worldNormal) * transmittance;
 			transmittance *= planetAlbedo;
 			planetHit = Hit(worldSamplePos, worldNormal, -1, toDistance);
 			return true;
 		}
-		else if(!DEBUG_ATMO_OFF)
+		else
 		{
 			cloudsForPlanet(p,ray,fromDistance,toDistance,transmittance,radiance);
-			raymarchAtmosphere(p, ray, fromDistance, toDistance, /*inout*/ radiance,/*inout*/ transmittance, false);
+			if(!DEBUG_ATMO_OFF)
+				raymarchAtmosphere(p, ray, fromDistance, toDistance, /*inout*/ radiance,/*inout*/ transmittance, false);
 		}
 		return false;
 	}
@@ -180,7 +181,7 @@ float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDis
 
 		// The lookup table is from alpha angle value from -0.5 to 1.0, so we must remap the X coord
 		vec2 tableCoords = vec2((0.5 + sunToNormalCos)/1.5, sampleHeight/(planet.atmosphereRadius - planet.surfaceRadius));
-		vec4 lOpticalDepth = texture2D(opticalDepthTable, tableCoords);
+		vec4 lOpticalDepth = texture(opticalDepthTable, tableCoords);
 		//Finalize the computation and commit to the result color
 
 		vec3 depth = planet.rayleighCoefficients * (lOpticalDepth.x + opticalDepthR)

@@ -85,23 +85,27 @@ vec3 noised( in vec2 p )
 }
 
 
-float hash(float p) { p = fract(p * 0.011); p *= p + 7.5; p *= p + p; return fract(p); }
+float hash(vec3 p)  // replace this by something better
+{
+    p  = fract( p*0.3183099+.1 );
+	p *= 17.0;
+    return fract( p.x*p.y*p.z*(p.x+p.y+p.z) );
+}
 
-float noise(vec3 x) {
-    const vec3 step = vec3(110, 241, 171);
-
+float noise( in vec3 x )
+{
     vec3 i = floor(x);
     vec3 f = fract(x);
- 
-    // For performance, compute the base input to a 1D hash from the integer part of the argument and the 
-    // incremental change to the 1D based on the 3D -> 1D wrapping
-    float n = dot(i, step);
-
-    vec3 u = f * f * (3.0 - 2.0 * f);
-    return mix(mix(mix( hash(n + dot(step, vec3(0, 0, 0))), hash(n + dot(step, vec3(1, 0, 0))), u.x),
-                   mix( hash(n + dot(step, vec3(0, 1, 0))), hash(n + dot(step, vec3(1, 1, 0))), u.x), u.y),
-               mix(mix( hash(n + dot(step, vec3(0, 0, 1))), hash(n + dot(step, vec3(1, 0, 1))), u.x),
-                   mix( hash(n + dot(step, vec3(0, 1, 1))), hash(n + dot(step, vec3(1, 1, 1))), u.x), u.y), u.z);
+    f = f*f*(3.0-2.0*f);
+	
+    return mix(mix(mix( hash(i+vec3(0,0,0)), 
+                        hash(i+vec3(1,0,0)),f.x),
+                   mix( hash(i+vec3(0,1,0)), 
+                        hash(i+vec3(1,1,0)),f.x),f.y),
+               mix(mix( hash(i+vec3(0,0,1)), 
+                        hash(i+vec3(1,0,1)),f.x),
+                   mix( hash(i+vec3(0,1,1)), 
+                        hash(i+vec3(1,1,1)),f.x),f.y),f.z);
 }
 
 // Fractal Brownian Motion
