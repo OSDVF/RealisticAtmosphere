@@ -149,6 +149,9 @@
     <None Include="Transmittance.comp">
       <Filter>Shader Programs\Compute Render\Precompute</Filter>
     </None>
+    <None Include="Common.glsl">
+      <Filter>Shader Programs\Compute Render\Precompute</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="TestCube.h">

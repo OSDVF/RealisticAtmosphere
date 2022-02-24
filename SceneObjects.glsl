@@ -160,8 +160,11 @@ struct Planet
     vec3 solarIrradiance;
     float cloudsEndRadius;
 
+    vec3 absorptionCoefficients; // Ozone layer
     float cloudLayerThickness;
+
     float sunAngularRadius;
+    float padding;
     float padding2;
     float padding3;
 };

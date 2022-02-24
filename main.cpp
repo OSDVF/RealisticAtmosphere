@@ -114,6 +114,8 @@ std::array<Planet, 1> _planetBuffer = {
 
 		vec3(0,0,0),//Solar irradiance - will be assigned later
 		cloudsEnd, // Clouds end radius
+
+		vec3(0,0,0),//Absorption extinction coefficients - will be assigned later
 		cloudsEnd - cloudsStart, // Clouds layer thickness
 		0.00935 / 2.0 // Sun angular radius
 	}
@@ -328,9 +330,8 @@ namespace RealisticAtmosphere
 			precompute();
 
 			// Compute spectrum mapping functions
-			vec4 solarIrradiance;
-			ColorMapping::FillSpectrum(SkyRadianceToLuminance, SunRadianceToLuminance, solarIrradiance);
-			_planetBuffer[0].solarIrradiance = solarIrradiance.toVec3();
+
+			ColorMapping::FillSpectrum(SkyRadianceToLuminance, SunRadianceToLuminance, _planetBuffer[0].solarIrradiance, _planetBuffer[0].absorptionCoefficients);
 
 			// Create Immediate GUI graphics context
 			imguiCreate();
@@ -590,7 +591,6 @@ namespace RealisticAtmosphere
 
 				bgfx::setState(BGFX_STATE_DEFAULT);
 				bgfx::submit(0, _displayingShaderProgram);
-				bgfx::touch(0);
 
 				// Advance to next frame. Rendering thread will be kicked to
 				// process submitted rendering primitives.
@@ -903,7 +903,7 @@ namespace RealisticAtmosphere
 		void drawPathTracerGUI()
 		{
 			ImGui::Begin("Path Tracer");
-			if (ImGui::Button("Back To Realtime"))
+			if (ImGui::Button("Go RTRaytracing"))
 			{
 				_pathTracingMode = false;
 				swapSettingsBackup();

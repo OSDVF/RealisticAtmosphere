@@ -1,6 +1,7 @@
 //?#version 440
 #include "Intersections.glsl"
 #include "SceneObjects.glsl"
+#include "Common.glsl"
 
 layout(local_size_x=16, local_size_y=16, local_size_z = 1) in;
 layout(rgba8, binding=0) writeonly uniform image2D directIrradianceOutput;
@@ -8,6 +9,9 @@ layout(std430, binding=1) readonly buffer PlanetBuffer
 {
     Planet planets[];
 };
+
+vec2 texSize = vec2(gl_WorkGroupSize * gl_NumWorkGroups);
+vec2 uv = vec2(gl_GlobalInvocationID.xy) / texSize;
 
 vec3 get_transmittance_to_top_atmospheric_boundary(
     const Planet planet, float r, float mu) {
@@ -23,18 +27,20 @@ vec3 get_transmittance_to_top_atmospheric_boundary(
     float x_mu = (d - d_min) / (d_max - d_min);
     float x_r = rho / H;
 
-    return texture(transmittanceTable, vec2(x_mu, x_r)).xyz;
+    vec2 uv = vec2(
+        GetTextureCoordFromUnitRange(x_mu, texSize.x),
+        GetTextureCoordFromUnitRange(x_r, texSize.y)
+    );
+
+    return texture(transmittanceTable, uv).xyz;
 }
 
 void main()
 {
-	vec4 color;
-	vec2 tc = vec2(gl_GlobalInvocationID.xy) / float(gl_WorkGroupSize * gl_NumWorkGroups);
-
 	float r = planets[0].surfaceRadius +
-        tc.y *
+        GetUnitRangeFromTextureCoord(uv.y, texSize.y) *
         (planets[0].atmosphereRadius - planets[0].surfaceRadius);
-    float mu_s = clamp(2.0 * tc.x - 1.0, -1.0, 1.0);
+    float mu_s = clamp(2.0 * GetUnitRangeFromTextureCoord(uv.x, texSize.x) - 1.0, -1.0, 1.0);
     float a_s = planets[0].sunAngularRadius;
     float average_cosine_factor;
     if (mu_s < -a_s) {

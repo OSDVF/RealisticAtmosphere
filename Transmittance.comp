@@ -1,6 +1,7 @@
 //?#version 440
 #include "Intersections.glsl"
 #include "SceneObjects.glsl"
+#include "Common.glsl"
 
 layout(local_size_x=16, local_size_y=16, local_size_z = 1) in;
 layout(rgba32f, binding=0) writeonly uniform image2D transmittanceOutput;
@@ -12,10 +13,11 @@ layout(std430, binding=1) readonly buffer PlanetBuffer
 void main()
 {
 	vec4 color;
-	vec2 tc = vec2(gl_GlobalInvocationID.xy) / float(gl_WorkGroupSize * gl_NumWorkGroups);
+    vec2 texSize = vec2(gl_WorkGroupSize * gl_NumWorkGroups);
+	vec2 uv = vec2(gl_GlobalInvocationID.xy) / texSize;
 	
-	float x_mu = tc.x;
-    float x_r = tc.y;
+	float x_mu = GetUnitRangeFromTextureCoord(uv.x, texSize.x);
+    float x_r = GetUnitRangeFromTextureCoord(uv.y, texSize.y);
     float bottomRadius2 = planets[0].surfaceRadius * planets[0].surfaceRadius;
     float topRadius2 = planets[0].atmosphereRadius * planets[0].atmosphereRadius;
     float H = sqrt(topRadius2 - bottomRadius2);
@@ -47,19 +49,29 @@ void main()
         float weight_i = i == 0 || i == SAMPLE_COUNT ? 0.5 : 1.0;
         optical_length_mie += rayleighHF * weight_i * dx;
     }
-    /*float optical_length_absorption = 0.0;
+    float optical_length_absorption = 0.0;
         for (int i = 0; i <= SAMPLE_COUNT; i++) {
         float d_i = i * dx;
         float r_i = sqrt(d_i * d_i + 2.0 * r * mu * d_i + r * r);
-        float y_i = get_density(globals.parameters.absorption_density, r_i - globals.parameters.bottom_radius);
+        float ozoneHF;
+        float altitude = (r_i - planets[0].surfaceRadius);
+        if(altitude < 25000)
+        {
+            ozoneHF = (1.0/15000.0) * altitude - (2.0/3.0);
+        }
+        else
+        {
+            ozoneHF = (-1.0/15000.0) * altitude + 8.0/3.0;
+        }
+        ozoneHF = clamp(ozoneHF,0,1);
         float weight_i = i == 0 || i == SAMPLE_COUNT ? 0.5 : 1.0;
-        optical_length_absorption += y_i * weight_i * dx;
-    }*/
+        optical_length_absorption += ozoneHF * weight_i * dx;
+    }
 
     vec3 transmittance = exp(-(
         planets[0].rayleighCoefficients * optical_length_rayleigh +
-        planets[0].mieCoefficient * 1.11 * optical_length_mie));
-        // +planets[0].absorption_extinction * optical_length_absorption)); Ozone not yet
+        planets[0].mieCoefficient * 1.11 * optical_length_mie +
+        planets[0].absorptionCoefficients * optical_length_absorption));
 
 	imageStore(transmittanceOutput, ivec2(gl_GlobalInvocationID.xy), vec4(transmittance,0));
 }

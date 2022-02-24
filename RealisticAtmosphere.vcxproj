@@ -253,6 +253,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="Clouds.glsl" />
+    <None Include="Common.glsl" />
     <None Include="DirectIrradiance.comp" />
     <None Include="Lambert.glsl" />
     <None Include="Buffers.glsl" />

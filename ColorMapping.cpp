@@ -37,7 +37,7 @@ namespace ColorMapping {
         return wavelength_function[wavelength_function.size() - 1];
     }
 
-    vec4 GetRGBSolarIrradiance(const std::vector<double>& wavelengths, const std::vector<double>& solar_irradiance)
+    vec3 GetValuesForRGBSpectrum(const std::vector<double>& wavelengths, const std::vector<double>& solar_irradiance)
     {
         return {
             (float)Interpolate(wavelengths, solar_irradiance, kLambdaR),
@@ -89,7 +89,7 @@ namespace ColorMapping {
         *k_b *= dlambda * 0.1;
     }
 
-    void FillSpectrum(vec4& SkyRadianceToLuminance, vec4& SunRadianceToLuminance, vec4& SolarIrradiance)
+    void FillSpectrum(vec4& SkyRadianceToLuminance, vec4& SunRadianceToLuminance, vec3& SolarIrradiance, vec3& AbsorptionExtinction)
     {
         std::vector<double> wavelengths;
         std::vector<double> solar_irradiance;
@@ -128,6 +128,7 @@ namespace ColorMapping {
         SunRadianceToLuminance.y = sun_k_g;
         SunRadianceToLuminance.z = sun_k_b;
 
-        SolarIrradiance = GetRGBSolarIrradiance(wavelengths, solar_irradiance);
+        SolarIrradiance = GetValuesForRGBSpectrum(wavelengths, solar_irradiance);
+        AbsorptionExtinction = GetValuesForRGBSpectrum(wavelengths, absorption_extinction);
     }
 };

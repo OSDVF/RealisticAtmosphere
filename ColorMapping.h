@@ -194,6 +194,6 @@ namespace ColorMapping {
 	// Wavelength independent solar irradiance "spectrum" (not physically
 	// realistic, but was used in the original implementation).
 
-	void FillSpectrum(vec4& SkyRadianceToLuminance, vec4& SunRadianceToLuminance, vec4& SolarIrradiance);
+	void FillSpectrum(vec4& SkyRadianceToLuminance, vec4& SunRadianceToLuminance, vec3& SolarIrradiance, vec3& AbsorptionExtinction);
 };
 
