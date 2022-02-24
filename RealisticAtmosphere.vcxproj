@@ -253,6 +253,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="Clouds.glsl" />
+    <None Include="DirectIrradiance.comp" />
     <None Include="Lambert.glsl" />
     <None Include="Buffers.glsl" />
     <None Include="ComputeRender\rt_display.vert" />
@@ -267,7 +268,7 @@
     <None Include="normal_render.frag" />
     <None Include="normal_render.vert" />
     <None Include="Planet.glsl" />
-    <None Include="Precompute.comp" />
+    <None Include="OpticalDepth.comp" />
     <None Include="Random.glsl" />
     <None Include="raytracer.glsl" />
     <None Include="Sampling.glsl" />
@@ -278,6 +279,7 @@
     <None Include="shaders\scripts\shaderc64debug.ps1" />
     <None Include="shaders\scripts\shaderc64release.ps1" />
     <None Include="Terrain.glsl" />
+    <None Include="Transmittance.comp" />
     <None Include="varying.def.sc" />
   </ItemGroup>
   <ItemGroup>

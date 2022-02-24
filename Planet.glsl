@@ -108,7 +108,7 @@ float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDis
 		vec3 sphNormal;
 		float sampleHeight = getSampleParameters(planet, ray, currentDistance, /*out*/ sphNormal, /*out*/ worldSamplePos);
 
-		//Compute optical depth; HF = height factor
+		//Compute HF = height factor
 		float rayleighHF = exp(-sampleHeight/planet.rayleighScaleHeight) * segmentLength;
 		float mieHF = exp(-sampleHeight/planet.mieScaleHeight) * segmentLength;
 		opticalDepthR += rayleighHF; 

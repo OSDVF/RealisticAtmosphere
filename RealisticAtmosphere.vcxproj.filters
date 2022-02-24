@@ -28,6 +28,9 @@
     <Filter Include="Source Files\Phase Functions">
       <UniqueIdentifier>{d40ad230-131d-401b-a5b7-3db1c0c0a93b}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Shader Programs\Compute Render\Precompute">
+      <UniqueIdentifier>{45dbcda8-1b37-46c9-aa17-da6f91ddc01a}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -122,9 +125,6 @@
     <None Include="Debug.glsl">
       <Filter>Shader Programs</Filter>
     </None>
-    <None Include="Precompute.comp">
-      <Filter>Shader Programs\Compute Render</Filter>
-    </None>
     <None Include="Hit.glsl">
       <Filter>Shader Programs</Filter>
     </None>
@@ -139,6 +139,15 @@
     </None>
     <None Include="Clouds.glsl">
       <Filter>Shader Programs\Material Shaders</Filter>
+    </None>
+    <None Include="OpticalDepth.comp">
+      <Filter>Shader Programs\Compute Render\Precompute</Filter>
+    </None>
+    <None Include="DirectIrradiance.comp">
+      <Filter>Shader Programs\Compute Render\Precompute</Filter>
+    </None>
+    <None Include="Transmittance.comp">
+      <Filter>Shader Programs\Compute Render\Precompute</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

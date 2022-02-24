@@ -37,6 +37,15 @@ namespace ColorMapping {
         return wavelength_function[wavelength_function.size() - 1];
     }
 
+    vec4 GetRGBSolarIrradiance(const std::vector<double>& wavelengths, const std::vector<double>& solar_irradiance)
+    {
+        return {
+            (float)Interpolate(wavelengths, solar_irradiance, kLambdaR),
+            (float)Interpolate(wavelengths, solar_irradiance, kLambdaG),
+            (float)Interpolate(wavelengths, solar_irradiance, kLambdaB)
+        };
+    }
+
     /*
     <p>We can then implement a utility function to compute the "spectral radiance to
     luminance" conversion constants (see Section 14.3 in <a
@@ -80,7 +89,7 @@ namespace ColorMapping {
         *k_b *= dlambda * 0.1;
     }
 
-    void FillSpectrum(vec4& SkyRadianceToLuminance, vec4& SunRadianceToLuminance)
+    void FillSpectrum(vec4& SkyRadianceToLuminance, vec4& SunRadianceToLuminance, vec4& SolarIrradiance)
     {
         std::vector<double> wavelengths;
         std::vector<double> solar_irradiance;
@@ -118,5 +127,7 @@ namespace ColorMapping {
         SunRadianceToLuminance.x = sun_k_r;
         SunRadianceToLuminance.y = sun_k_g;
         SunRadianceToLuminance.z = sun_k_b;
+
+        SolarIrradiance = GetRGBSolarIrradiance(wavelengths, solar_irradiance);
     }
 };

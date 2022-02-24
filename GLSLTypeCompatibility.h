@@ -21,6 +21,10 @@ struct vec4 {
 	{
 		return vec4(v.x,v.y,v.z,0);
 	}
+	vec3 toVec3()
+	{
+		return vec3(this->x, this->y, this->z);
+	}
 };
 struct vec2 {
 	float x;

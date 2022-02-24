@@ -111,8 +111,11 @@ std::array<Planet, 1> _planetBuffer = {
 		0, // Sun object index
 		earthRadius + 5000, // Mountains radius
 		cloudsStart, // Clouds start radius
+
+		vec3(0,0,0),//Solar irradiance - will be assigned later
 		cloudsEnd, // Clouds end radius
-		cloudsEnd - cloudsStart // Clouds layer thickness
+		cloudsEnd - cloudsStart, // Clouds layer thickness
+		0.00935 / 2.0 // Sun angular radius
 	}
 };
 
@@ -188,8 +191,6 @@ namespace RealisticAtmosphere
 
 		bgfx::ShaderHandle _computeShaderHandle;
 		bgfx::ShaderHandle _heightmapShaderHandle;
-		bgfx::ShaderHandle _precomputeShaderHandle;
-		bgfx::ProgramHandle _precomputeProgram;
 		bgfx::ProgramHandle _heightmapShaderProgram;
 
 		bgfx::DynamicIndexBufferHandle _objectBufferHandle;
@@ -205,11 +206,15 @@ namespace RealisticAtmosphere
 		bgfx::TextureHandle _texture3Handle;
 		bgfx::TextureHandle _texture4Handle;
 		bgfx::TextureHandle _opticalDepthTable;
+		bgfx::TextureHandle _directIrradianceTable;
+		bgfx::TextureHandle _transmittanceTable;
 		bgfx::UniformHandle _texSampler1;
 		bgfx::UniformHandle _texSampler2;
 		bgfx::UniformHandle _texSampler3;
 		bgfx::UniformHandle _texSampler4;
 		bgfx::UniformHandle _opticalDepthSampler;
+		bgfx::UniformHandle _directIrradianceSampler;
+		bgfx::UniformHandle _transmittanceSampler;
 		bgfx::UniformHandle _heightmapSampler;
 		bgfx::UniformHandle _cloudsPhaseSampler;
 #pragma endregion Textures_And_Samplers
@@ -273,6 +278,8 @@ namespace RealisticAtmosphere
 			_heightmapSampler = bgfx::createUniform("heightmapTexture", bgfx::UniformType::Sampler);
 			_cloudsPhaseSampler = bgfx::createUniform("cloudsMieLUT", bgfx::UniformType::Sampler);
 			_opticalDepthSampler = bgfx::createUniform("opticalDepthTable", bgfx::UniformType::Sampler);
+			_directIrradianceSampler = bgfx::createUniform("directIrradianceTable", bgfx::UniformType::Sampler);
+			_transmittanceSampler = bgfx::createUniform("transmittanceTable", bgfx::UniformType::Sampler);
 			_atmoParameters = bgfx::createUniform("AtmoParameters", bgfx::UniformType::Vec4);
 			_texSampler1 = bgfx::createUniform("texSampler1", bgfx::UniformType::Sampler);
 			_texSampler2 = bgfx::createUniform("texSampler2", bgfx::UniformType::Sampler);
@@ -292,8 +299,6 @@ namespace RealisticAtmosphere
 			_computeShaderProgram = bgfx::createProgram(_computeShaderHandle);
 			_heightmapShaderHandle = loadShader("Heightmap.comp");
 			_heightmapShaderProgram = bgfx::createProgram(_heightmapShaderHandle);
-			_precomputeShaderHandle = loadShader("Precompute.comp");
-			_precomputeProgram = bgfx::createProgram(_precomputeShaderHandle);
 			_texture1Handle = loadTexture("textures/rocks.dds", BGFX_TEXTURE_SRGB);
 			_texture2Handle = loadTexture("textures/dirt.dds", BGFX_TEXTURE_SRGB);
 			_texture3Handle = loadTexture("textures/rock.dds");
@@ -319,11 +324,13 @@ namespace RealisticAtmosphere
 			// Render cloud particles Mie phase functions for all wavelengths
 			cloudsMiePhaseFunction();
 
-			// Render optical depth
+			// Render optical depth, transmittance and direct irradiance textures
 			precompute();
 
 			// Compute spectrum mapping functions
-			ColorMapping::FillSpectrum(SkyRadianceToLuminance, SunRadianceToLuminance);
+			vec4 solarIrradiance;
+			ColorMapping::FillSpectrum(SkyRadianceToLuminance, SunRadianceToLuminance, solarIrradiance);
+			_planetBuffer[0].solarIrradiance = solarIrradiance.toVec3();
 
 			// Create Immediate GUI graphics context
 			imguiCreate();
@@ -355,12 +362,41 @@ namespace RealisticAtmosphere
 
 		void precompute()
 		{
+			bgfx::ShaderHandle precomputeOptical = loadShader("OpticalDepth.comp");
+			bgfx::ProgramHandle opticalProgram = bgfx::createProgram(precomputeOptical);
 			_opticalDepthTable = bgfx::createTexture2D(2048, 1024, false, 1, bgfx::TextureFormat::RG32F, BGFX_TEXTURE_COMPUTE_WRITE);
 			//steps are locked to 300
-			vec4 _atmoParametersValues = { rayleighScaleHeight,earthRadius, atmosphereRadius, mieScaleHeight };
+			vec4 _atmoParametersValues = { rayleighScaleHeight, earthRadius, atmosphereRadius, mieScaleHeight };
 			bgfx::setUniform(_atmoParameters, &_atmoParametersValues);
 			bgfx::setImage(0, _opticalDepthTable, 0, bgfx::Access::Write, bgfx::TextureFormat::RG32F);
-			bgfx::dispatch(0, _precomputeProgram, bx::ceil(2048 / 16.0f), bx::ceil(1024 / 16.0f));
+			bgfx::dispatch(0, opticalProgram, bx::ceil(2048 / 16.0f), bx::ceil(1024 / 16.0f));
+
+			bgfx::ShaderHandle precomputeTransmittance = loadShader("Transmittance.comp");
+			bgfx::ProgramHandle transmittanceProgram = bgfx::createProgram(precomputeTransmittance);
+			_transmittanceTable = bgfx::createTexture2D(256, 64, false, 1, bgfx::TextureFormat::RGBA8, BGFX_TEXTURE_COMPUTE_WRITE);
+			bgfx::setImage(0, _transmittanceTable, 0, bgfx::Access::Write, bgfx::TextureFormat::RGBA8);
+			bgfx::update(_atmosphereBufferHandle, 0, bgfx::makeRef((void*)_planetBuffer.data(), sizeof(_planetBuffer)));
+			bgfx::setBuffer(1, _atmosphereBufferHandle, bgfx::Access::Read);
+			bgfx::dispatch(0, transmittanceProgram, bx::ceil(256 / 16.0f), bx::ceil(64 / 16.0f));
+
+			bgfx::ShaderHandle precomputeIrradiance = loadShader("DirectIrradiance.comp");
+			bgfx::ProgramHandle irradianceProgram = bgfx::createProgram(precomputeIrradiance);
+			_directIrradianceTable = bgfx::createTexture2D(64, 16, false, 1, bgfx::TextureFormat::RGBA32F, BGFX_TEXTURE_COMPUTE_WRITE);
+			bgfx::setImage(0, _directIrradianceTable, 0, bgfx::Access::Write, bgfx::TextureFormat::RGBA32F);
+			bgfx::update(_atmosphereBufferHandle, 0, bgfx::makeRef((void*)_planetBuffer.data(), sizeof(_planetBuffer)));
+			bgfx::setBuffer(1, _atmosphereBufferHandle, bgfx::Access::Read);
+			bgfx::setTexture(2, _transmittanceSampler, _transmittanceTable);
+			bgfx::dispatch(0, irradianceProgram, bx::ceil(64 / 16.0f), bx::ceil(16 / 16.0f));
+
+			bgfx::touch(0);
+			bgfx::frame(); // Actually execute the compute shaders
+
+			bgfx::destroy(opticalProgram);
+			bgfx::destroy(irradianceProgram);
+			bgfx::destroy(precomputeIrradiance);
+			bgfx::destroy(precomputeOptical);
+			bgfx::destroy(transmittanceProgram);
+			bgfx::destroy(precomputeTransmittance);
 		}
 
 		void resetBufferSize()
@@ -427,9 +463,9 @@ namespace RealisticAtmosphere
 			bgfx::destroy(_raymarchingStepsHandle);
 			bgfx::destroy(_heightmapShaderHandle);
 			bgfx::destroy(_heightmapShaderProgram);
-			bgfx::destroy(_precomputeShaderHandle);
-			bgfx::destroy(_precomputeProgram);
 			bgfx::destroy(_opticalDepthSampler);
+			bgfx::destroy(_directIrradianceSampler);
+			bgfx::destroy(_transmittanceSampler);
 			bgfx::destroy(_opticalDepthTable);
 			bgfx::destroy(_atmoParameters);
 			bgfx::destroy(_sunRadToLumHandle);
@@ -647,6 +683,8 @@ namespace RealisticAtmosphere
 			bgfx::setTexture(11, _heightmapSampler, _heightmapTextureHandle);
 			bgfx::setTexture(12, _opticalDepthSampler, _opticalDepthTable, BGFX_SAMPLER_UVW_CLAMP);
 			bgfx::setTexture(13, _cloudsPhaseSampler, _cloudsPhaseTextureHandle, BGFX_SAMPLER_UVW_MIRROR);
+			bgfx::setTexture(14, _transmittanceSampler, _transmittanceTable);
+			bgfx::setTexture(15, _directIrradianceSampler, _directIrradianceTable);
 		}
 
 		void viewportActions()

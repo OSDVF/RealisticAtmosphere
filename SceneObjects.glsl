@@ -17,6 +17,8 @@ uniform sampler2D texSampler2;
 uniform sampler2D texSampler3;
 uniform sampler2D texSampler4;
 uniform sampler2D heightmapTexture;
+uniform sampler2D transmittanceTable;
+uniform sampler2D directIrradianceTable;
 uniform vec4 u_viewRect;
 uniform vec4 Camera[4];
 uniform vec4 MultisamplingSettings;
@@ -155,10 +157,13 @@ struct Planet
     float mountainsRadius;
     float cloudsStartRadius;
 
+    vec3 solarIrradiance;
     float cloudsEndRadius;
+
     float cloudLayerThickness;
-    float _padding;
-    float _padding2;
+    float sunAngularRadius;
+    float padding2;
+    float padding3;
 };
 
 struct Hit
