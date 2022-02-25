@@ -1,6 +1,7 @@
 #include "ColorMapping.h"
 #include <cmath>
 #include <cassert>
+#include <array>
 
 namespace ColorMapping {
 
@@ -84,12 +85,12 @@ namespace ColorMapping {
             *k_b += b_bar * irradiance / solar_b *
                 pow(lambda / kLambdaB, lambda_power);
         }
-        *k_r *= dlambda * 0.1;
-        *k_g *= dlambda * 0.1;
-        *k_b *= dlambda * 0.1;
+        *k_r *= dlambda * MAX_LUMINOUS_EFFICACY;
+        *k_g *= dlambda * MAX_LUMINOUS_EFFICACY;
+        *k_b *= dlambda * MAX_LUMINOUS_EFFICACY;
     }
 
-    void FillSpectrum(vec4& SkyRadianceToLuminance, vec4& SunRadianceToLuminance, vec3& SolarIrradiance, vec3& AbsorptionExtinction)
+    void FillSpectrum(vec4& SkyRadianceToLuminance, vec4& SunRadianceToLuminance, Planet& planet)
     {
         std::vector<double> wavelengths;
         std::vector<double> solar_irradiance;
@@ -128,7 +129,10 @@ namespace ColorMapping {
         SunRadianceToLuminance.y = sun_k_g;
         SunRadianceToLuminance.z = sun_k_b;
 
-        SolarIrradiance = GetValuesForRGBSpectrum(wavelengths, solar_irradiance);
-        AbsorptionExtinction = GetValuesForRGBSpectrum(wavelengths, absorption_extinction);
+        planet.solarIrradiance = GetValuesForRGBSpectrum(wavelengths, solar_irradiance);
+        planet.absorptionCoefficients = GetValuesForRGBSpectrum(wavelengths, absorption_extinction);
+        planet.rayleighCoefficients = GetValuesForRGBSpectrum(wavelengths, rayleigh_scattering);
+        vec3 mie = GetValuesForRGBSpectrum(wavelengths, mie_scattering);
+        planet.mieCoefficient = (mie.x + mie.y + mie.z) / 3.0;
     }
 };

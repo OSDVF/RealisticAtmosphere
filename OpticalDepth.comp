@@ -7,7 +7,7 @@ uniform vec4 AtmoParameters;
 //y = radius of planet surface
 //z = radius of atmosphere
 //w = H0 for mie
-layout(rg32f, binding=0) writeonly uniform image2D opticalDepth;//r = rayleigh, g = mie
+layout(rgba32f, binding=0) writeonly uniform image2D opticalDepth;//r = rayleigh, g = mie
 
 void main()
 {
@@ -25,13 +25,13 @@ void main()
 	float y = cosAlpha * sampleHeight;
 	vec3 samplePos = vec3(x,y,0);
 
-	int sampleCount = 300;
+	int sampleCount = 500;
 	float fromT,toT;
 	raySphereIntersection(vec3(0), AtmoParameters.z, Ray(samplePos, vec3(0,1,0)), fromT, toT);
 	float lSegmentLength = toT / sampleCount;
 
 	float tCurrentLight = 0;
-	float lOpticalDepthR = 0,lOpticalDepthM = 0;
+	float lOpticalDepthR = 0,lOpticalDepthM = 0,lOpticalDepthO = 0;
 
 	for (int l = 0; l < sampleCount; ++l) { 
 		vec3 lSamplePos = samplePos + (tCurrentLight + lSegmentLength * 0.5) * vec3(0,1,0); 
@@ -40,8 +40,19 @@ void main()
 
         lOpticalDepthR += exp(-lSampleHeight / AtmoParameters.x) * lSegmentLength;
 		lOpticalDepthM += exp(-lSampleHeight / AtmoParameters.w) * lSegmentLength; 
+		float ozoneHF;
+		if(lSampleHeight < 25000)
+        {
+            ozoneHF = (1.0/15000.0) * lSampleHeight - (2.0/3.0);
+        }
+        else
+        {
+            ozoneHF = (-1.0/15000.0) * lSampleHeight + 8.0/3.0;
+        }
+        ozoneHF = clamp(ozoneHF * lSegmentLength,0,1);
+		lOpticalDepthO += ozoneHF;
 		tCurrentLight += lSegmentLength; 
 	}
 
-	imageStore(opticalDepth, ivec2(gl_GlobalInvocationID.xy), vec4(lOpticalDepthR,lOpticalDepthM,0,0));
+	imageStore(opticalDepth, ivec2(gl_GlobalInvocationID.xy), vec4(lOpticalDepthR,lOpticalDepthM,lOpticalDepthO,0));
 }

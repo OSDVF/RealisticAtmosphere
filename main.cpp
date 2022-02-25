@@ -90,7 +90,7 @@ DirectionalLight _directionalLightBuffer[] = {
 const vec3 precomputedRayleighScatteringCoefficients = vec3(0.0000058, 0.0000135, 0.0000331);/*for wavelengths (680,550,440)nm (roughly R,G,B)*/
 /*Scattering coefficient for Mie scattering βˢₘ */
 const float precomputedMieScaterringCoefficient = 21e-6f;
-const float mieAssymetryFactor = 0.76;
+const float mieAssymetryFactor = 0.8;
 const float mieScaleHeight = 1200;
 const float rayleighScaleHeight = 7994;
 
@@ -107,7 +107,7 @@ std::array<Planet, 1> _planetBuffer = {
 		//I am usnure of the "completeness" of this model, but Nishita and Bruneton used this
 		precomputedRayleighScatteringCoefficients,
 		rayleighScaleHeight,
-		1, //Sun intensity
+		0.3, //Sun intensity
 		0, // Sun object index
 		earthRadius + 5000, // Mountains radius
 		cloudsStart, // Clouds start radius
@@ -208,14 +208,14 @@ namespace RealisticAtmosphere
 		bgfx::TextureHandle _texture3Handle;
 		bgfx::TextureHandle _texture4Handle;
 		bgfx::TextureHandle _opticalDepthTable;
-		bgfx::TextureHandle _directIrradianceTable;
+		bgfx::TextureHandle _irradianceTable;/**< used firstly for direct, then for indirect */
 		bgfx::TextureHandle _transmittanceTable;
 		bgfx::UniformHandle _texSampler1;
 		bgfx::UniformHandle _texSampler2;
 		bgfx::UniformHandle _texSampler3;
 		bgfx::UniformHandle _texSampler4;
 		bgfx::UniformHandle _opticalDepthSampler;
-		bgfx::UniformHandle _directIrradianceSampler;
+		bgfx::UniformHandle _irradianceSampler;
 		bgfx::UniformHandle _transmittanceSampler;
 		bgfx::UniformHandle _heightmapSampler;
 		bgfx::UniformHandle _cloudsPhaseSampler;
@@ -280,7 +280,7 @@ namespace RealisticAtmosphere
 			_heightmapSampler = bgfx::createUniform("heightmapTexture", bgfx::UniformType::Sampler);
 			_cloudsPhaseSampler = bgfx::createUniform("cloudsMieLUT", bgfx::UniformType::Sampler);
 			_opticalDepthSampler = bgfx::createUniform("opticalDepthTable", bgfx::UniformType::Sampler);
-			_directIrradianceSampler = bgfx::createUniform("directIrradianceTable", bgfx::UniformType::Sampler);
+			_irradianceSampler = bgfx::createUniform("irradianceTable", bgfx::UniformType::Sampler);
 			_transmittanceSampler = bgfx::createUniform("transmittanceTable", bgfx::UniformType::Sampler);
 			_atmoParameters = bgfx::createUniform("AtmoParameters", bgfx::UniformType::Vec4);
 			_texSampler1 = bgfx::createUniform("texSampler1", bgfx::UniformType::Sampler);
@@ -331,7 +331,7 @@ namespace RealisticAtmosphere
 
 			// Compute spectrum mapping functions
 
-			ColorMapping::FillSpectrum(SkyRadianceToLuminance, SunRadianceToLuminance, _planetBuffer[0].solarIrradiance, _planetBuffer[0].absorptionCoefficients);
+			ColorMapping::FillSpectrum(SkyRadianceToLuminance, SunRadianceToLuminance, _planetBuffer[0]);
 
 			// Create Immediate GUI graphics context
 			imguiCreate();
@@ -365,11 +365,11 @@ namespace RealisticAtmosphere
 		{
 			bgfx::ShaderHandle precomputeOptical = loadShader("OpticalDepth.comp");
 			bgfx::ProgramHandle opticalProgram = bgfx::createProgram(precomputeOptical);
-			_opticalDepthTable = bgfx::createTexture2D(2048, 1024, false, 1, bgfx::TextureFormat::RG32F, BGFX_TEXTURE_COMPUTE_WRITE);
+			_opticalDepthTable = bgfx::createTexture2D(2048, 1024, false, 1, bgfx::TextureFormat::RGBA32F, BGFX_TEXTURE_COMPUTE_WRITE);
 			//steps are locked to 300
 			vec4 _atmoParametersValues = { rayleighScaleHeight, earthRadius, atmosphereRadius, mieScaleHeight };
 			bgfx::setUniform(_atmoParameters, &_atmoParametersValues);
-			bgfx::setImage(0, _opticalDepthTable, 0, bgfx::Access::Write, bgfx::TextureFormat::RG32F);
+			bgfx::setImage(0, _opticalDepthTable, 0, bgfx::Access::Write, bgfx::TextureFormat::RGBA32F);
 			bgfx::dispatch(0, opticalProgram, bx::ceil(2048 / 16.0f), bx::ceil(1024 / 16.0f));
 
 			bgfx::ShaderHandle precomputeTransmittance = loadShader("Transmittance.comp");
@@ -382,8 +382,8 @@ namespace RealisticAtmosphere
 
 			bgfx::ShaderHandle precomputeIrradiance = loadShader("DirectIrradiance.comp");
 			bgfx::ProgramHandle irradianceProgram = bgfx::createProgram(precomputeIrradiance);
-			_directIrradianceTable = bgfx::createTexture2D(64, 16, false, 1, bgfx::TextureFormat::RGBA32F, BGFX_TEXTURE_COMPUTE_WRITE);
-			bgfx::setImage(0, _directIrradianceTable, 0, bgfx::Access::Write, bgfx::TextureFormat::RGBA32F);
+			_irradianceTable = bgfx::createTexture2D(64, 16, false, 1, bgfx::TextureFormat::RGBA32F, BGFX_TEXTURE_COMPUTE_WRITE);
+			bgfx::setImage(0, _irradianceTable, 0, bgfx::Access::Write, bgfx::TextureFormat::RGBA32F);
 			bgfx::update(_atmosphereBufferHandle, 0, bgfx::makeRef((void*)_planetBuffer.data(), sizeof(_planetBuffer)));
 			bgfx::setBuffer(1, _atmosphereBufferHandle, bgfx::Access::Read);
 			bgfx::setTexture(2, _transmittanceSampler, _transmittanceTable);
@@ -465,7 +465,7 @@ namespace RealisticAtmosphere
 			bgfx::destroy(_heightmapShaderHandle);
 			bgfx::destroy(_heightmapShaderProgram);
 			bgfx::destroy(_opticalDepthSampler);
-			bgfx::destroy(_directIrradianceSampler);
+			bgfx::destroy(_irradianceSampler);
 			bgfx::destroy(_transmittanceSampler);
 			bgfx::destroy(_opticalDepthTable);
 			bgfx::destroy(_atmoParameters);
@@ -684,7 +684,7 @@ namespace RealisticAtmosphere
 			bgfx::setTexture(12, _opticalDepthSampler, _opticalDepthTable, BGFX_SAMPLER_UVW_CLAMP);
 			bgfx::setTexture(13, _cloudsPhaseSampler, _cloudsPhaseTextureHandle, BGFX_SAMPLER_UVW_MIRROR);
 			bgfx::setTexture(14, _transmittanceSampler, _transmittanceTable);
-			bgfx::setTexture(15, _directIrradianceSampler, _directIrradianceTable);
+			bgfx::setTexture(15, _irradianceSampler, _irradianceTable);
 		}
 
 		void viewportActions()

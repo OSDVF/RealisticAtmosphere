@@ -13,28 +13,6 @@ layout(std430, binding=1) readonly buffer PlanetBuffer
 vec2 texSize = vec2(gl_WorkGroupSize * gl_NumWorkGroups);
 vec2 uv = vec2(gl_GlobalInvocationID.xy) / texSize;
 
-vec3 get_transmittance_to_top_atmospheric_boundary(
-    const Planet planet, float r, float mu) {
-
-    float bottomRadius2 = planet.surfaceRadius * planet.surfaceRadius;
-    float topRadius2 = planet.atmosphereRadius * planet.atmosphereRadius;
-
-    float H = sqrt(topRadius2 - bottomRadius2);
-    float rho = sqrt(max(r * r - bottomRadius2, 0.0));
-    float d = max(-r * mu + sqrt(max(r * r * (mu * mu - 1.0) + topRadius2, 0.0)), 0.0);
-    float d_min = planet.atmosphereRadius - r;
-    float d_max = rho + H;
-    float x_mu = (d - d_min) / (d_max - d_min);
-    float x_r = rho / H;
-
-    vec2 uv = vec2(
-        GetTextureCoordFromUnitRange(x_mu, texSize.x),
-        GetTextureCoordFromUnitRange(x_r, texSize.y)
-    );
-
-    return texture(transmittanceTable, uv).xyz;
-}
-
 void main()
 {
 	float r = planets[0].surfaceRadius +
@@ -53,7 +31,7 @@ void main()
 
     vec3 delta_irradiance =
         planets[0].solarIrradiance * 
-        get_transmittance_to_top_atmospheric_boundary(planets[0], r, mu_s) *
+        GetTransmittanceToAtmosphereEnd(planets[0], transmittanceTable, r, mu_s) *
         average_cosine_factor;
 
 	imageStore(directIrradianceOutput, ivec2(gl_GlobalInvocationID.xy), vec4(delta_irradiance,0));

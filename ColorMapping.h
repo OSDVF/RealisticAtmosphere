@@ -1,14 +1,16 @@
 #pragma once
 #include <vector>
 #include "GLSLTypeCompatibility.h"
+#include "Structures.glsl"
 // source of values and functions: https://ebruneton.github.io/precomputed_atmospheric_scattering/
 namespace ColorMapping {
 	static constexpr double kLambdaR = 680.0;
 	static constexpr double kLambdaG = 550.0;
 	static constexpr double kLambdaB = 440.0;
+	constexpr double exposureCorrection = 0.0001;
 
 	// The conversion factor between watts and lumens.
-	constexpr double MAX_LUMINOUS_EFFICACY = 683.0;
+	constexpr double MAX_LUMINOUS_EFFICACY = 683.0 * exposureCorrection;
 
 	// Values from "CIE (1931) 2-deg color matching functions", see
 	// "http://web.archive.org/web/20081228084047/
@@ -194,6 +196,6 @@ namespace ColorMapping {
 	// Wavelength independent solar irradiance "spectrum" (not physically
 	// realistic, but was used in the original implementation).
 
-	void FillSpectrum(vec4& SkyRadianceToLuminance, vec4& SunRadianceToLuminance, vec3& SolarIrradiance, vec3& AbsorptionExtinction);
+	void FillSpectrum(vec4& SkyRadianceToLuminance, vec4& SunRadianceToLuminance, Planet& planet);
 };
 

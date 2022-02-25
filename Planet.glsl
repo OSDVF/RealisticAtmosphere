@@ -59,7 +59,7 @@ bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out vec
 			}
 			//cloudsForPlanet(p,ray,fromDistance,toDistance,transmittance,radiance);
 			if(!DEBUG_ATMO_OFF) raymarchAtmosphere(p, ray, fromDistance, toDistance, /*inout*/ radiance, /*inout*/ transmittance, true);
-			radiance += planetAlbedo * lightPoint(worldSamplePos, worldNormal) * transmittance;
+			radiance += planetAlbedo * lightPoint(p, worldSamplePos, worldNormal) * transmittance;
 			transmittance *= planetAlbedo;
 			planetHit = Hit(worldSamplePos, worldNormal, -1, toDistance);
 			return true;
@@ -84,7 +84,7 @@ float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDis
 	vec3 rayleighColor = vec3(0);
 	vec3 mieColor = vec3(0);
 	vec3 lastAttenuation;
-	float opticalDepthR = 0, opticalDepthM = 0; 
+	float opticalDepthR = 0, opticalDepthM = 0, opticalDepthO = 0; 
 
 	vec3 sunVector = directionalLights[planet.sunDrectionalLightIndex].direction.xyz;
 	float sunToViewCos /*cos(Phi)*/ = dot(sunVector, ray.direction);
@@ -106,11 +106,22 @@ float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDis
 		// Always sample at the center of sample
 		vec3 worldSamplePos;
 		vec3 sphNormal;
-		float sampleHeight = getSampleParameters(planet, ray, currentDistance, /*out*/ sphNormal, /*out*/ worldSamplePos);
+		float sampleHeight = getSampleParameters(planet, ray, currentDistance + segmentLength*0.5, /*out*/ sphNormal, /*out*/ worldSamplePos);
 
 		//Compute HF = height factor
 		float rayleighHF = exp(-sampleHeight/planet.rayleighScaleHeight) * segmentLength;
 		float mieHF = exp(-sampleHeight/planet.mieScaleHeight) * segmentLength;
+		float ozoneHF;
+        if(sampleHeight < 25000)
+        {
+            ozoneHF = (1.0/15000.0) * sampleHeight - (2.0/3.0);
+        }
+        else
+        {
+            ozoneHF = (-1.0/15000.0) * sampleHeight + 8.0/3.0;
+        }
+        ozoneHF = clamp(ozoneHF * segmentLength,0,1);
+		opticalDepthO += ozoneHF;
 		opticalDepthR += rayleighHF; 
         opticalDepthM += mieHF;
 
@@ -185,7 +196,8 @@ float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDis
 		//Finalize the computation and commit to the result color
 
 		vec3 depth = planet.rayleighCoefficients * (lOpticalDepth.x + opticalDepthR)
-						+ mieExtinction * (lOpticalDepth.y + opticalDepthM);
+						+ mieExtinction * (lOpticalDepth.y + opticalDepthM)
+						+ planet.absorptionCoefficients * (lOpticalDepth.z + opticalDepthO);
 		vec3 attenuation = exp(-depth);
 		rayleighColor += attenuation * rayleighHF;
 		mieColor += attenuation * mieHF;
@@ -193,9 +205,10 @@ float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDis
 	// Add atmosphere to planet color /* or to nothing */
 	radiance += (rayleighColor * planet.rayleighCoefficients * rayleightPhase
 			+ mieColor * planet.mieCoefficient * miePhase
-			) * planet.sunIntensity * transmittance * SkyRadianceToLuminance.rgb;
+			) * planet.solarIrradiance * transmittance * SkyRadianceToLuminance.rgb;
 	vec3 depth = planet.rayleighCoefficients * opticalDepthR
-						+ mieExtinction * opticalDepthM;
+						+ mieExtinction * opticalDepthM
+						+ planet.absorptionCoefficients * opticalDepthO;
 	vec3 attenuation = exp(-depth);
 	transmittance *= attenuation;
 	return currentDistance;

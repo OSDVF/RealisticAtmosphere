@@ -152,6 +152,9 @@
     <None Include="Common.glsl">
       <Filter>Shader Programs\Compute Render\Precompute</Filter>
     </None>
+    <None Include="Structures.glsl">
+      <Filter>Shader Programs</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="TestCube.h">

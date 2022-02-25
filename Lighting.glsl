@@ -4,8 +4,25 @@
 
 #include "Buffers.glsl"
 #include "Intersections.glsl"
+#include "Common.glsl"
 
-vec3 lightPoint(vec3 p, vec3 normal)
+vec3 sunAndSkyIlluminance(Planet planet,vec3 point, vec3 normal, vec3 sun_direction)
+{
+    vec3 toPlanetSpace = point - planet.center;
+    float r = length(toPlanetSpace);
+    float mu_s = dot(toPlanetSpace, sun_direction) / r;
+    return /*sky*/
+        /*GetIrradiance(planet, irradianceTable, r, mu_s) *
+        (1.0 + dot(normal, toPlanetSpace) / r) * 0.5 *
+        SkyRadianceToLuminance.xyz +*/ // Indirect irradiance precomputation not yet implemented. The table contains direct irradiance
+        /*sun*/
+        planet.solarIrradiance *
+        GetTransmittanceToSun(planet, transmittanceTable ,r, mu_s) *
+        max(dot(normal, sun_direction), 0.0) *
+        SunRadianceToLuminance.xyz * planet.sunIntensity;
+}
+
+vec3 lightPoint(Planet planet, vec3 p, vec3 normal)
 {
     vec3 totalLightColor = AMBIENT_LIGHT;// Initially the object is only lightened up by ambient light
     // Compute illumination by casting 'shadow rays' into lights
@@ -23,7 +40,14 @@ vec3 lightPoint(vec3 p, vec3 normal)
                 return AMBIENT_LIGHT;
             }
         }
-        totalLightColor += light.color.xyz * max(dot(lDir, normal),0);
+        if(planet.sunDrectionalLightIndex == i)
+        {
+            totalLightColor += light.color.xyz * sunAndSkyIlluminance(planet, p, normal, lDir);
+        }
+        else
+        {
+            totalLightColor += light.color.xyz * max(dot(normal, lDir),0);
+        }
     }
     return totalLightColor;
 }

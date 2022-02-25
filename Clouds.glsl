@@ -158,7 +158,7 @@ vec3 sampleLight(Planet planet, Ray ray, vec3 original_sample_point, float origi
     //float mu_s = dot(point, sun_dir) / r;
     vec3 clouds_sky_illuminance = vec3(0);//SkyRadianceToLuminance.xyz * get_irradiance(globals.parameters, irradiance_texture, r, mu_s);
 
-    vec3 clouds_sun_illuminance = SunRadianceToLuminance.xyz * planet.sunIntensity;//globals.parameters.solar_irradiance
+    vec3 clouds_sun_illuminance = SunRadianceToLuminance.xyz * planet.solarIrradiance;
         // *get_transmittance_to_sun(globals.parameters, transmittance_texture, r, mu_s);
 
     vec3 clouds_luminance = (1.0 / (pi * pi)) * (clouds_sun_illuminance + clouds_sky_illuminance);
