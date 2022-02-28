@@ -112,15 +112,15 @@ float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDis
 		float rayleighHF = exp(-sampleHeight/planet.rayleighScaleHeight) * segmentLength;
 		float mieHF = exp(-sampleHeight/planet.mieScaleHeight) * segmentLength;
 		float ozoneHF;
-        if(sampleHeight < 25000)
+        if(sampleHeight < planet.ozonePeakHeight)
         {
-            ozoneHF = (1.0/15000.0) * sampleHeight - (2.0/3.0);
+            ozoneHF = planet.ozoneTroposphereCoef * sampleHeight + planet.ozoneTroposphereConst;
         }
         else
         {
-            ozoneHF = (-1.0/15000.0) * sampleHeight + 8.0/3.0;
+            ozoneHF = planet.ozoneStratosphereCoef * sampleHeight + planet.ozoneStratosphereConst;
         }
-        ozoneHF = clamp(ozoneHF * segmentLength,0,1);
+        ozoneHF = clamp(ozoneHF, 0, 1) * segmentLength;
 		opticalDepthO += ozoneHF;
 		opticalDepthR += rayleighHF; 
         opticalDepthM += mieHF;
@@ -191,7 +191,7 @@ float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDis
 		}
 
 		// The lookup table is from alpha angle value from -0.5 to 1.0, so we must remap the X coord
-		vec2 tableCoords = vec2((0.5 + sunToNormalCos)/1.5, sampleHeight/(planet.atmosphereRadius - planet.surfaceRadius));
+		vec2 tableCoords = vec2((0.5 + sunToNormalCos)/1.5, sampleHeight/(planet.atmosphereThickness));
 		vec4 lOpticalDepth = texture(opticalDepthTable, tableCoords);
 		//Finalize the computation and commit to the result color
 

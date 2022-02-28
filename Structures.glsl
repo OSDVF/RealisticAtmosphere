@@ -55,12 +55,17 @@ struct Planet
     float cloudsEndRadius;
 
     vec3 absorptionCoefficients; // Ozone layer
-    float cloudLayerThickness;
+    float ozonePeakHeight;
 
+    float ozoneTroposphereCoef;
+    float ozoneTroposphereConst;
+    float ozoneStratosphereCoef;
+    float ozoneStratosphereConst;
+
+    float cloudLayerThickness;// Should be precomputed as (cloudsEndRadius - cloudsStartRadius)
     float sunAngularRadius;
-    float padding;
+    float atmosphereThickness;// Should be precomputed as (atmosphereRadius - surfaceRadius)
     float padding2;
-    float padding3;
 };
 
 struct Hit

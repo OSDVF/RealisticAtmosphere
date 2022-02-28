@@ -1,13 +1,17 @@
 //?#version 440
 #include "Intersections.glsl"
+#include "Structures.glsl"
 
 layout(local_size_x=16, local_size_y=16, local_size_z = 1) in;
-uniform vec4 AtmoParameters;
 //x = H0 for rayleigh
 //y = radius of planet surface
 //z = radius of atmosphere
 //w = H0 for mie
-layout(rgba32f, binding=0) writeonly uniform image2D opticalDepth;//r = rayleigh, g = mie
+layout(rgba32f, binding=0) writeonly uniform image2D opticalDepth;//r = rayleigh, g = mie, b = ozone
+layout(std430, binding=1) readonly buffer PlanetBuffer
+{
+    Planet planets[];
+};
 
 void main()
 {
@@ -16,10 +20,10 @@ void main()
 	
 	/*float p = 1 - tc.y;
 	float radius = AtmoParameters.x * log(p) + AtmoParameters.y;*/
+	const Planet p = planets[0];
 	float cosAlpha = tc.x*1.5-0.5;
 	float sunToViewRayAngle = acos(cosAlpha);
-	float atmoThickness = (AtmoParameters.z - AtmoParameters.y);
-	float sampleHeight = tc.y * atmoThickness + AtmoParameters.y;
+	float sampleHeight = tc.y * p.atmosphereThickness + p.surfaceRadius;
 
 	float x = sin(sunToViewRayAngle) * sampleHeight;
 	float y = cosAlpha * sampleHeight;
@@ -27,7 +31,7 @@ void main()
 
 	int sampleCount = 500;
 	float fromT,toT;
-	raySphereIntersection(vec3(0), AtmoParameters.z, Ray(samplePos, vec3(0,1,0)), fromT, toT);
+	raySphereIntersection(vec3(0), p.atmosphereRadius, Ray(samplePos, vec3(0,1,0)), fromT, toT);
 	float lSegmentLength = toT / sampleCount;
 
 	float tCurrentLight = 0;
@@ -36,20 +40,20 @@ void main()
 	for (int l = 0; l < sampleCount; ++l) { 
 		vec3 lSamplePos = samplePos + (tCurrentLight + lSegmentLength * 0.5) * vec3(0,1,0); 
 		float lCenterDist = length(lSamplePos);
-        float lSampleHeight /*above sea*/ = lCenterDist - AtmoParameters.y; 
+        float lSampleHeight /*above sea*/ = lCenterDist - p.surfaceRadius; 
 
-        lOpticalDepthR += exp(-lSampleHeight / AtmoParameters.x) * lSegmentLength;
-		lOpticalDepthM += exp(-lSampleHeight / AtmoParameters.w) * lSegmentLength; 
+        lOpticalDepthR += exp(-lSampleHeight / p.rayleighScaleHeight) * lSegmentLength;
+		lOpticalDepthM += exp(-lSampleHeight / p.mieScaleHeight) * lSegmentLength; 
 		float ozoneHF;
-		if(lSampleHeight < 25000)
+		if(lSampleHeight < p.ozonePeakHeight)
         {
-            ozoneHF = (1.0/15000.0) * lSampleHeight - (2.0/3.0);
+            ozoneHF = p.ozoneTroposphereCoef * lSampleHeight + p.ozoneTroposphereConst;
         }
         else
         {
-            ozoneHF = (-1.0/15000.0) * lSampleHeight + 8.0/3.0;
+            ozoneHF = p.ozoneStratosphereCoef * lSampleHeight + p.ozoneStratosphereConst;
         }
-        ozoneHF = clamp(ozoneHF * lSegmentLength,0,1);
+        ozoneHF = clamp(ozoneHF, 0, 1) * lSegmentLength;
 		lOpticalDepthO += ozoneHF;
 		tCurrentLight += lSegmentLength; 
 	}

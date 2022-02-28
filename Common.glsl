@@ -36,7 +36,7 @@ vec3 GetIrradiance(
             mu_s * 0.5 + 0.5, size.x
         ),
         GetTextureCoordFromUnitRange(
-            (r - planet.surfaceRadius) / (planet.atmosphereRadius - planet.surfaceRadius), size.y
+            (r - planet.surfaceRadius) / (planet.atmosphereThickness), size.y
         )
     );
 

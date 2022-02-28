@@ -116,8 +116,15 @@ std::array<Planet, 1> _planetBuffer = {
 		cloudsEnd, // Clouds end radius
 
 		vec3(0,0,0),//Absorption extinction coefficients - will be assigned later
+		25000,//Ozone peak height - height at which the ozone has maximum relative density
+		(1.0 / 15000.0),//Ozone troposphere density coefficient - for heights below ozonePeakHeight
+		-(2.0 / 3.0),//Ozone troposphere density constant
+		-(1.0 / 15000.0),//Ozone stratosphere density coefficient - for heights above peak
+		(8.0 / 3.0),//Ozone stratosphere density constant
+
 		cloudsEnd - cloudsStart, // Clouds layer thickness
-		0.00935 / 2.0 // Sun angular radius
+		0.00935 / 2.0, // Sun angular radius
+		atmosphereRadius - earthRadius
 	}
 };
 
@@ -179,7 +186,6 @@ namespace RealisticAtmosphere
 		bgfx::UniformHandle _lightSettings;
 		bgfx::UniformHandle _lightSettings2;
 		bgfx::UniformHandle _cloudsSettings;
-		bgfx::UniformHandle _atmoParameters;
 		bgfx::UniformHandle _sunRadToLumHandle;
 		bgfx::UniformHandle _skyRadToLumHandle;
 
@@ -282,7 +288,6 @@ namespace RealisticAtmosphere
 			_opticalDepthSampler = bgfx::createUniform("opticalDepthTable", bgfx::UniformType::Sampler);
 			_irradianceSampler = bgfx::createUniform("irradianceTable", bgfx::UniformType::Sampler);
 			_transmittanceSampler = bgfx::createUniform("transmittanceTable", bgfx::UniformType::Sampler);
-			_atmoParameters = bgfx::createUniform("AtmoParameters", bgfx::UniformType::Vec4);
 			_texSampler1 = bgfx::createUniform("texSampler1", bgfx::UniformType::Sampler);
 			_texSampler2 = bgfx::createUniform("texSampler2", bgfx::UniformType::Sampler);
 			_texSampler3 = bgfx::createUniform("texSampler3", bgfx::UniformType::Sampler);
@@ -365,18 +370,17 @@ namespace RealisticAtmosphere
 		{
 			bgfx::ShaderHandle precomputeOptical = loadShader("OpticalDepth.comp");
 			bgfx::ProgramHandle opticalProgram = bgfx::createProgram(precomputeOptical);
-			_opticalDepthTable = bgfx::createTexture2D(2048, 1024, false, 1, bgfx::TextureFormat::RGBA32F, BGFX_TEXTURE_COMPUTE_WRITE);
+			_opticalDepthTable = bgfx::createTexture2D(1024, 512, false, 1, bgfx::TextureFormat::RGBA32F, BGFX_TEXTURE_COMPUTE_WRITE);
 			//steps are locked to 300
-			vec4 _atmoParametersValues = { rayleighScaleHeight, earthRadius, atmosphereRadius, mieScaleHeight };
-			bgfx::setUniform(_atmoParameters, &_atmoParametersValues);
+			bgfx::update(_atmosphereBufferHandle, 0, bgfx::makeRef((void*)_planetBuffer.data(), sizeof(_planetBuffer)));
 			bgfx::setImage(0, _opticalDepthTable, 0, bgfx::Access::Write, bgfx::TextureFormat::RGBA32F);
-			bgfx::dispatch(0, opticalProgram, bx::ceil(2048 / 16.0f), bx::ceil(1024 / 16.0f));
+			bgfx::setBuffer(1, _atmosphereBufferHandle, bgfx::Access::Read);
+			bgfx::dispatch(0, opticalProgram, bx::ceil(1024 / 16.0f), bx::ceil(512 / 16.0f));
 
 			bgfx::ShaderHandle precomputeTransmittance = loadShader("Transmittance.comp");
 			bgfx::ProgramHandle transmittanceProgram = bgfx::createProgram(precomputeTransmittance);
 			_transmittanceTable = bgfx::createTexture2D(256, 64, false, 1, bgfx::TextureFormat::RGBA8, BGFX_TEXTURE_COMPUTE_WRITE);
 			bgfx::setImage(0, _transmittanceTable, 0, bgfx::Access::Write, bgfx::TextureFormat::RGBA8);
-			bgfx::update(_atmosphereBufferHandle, 0, bgfx::makeRef((void*)_planetBuffer.data(), sizeof(_planetBuffer)));
 			bgfx::setBuffer(1, _atmosphereBufferHandle, bgfx::Access::Read);
 			bgfx::dispatch(0, transmittanceProgram, bx::ceil(256 / 16.0f), bx::ceil(64 / 16.0f));
 
@@ -384,7 +388,6 @@ namespace RealisticAtmosphere
 			bgfx::ProgramHandle irradianceProgram = bgfx::createProgram(precomputeIrradiance);
 			_irradianceTable = bgfx::createTexture2D(64, 16, false, 1, bgfx::TextureFormat::RGBA32F, BGFX_TEXTURE_COMPUTE_WRITE);
 			bgfx::setImage(0, _irradianceTable, 0, bgfx::Access::Write, bgfx::TextureFormat::RGBA32F);
-			bgfx::update(_atmosphereBufferHandle, 0, bgfx::makeRef((void*)_planetBuffer.data(), sizeof(_planetBuffer)));
 			bgfx::setBuffer(1, _atmosphereBufferHandle, bgfx::Access::Read);
 			bgfx::setTexture(2, _transmittanceSampler, _transmittanceTable);
 			bgfx::dispatch(0, irradianceProgram, bx::ceil(64 / 16.0f), bx::ceil(16 / 16.0f));
@@ -468,7 +471,6 @@ namespace RealisticAtmosphere
 			bgfx::destroy(_irradianceSampler);
 			bgfx::destroy(_transmittanceSampler);
 			bgfx::destroy(_opticalDepthTable);
-			bgfx::destroy(_atmoParameters);
 			bgfx::destroy(_sunRadToLumHandle);
 			bgfx::destroy(_skyRadToLumHandle);
 			bgfx::destroy(_cloudsPhaseSampler);
@@ -675,7 +677,7 @@ namespace RealisticAtmosphere
 			bgfx::setUniform(_lightSettings2, &LightSettings2);
 			bgfx::setUniform(_sunRadToLumHandle, &SunRadianceToLuminance);
 			bgfx::setUniform(_skyRadToLumHandle, &SkyRadianceToLuminance);
-			bgfx::setUniform(_cloudsSettings, CloudsSettings, sizeof(CloudsSettings)/sizeof(vec4));
+			bgfx::setUniform(_cloudsSettings, CloudsSettings, sizeof(CloudsSettings) / sizeof(vec4));
 			bgfx::setTexture(7, _texSampler1, _texture1Handle);
 			bgfx::setTexture(8, _texSampler2, _texture2Handle);
 			bgfx::setTexture(9, _texSampler3, _texture3Handle);
@@ -725,16 +727,45 @@ namespace RealisticAtmosphere
 		{
 			Planet& singlePlanet = _planetBuffer[0];
 			ImGui::SetNextWindowPos(
-				ImVec2(0, 145)
+				ImVec2(0, 200)
 				, ImGuiCond_FirstUseEver
 			);
 
 			ImGui::Begin("Planet");
+			ImGui::PushItemWidth(120);
 			ImGui::InputFloat3("Center", (float*)&singlePlanet.center);
+			ImGui::InputFloat("Sun Angle", &_sunAngle);
+			ImGui::SliderAngle("", &_sunAngle, 0, 180);
+			ImGui::InputFloat("Second Angle", &_secondAngle);
+			ImGui::PopItemWidth();
+			static vec3 previousOzoneCoefs(0, 0, 0);
+			bool ozone = singlePlanet.absorptionCoefficients.x != 0;
+			if (ImGui::Checkbox("Ozone", &ozone))
+			{
+				if (ozone)
+				{
+					singlePlanet.absorptionCoefficients = previousOzoneCoefs;
+				}
+				else
+				{
+					previousOzoneCoefs = singlePlanet.absorptionCoefficients;
+					singlePlanet.absorptionCoefficients = { 0,0,0 };
+				}
+			}
+
+			ImGui::End();
+
+			ImGui::SetNextWindowPos(
+				ImVec2(0, 400),
+				ImGuiCond_FirstUseEver
+			);
+			ImGui::SetNextWindowCollapsed(true, ImGuiCond_FirstUseEver);
+			ImGui::Begin("Coefficients");
 			ImGui::PushItemWidth(90);
 			ImGui::InputFloat("Rayleigh CoefR", &singlePlanet.rayleighCoefficients.x, 0, 0, "%e");
 			ImGui::InputFloat("Rayleigh CoefG", &singlePlanet.rayleighCoefficients.y, 0, 0, "%e");
 			ImGui::InputFloat("Rayleigh CoefB", &singlePlanet.rayleighCoefficients.z, 0, 0, "%e");
+			ImGui::InputFloat3("Absorption", &singlePlanet.absorptionCoefficients.x, "%e");
 			ImGui::InputFloat("Radius", &singlePlanet.surfaceRadius);
 			ImGui::InputFloat("Amosphere Radius", &singlePlanet.atmosphereRadius);
 			ImGui::InputFloat("Mountain Radius", &singlePlanet.mountainsRadius);
@@ -742,12 +773,18 @@ namespace RealisticAtmosphere
 			ImGui::InputFloat("M.Asssymetry Factor", &singlePlanet.mieAsymmetryFactor);
 			ImGui::InputFloat("M.Scale Height", &singlePlanet.mieScaleHeight);
 			ImGui::InputFloat("R.Scale Height", &singlePlanet.rayleighScaleHeight);
+			ImGui::InputFloat("O.Peak Height", &singlePlanet.ozonePeakHeight);
+			ImGui::InputFloat("O.Trop Coef", &singlePlanet.ozoneTroposphereCoef, 0, 0, "%e");
+			ImGui::InputFloat("O.Trop Const", &singlePlanet.ozoneTroposphereConst);
+			ImGui::InputFloat("O.Strat Coef", &singlePlanet.ozoneStratosphereCoef, 0, 0, "%e");
+			ImGui::InputFloat("O.Strat Const", &singlePlanet.ozoneStratosphereConst);
 			ImGui::InputFloat("Sun Intensity", &singlePlanet.sunIntensity);
+			ImGui::InputFloat3("SunRadToLum", &SunRadianceToLuminance.x);
+			ImGui::InputFloat3("SkyRadToLum", &SkyRadianceToLuminance.x);
 			ImGui::PopItemWidth();
-			ImGui::InputFloat("Sun Angle", &_sunAngle);
-			ImGui::SliderAngle("", &_sunAngle, 0, 180);
-			ImGui::InputFloat("Second Angle", &_secondAngle);
 			ImGui::End();
+			singlePlanet.atmosphereThickness = singlePlanet.atmosphereRadius - singlePlanet.surfaceRadius;
+			singlePlanet.cloudLayerThickness = singlePlanet.cloudsEndRadius - singlePlanet.cloudsStartRadius;
 
 			ImGui::SetNextWindowPos(
 				ImVec2(0, 0)
@@ -836,6 +873,24 @@ namespace RealisticAtmosphere
 			ImGui::SetNextWindowCollapsed(true, ImGuiCond_FirstUseEver);
 			ImGui::Begin("Light");
 			ImGui::InputFloat("Exposure", &HQSettings_exposure);
+			bool lum = SkyRadianceToLuminance.x != 10;
+			static vec4 skyRLbackup;
+			static vec4 sunRLbackup;
+			if (ImGui::Checkbox("Render Luminance", &lum))
+			{
+				if (lum)
+				{
+					SkyRadianceToLuminance = skyRLbackup;
+					SunRadianceToLuminance = sunRLbackup;
+				}
+				else
+				{
+					skyRLbackup = SkyRadianceToLuminance;
+					sunRLbackup = SunRadianceToLuminance;
+					SkyRadianceToLuminance = vec4(10, 10, 10);
+					SunRadianceToLuminance = vec4(10, 10, 10);
+				}
+			}
 			ImGui::InputFloat("Precision", &LightSettings_precision, 0, 0, "%e");
 			ImGui::InputFloat("Far Plane", &LightSettings_farPlane);
 			ImGui::InputFloat("NoRayThres", &LightSettings_noRayThres);
@@ -887,7 +942,7 @@ namespace RealisticAtmosphere
 			ImGui::InputFloat("Steps", &Clouds_iter, 1, 1);
 			ImGui::InputFloat("LightSteps", &Clouds_lightSteps, 1, 1);
 			ImGui::InputFloat("LightFarPlane", &Clouds_lightFarPlane);
-			ImGui::InputFloat("Size", &Clouds_size, 0,0, "%7f");
+			ImGui::InputFloat("Size", &Clouds_size, 0, 0, "%7f");
 			ImGui::InputFloat("Density", &Clouds_density);
 			ImGui::InputFloat("Darkness", &HQSettings_cloudsDensity);
 			ImGui::InputFloat("Edges", &Clouds_edges);
