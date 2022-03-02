@@ -1,12 +1,9 @@
 //?#version 440
 #include "Intersections.glsl"
 #include "Structures.glsl"
+#include "Common.glsl"
 
 layout(local_size_x=16, local_size_y=16, local_size_z = 1) in;
-//x = H0 for rayleigh
-//y = radius of planet surface
-//z = radius of atmosphere
-//w = H0 for mie
 layout(rgba32f, binding=0) writeonly uniform image2D opticalDepth;//r = rayleigh, g = mie, b = ozone
 layout(std430, binding=1) readonly buffer PlanetBuffer
 {
@@ -44,17 +41,7 @@ void main()
 
         lOpticalDepthR += exp(-lSampleHeight / p.rayleighScaleHeight) * lSegmentLength;
 		lOpticalDepthM += exp(-lSampleHeight / p.mieScaleHeight) * lSegmentLength; 
-		float ozoneHF;
-		if(lSampleHeight < p.ozonePeakHeight)
-        {
-            ozoneHF = p.ozoneTroposphereCoef * lSampleHeight + p.ozoneTroposphereConst;
-        }
-        else
-        {
-            ozoneHF = p.ozoneStratosphereCoef * lSampleHeight + p.ozoneStratosphereConst;
-        }
-        ozoneHF = clamp(ozoneHF, 0, 1) * lSegmentLength;
-		lOpticalDepthO += ozoneHF;
+		lOpticalDepthO += ozoneHF(lSampleHeight, p, lSegmentLength);
 		tCurrentLight += lSegmentLength; 
 	}
 

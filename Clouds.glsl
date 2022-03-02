@@ -4,6 +4,7 @@
 #include "Random.glsl"
 #include "Hit.glsl"
 #include "Intersections.glsl"
+#include "Lighting.glsl"
 uniform sampler2D cloudsMieLUT;
 
 float cloudsMediumPrec(vec3 x) {
@@ -13,7 +14,7 @@ float cloudsMediumPrec(vec3 x) {
 	vec3 shift = vec3(100);
     level1 = noise(x);
 	x = x * 2.0 + shift;
-	for (int i = 0; i < 3; ++i) {
+	for (int i = 0; i < 2; ++i) {
 		v += a * noise(x);
 		x = x * 2.0 + shift;
 		a *= 0.5;
@@ -28,7 +29,7 @@ float cloudsHighPrec(vec3 x, out float level1) {
 	vec3 shift = vec3(100);
     level1 = noise(x);
 	x = x * 2.0 + shift;
-	for (int i = 0; i < 6; ++i) {
+	for (int i = 0; i < 5; ++i) {
 		v += a * noise(x);
 		x = x * 2.0 + shift;
 		a *= 0.5;
@@ -54,9 +55,9 @@ float cloudsCheap(vec3 x) {
 	return noise(x);
 }
 
-vec3 miePhaseFunction(float cosPhi)
+vec3 miePhaseFunction(float cosNu)
 {
-    float angle = acos(cosPhi);
+    float angle = acos(cosNu);
 	return texture(cloudsMieLUT, vec2(angle/pi,0)).xyz;
 }
 
@@ -76,8 +77,13 @@ vec3 miePhaseFunctionLow(float cosPhi)
     return vec3((forward_p + backwards_p) / 2.0);
 }
 
+vec3 combinedPhaseFunction(float cosNu)
+{
+    return mix(miePhaseFunction(cosNu), vec3(miePhaseFunctionLow(cosNu)), Clouds_aerosols);
+}
+
 float powderTerm(float density, float cosTheta) {
-    float powder = 1.0 - exp(-density*HQSettings_cloudsDensity * 2.0);
+    float powder = 1.0 - exp(-density* Clouds_powderDensity * 2.0);
     powder = clamp(powder * 2.0, 0.0, 1.0);
     return mix(1.0, powder, smoothstep(0.5, -0.5, cosTheta));
 }
@@ -171,9 +177,9 @@ vec3 sampleLight(Planet planet, Ray ray, vec3 original_sample_point, float origi
     /*if (color.b != 0.0) {
         color *= (color.r * color.g) / color.b;
     }*/
-    float beer = exp(-thickness*HQSettings_cloudsDensity);
+    //float beer = exp(-thickness*HQSettings_cloudsDensity);
 
-    color = color * phase * beer * powderTerm(original_sample_density, nu);
+    //color = color * phase * beer * powderTerm(original_sample_density, nu);
     vec3 planetNormal = normalize(original_sample_density - planet.center);
     color += max(
                 dot(planetNormal, sun_direction),
@@ -191,60 +197,81 @@ vec3 sampleLight(Planet planet, Ray ray, vec3 original_sample_point, float origi
     return color;
 }
 
-void raymarchClouds(Planet planet, Ray ray, float fromT, float toT, inout vec3 transmittance, inout vec3 radiance)
+void raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps, inout vec3 transmittance, inout vec3 radiance)
 {
 	float t = fromT;
-	float segmentLength = (toT - fromT) / Clouds_iter;
-    vec4 finalColor = vec4(0);
-    int iter = int(Clouds_iter);
+	float segmentLength = (toT - fromT) / steps;
+    int iter = int(steps);
+    vec3 sunDir = directionalLights[planet.sunDrectionalLightIndex].direction.xyz;
+    float nu = dot(sunDir, ray.direction);
+    vec3 phase = combinedPhaseFunction(nu);
 	for(int i = 0; i < iter ; i++)
 	{
         if(t > toT)
             break;
-		vec3 worldSpacePos = ray.origin + ray.direction * t;
+		vec3 worldSpacePos = ray.origin + ray.direction * t + Clouds_position;
         float cheapDensity = sampleCloudCheap(planet, worldSpacePos);
 
-        #if 1
         if(cheapDensity > Clouds_cheapThreshold)
         {
-            t -= segmentLength * Clouds_cheapDownsample * Clouds_backStep; //Return to the previous sample because we could lose some cloud material
-            float density = sampleCloud(planet, worldSpacePos, cheapDensity);
+            t -= segmentLength * Clouds_cheapDownsample; //Return to the previo  us sample because we could lose some cloud material
+            worldSpacePos = ray.origin + ray.direction * t + Clouds_position;
+            float density = min(sampleCloud(planet, worldSpacePos, cheapDensity), Clouds_maxDensity);
+            vec3 finalColor = vec3(0);
             do
             {
-                vec3 worldSpacePos = ray.origin + ray.direction * t;
                 if(density > 0)
                 {
                     //finalColor.xyz += vec3(density);
-                    vec4 particle = vec4(density);
-                    float sample_transmittance = 1.0 - particle.a;
-                    transmittance *= sample_transmittance;            
+                    float opticalDepth = density * segmentLength;
 
-                    particle.a = 1.0 - sample_transmittance;
-                    particle.rgb = sampleLight(planet, ray, worldSpacePos, particle.a, transmittance) * particle.a;
+                    // Shadow rays:
+                    float lOpticalDepth = 0;
+                    float lSegmentLength = Clouds_lightFarPlane/Clouds_lightSteps;
+                    vec3 lightRayStep = sunDir * lSegmentLength;
+                    vec3 lSamplePos = worldSpacePos;
+                    for(float s = 0; s < Clouds_lightSteps; s++)
+                    {
+                        float lDensity = min(sampleCloud(planet, lSamplePos, sampleCloudCheap(planet,lSamplePos)), Clouds_maxDensity);
+                        lOpticalDepth += lDensity * lSegmentLength;
+                        if(s == Clouds_lightSteps - 2)
+                        {
+                            lightRayStep *= 8;
+                            lSegmentLength *= 8;
+                        }
+                        lSamplePos += lightRayStep;
+                    }
+                    
+                    // Single scattering
+                    float attenuation = exp(-(opticalDepth + lOpticalDepth) * Clouds_extinctCoef);
+                    vec3 sampleColor = attenuation * density * segmentLength * Clouds_scatCoef * phase * sunAndSkyIlluminance(planet, worldSpacePos, sunDir) * transmittance;
+                    // Berr's law, Powder process
+                    float beer = exp(-lOpticalDepth * Clouds_powderDensity);
+                    sampleColor *= max(beer * powderTerm(opticalDepth, nu), Clouds_minPowder);
 
-                    finalColor += (1.0 - finalColor.a) * particle;
+                    finalColor += sampleColor;
+                    transmittance *= exp(-opticalDepth * Clouds_extinctCoef);
+                    /*if(min(finalColor.r,min(finalColor.g,finalColor.b)) > 1.0)
+                        break;*/
                 }
 
-
-                if(finalColor.a>=1.0)
-                    break;
-
-                density = sampleCloudH(planet, worldSpacePos, cheapDensity);
+                worldSpacePos = ray.origin + ray.direction * t + Clouds_position;
+                density = min(sampleCloudH(planet, worldSpacePos, /*out*/ cheapDensity), Clouds_maxDensity);
                 t += segmentLength;
                 i++;
             }
             while(i < iter && cheapDensity > Clouds_cheapThreshold);
+            
+            radiance += finalColor;
         }
         else
         {
             t += segmentLength * Clouds_cheapDownsample;
         }
-        #endif
 	}
-    radiance += finalColor.xyz;
 }
 
-void cloudsForPlanet(Planet p, Ray ray, float fromDistance, float toDistance, inout vec3 transmittance, inout vec3 radiance)
+void cloudsForPlanet(Planet p, Ray ray, float fromDistance, float toDistance, float steps, inout vec3 transmittance, inout vec3 radiance)
 {
     float t0,t1;
     if(raySphereIntersection(p.center, p.cloudsEndRadius, ray, t0, t1) && t1>0)
@@ -265,7 +292,7 @@ void cloudsForPlanet(Planet p, Ray ray, float fromDistance, float toDistance, in
                 return;
             }*/
         }
-		raymarchClouds(p, ray, fromDistance, toDistance, transmittance, radiance);
+		raymarchClouds(p, ray, fromDistance, toDistance, steps, transmittance, radiance);
 	}
 }
 #endif

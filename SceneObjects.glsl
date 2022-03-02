@@ -30,7 +30,7 @@ uniform vec4 LightSettings;
 uniform vec4 LightSettings2;
 uniform vec4 SunRadianceToLuminance;
 uniform vec4 SkyRadianceToLuminance;
-uniform vec4 CloudsSettings[3];
+uniform vec4 CloudsSettings[6];
 #else
 vec4 Camera[] =
 {
@@ -58,9 +58,12 @@ vec4 SunRadianceToLuminance;
 vec4 SkyRadianceToLuminance;
 int cloudsOrders = 1;
 vec4 CloudsSettings[] = {
-                            vec4(0.00005, 2, 4, 60),
-                            vec4(10, 2500, 2500, 1000),
-                            vec4(1, 150000, 4, 0.01)
+                            vec4(0.000855, 16, 4, 60),
+                            vec4(8, 2500, 2500, 1000),
+                            vec4(20, 500000, 4, 0.01),
+                            vec4(8e-6,4e-5,1e-5, 0.000855),
+                            vec4(1, 0, 0, 0),
+                            vec4(1, 1, 0.15, 0.3),
                         };
 #endif
 
@@ -83,7 +86,6 @@ vec4 CloudsSettings[] = {
 #define LightSettings_gradient LightSettings2.z
 #define LightSettings_terrainOptimMult LightSettings2.w
 
-#define HQSettings_cloudsDensity HQSettings.x
 #define HQSettings_sampleNum HQSettings.y
 #define HQSettings_directSamples HQSettings.z
 #define HQSettings_exposure HQSettings.w
@@ -95,7 +97,7 @@ vec4 CloudsSettings[] = {
 #define Camera_fovX (Camera[3].w)
 #define Camera_fovY (Camera[2].w)
 
-#define Clouds_size CloudsSettings[0].x
+#define Clouds_scatCoef CloudsSettings[0].x
 #define Clouds_density CloudsSettings[0].y
 #define Clouds_edges CloudsSettings[0].z
 #define Clouds_iter CloudsSettings[0].w
@@ -103,10 +105,17 @@ vec4 CloudsSettings[] = {
 #define Clouds_terrainFade CloudsSettings[1].y
 #define Clouds_atmoFade CloudsSettings[1].z
 #define Clouds_lightFarPlane CloudsSettings[1].w
-#define Clouds_backStep CloudsSettings[2].x
+#define Clouds_terrainSteps CloudsSettings[2].x
 #define Clouds_farPlane CloudsSettings[2].y
 #define Clouds_cheapDownsample CloudsSettings[2].z
 #define Clouds_cheapThreshold CloudsSettings[2].w
+#define Clouds_size CloudsSettings[3].xyz
+#define Clouds_extinctCoef CloudsSettings[3].w
+#define Clouds_maxDensity CloudsSettings[4].x
+#define Clouds_position CloudsSettings[4].yzw
+#define Clouds_minPowder CloudsSettings[5].x
+#define Clouds_aerosols CloudsSettings[5].z
+#define Clouds_powderDensity CloudsSettings[5].w
 
 #include "Structures.glsl"
 #endif

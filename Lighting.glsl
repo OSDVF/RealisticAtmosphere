@@ -22,6 +22,21 @@ vec3 sunAndSkyIlluminance(Planet planet,vec3 point, vec3 normal, vec3 sun_direct
         SunRadianceToLuminance.xyz * planet.sunIntensity;
 }
 
+vec3 sunAndSkyIlluminance(Planet planet,vec3 point, vec3 sun_direction)
+{
+    vec3 toPlanetSpace = point - planet.center;
+    float r = length(toPlanetSpace);
+    float mu_s = dot(toPlanetSpace, sun_direction) / r;
+    return /*sky*/
+        /*GetIrradiance(planet, irradianceTable, r, mu_s) *
+        (1.0 + dot(normal, toPlanetSpace) / r) * 0.5 *
+        SkyRadianceToLuminance.xyz +*/ // Indirect irradiance precomputation not yet implemented. The table contains direct irradiance
+        /*sun*/
+        planet.solarIrradiance *
+        GetTransmittanceToSun(planet, transmittanceTable ,r, mu_s) *
+        SunRadianceToLuminance.xyz * planet.sunIntensity;
+}
+
 vec3 lightPoint(Planet planet, vec3 p, vec3 normal)
 {
     vec3 totalLightColor = AMBIENT_LIGHT;// Initially the object is only lightened up by ambient light

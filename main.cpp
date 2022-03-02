@@ -56,7 +56,7 @@ const Material _materialBuffer[] = {
 };
 
 const float earthRadius = 6360000; // cit. E. Bruneton page 3
-const float cloudsStart = earthRadius + 2000;
+const float cloudsStart = earthRadius + 1000;
 const float cloudsEnd = earthRadius + 15000;
 const float atmosphereRadius = 6420000;
 Sphere _objectBuffer[] = {
@@ -118,9 +118,9 @@ std::array<Planet, 1> _planetBuffer = {
 		vec3(0,0,0),//Absorption extinction coefficients - will be assigned later
 		25000,//Ozone peak height - height at which the ozone has maximum relative density
 		(1.0 / 15000.0),//Ozone troposphere density coefficient - for heights below ozonePeakHeight
-		-(2.0 / 3.0),//Ozone troposphere density constant
+		-(1.0),//Ozone troposphere density constant
 		-(1.0 / 15000.0),//Ozone stratosphere density coefficient - for heights above peak
-		(8.0 / 3.0),//Ozone stratosphere density constant
+		(7.0 / 3.0),//Ozone stratosphere density constant
 
 		cloudsEnd - cloudsStart, // Clouds layer thickness
 		0.00935 / 2.0, // Sun angular radius
@@ -149,6 +149,7 @@ namespace RealisticAtmosphere
 		entry::MouseState _mouseState;
 		float _sunAngle = 1.46607657;//84 deg
 		float _secondAngle = -1.6;
+		vec3 _cloudsWind = vec3(0, 0, 0);
 
 		ScreenSpaceQuad _screenSpaceQuad;/**< Output of raytracer (both the compute-shader variant and fragment-shader variant) */
 
@@ -593,6 +594,7 @@ namespace RealisticAtmosphere
 
 				bgfx::setState(BGFX_STATE_DEFAULT);
 				bgfx::submit(0, _displayingShaderProgram);
+				updateClouds();
 
 				// Advance to next frame. Rendering thread will be kicked to
 				// process submitted rendering primitives.
@@ -605,6 +607,16 @@ namespace RealisticAtmosphere
 			}
 			// update() should return false when we want the application to exit
 			return false;
+		}
+
+		void updateClouds()
+		{
+			if (!_pathTracingMode)
+			{
+				CloudsSettings[4].y += _cloudsWind.x;
+				CloudsSettings[4].z += _cloudsWind.y;
+				CloudsSettings[4].w += _cloudsWind.z;
+			}
 		}
 
 		void renderScene()
@@ -853,7 +865,7 @@ namespace RealisticAtmosphere
 
 			drawTerrainGUI();
 
-			ImGui::SetNextWindowPos(ImVec2(250, 20), ImGuiCond_FirstUseEver);
+			ImGui::SetNextWindowPos(ImVec2(230, 20), ImGuiCond_FirstUseEver);
 			ImGui::SetNextWindowCollapsed(true, ImGuiCond_FirstUseEver);
 			ImGui::Begin("Materials");
 			ImGui::InputFloat("1", &PlanetMaterial.x);
@@ -869,7 +881,7 @@ namespace RealisticAtmosphere
 
 		void drawLightGUI()
 		{
-			ImGui::SetNextWindowPos(ImVec2(250, 40), ImGuiCond_FirstUseEver);
+			ImGui::SetNextWindowPos(ImVec2(230, 40), ImGuiCond_FirstUseEver);
 			ImGui::SetNextWindowCollapsed(true, ImGuiCond_FirstUseEver);
 			ImGui::Begin("Light");
 			ImGui::InputFloat("Exposure", &HQSettings_exposure);
@@ -904,7 +916,7 @@ namespace RealisticAtmosphere
 
 		void drawTerrainGUI()
 		{
-			ImGui::SetNextWindowPos(ImVec2(250, 60), ImGuiCond_FirstUseEver);
+			ImGui::SetNextWindowPos(ImVec2(230, 60), ImGuiCond_FirstUseEver);
 			ImGui::SetNextWindowCollapsed(true, ImGuiCond_FirstUseEver);
 			ImGui::Begin("Terrain");
 			bool enabled = RaymarchingSteps.x != 0;
@@ -936,22 +948,37 @@ namespace RealisticAtmosphere
 
 		void drawCloudsGUI()
 		{
-			ImGui::SetNextWindowPos(ImVec2(250, 80), ImGuiCond_FirstUseEver);
+			ImGui::SetNextWindowPos(ImVec2(230, 80), ImGuiCond_FirstUseEver);
 			ImGui::SetNextWindowCollapsed(true, ImGuiCond_FirstUseEver);
 			ImGui::Begin("Clouds");
 			ImGui::InputFloat("Steps", &Clouds_iter, 1, 1);
 			ImGui::InputFloat("LightSteps", &Clouds_lightSteps, 1, 1);
+			ImGui::InputFloat("TerrainSteps", &Clouds_terrainSteps, 1, 1);
 			ImGui::InputFloat("LightFarPlane", &Clouds_lightFarPlane);
-			ImGui::InputFloat("Size", &Clouds_size, 0, 0, "%7f");
-			ImGui::InputFloat("Density", &Clouds_density);
-			ImGui::InputFloat("Darkness", &HQSettings_cloudsDensity);
-			ImGui::InputFloat("Edges", &Clouds_edges);
-			ImGui::InputFloat("BackStep", &Clouds_backStep);
-			ImGui::InputFloat("Lower Cutoff", &Clouds_terrainFade);
-			ImGui::InputFloat("Upper Cutoff", &Clouds_atmoFade);
+			ImGui::InputFloat("SizeX", &CloudsSettings[3].x, 0, 0, "%e");
+			ImGui::InputFloat("SizeY", &CloudsSettings[3].y, 0, 0, "%e");
+			ImGui::InputFloat("SizeZ", &CloudsSettings[3].z, 0, 0, "%e");
 			ImGui::InputFloat("Render Distance", &Clouds_farPlane);
 			ImGui::InputFloat("Downsampling", &Clouds_cheapDownsample);
 			ImGui::InputFloat("Threshold", &Clouds_cheapThreshold);
+			ImGui::InputFloat3("Wind", &_cloudsWind.x, "%e");
+			ImGui::InputFloat3("Pos", &CloudsSettings[4].y);
+			ImGui::End();
+
+			ImGui::SetNextWindowPos(ImVec2(230, 100), ImGuiCond_FirstUseEver);
+			ImGui::Begin("Cloud scattering");
+			ImGui::PushItemWidth(120);
+			ImGui::InputFloat("Density", &Clouds_density, 0, 0, "%e");
+			ImGui::InputFloat("Powder density", &Clouds_powderDensity, 0, 0, "%e");
+			ImGui::InputFloat("Min powder", &Clouds_minPowder, 0, 0, "%e");
+			ImGui::InputFloat("MaxDensity", &Clouds_maxDensity, 0, 0, "%e");
+			ImGui::InputFloat("Edges", &Clouds_edges);
+			ImGui::InputFloat("Lower Cutoff", &Clouds_terrainFade);
+			ImGui::InputFloat("Upper Cutoff", &Clouds_atmoFade);
+			ImGui::InputFloat("Scattering", &Clouds_scatCoef, 0, 0, "%e");
+			ImGui::InputFloat("Extinction", &Clouds_extinctCoef, 0, 0, "%e");
+			ImGui::InputFloat("Aerosols", &Clouds_aerosols, 0.05, .1);
+			ImGui::PopItemWidth();
 			ImGui::End();
 		}
 

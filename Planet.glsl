@@ -57,7 +57,7 @@ bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out vec
 			{
 				planetAlbedo = terrainColor(p, toDistance, worldSamplePos, worldNormal, sampleHeight);
 			}
-			//cloudsForPlanet(p,ray,fromDistance,toDistance,transmittance,radiance);
+			cloudsForPlanet(p,ray,fromDistance,toDistance,Clouds_terrainSteps,transmittance,radiance);
 			if(!DEBUG_ATMO_OFF) raymarchAtmosphere(p, ray, fromDistance, toDistance, /*inout*/ radiance, /*inout*/ transmittance, true);
 			radiance += planetAlbedo * lightPoint(p, worldSamplePos, worldNormal) * transmittance;
 			transmittance *= planetAlbedo;
@@ -66,7 +66,7 @@ bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out vec
 		}
 		else
 		{
-			cloudsForPlanet(p,ray,fromDistance,toDistance,transmittance,radiance);
+			cloudsForPlanet(p,ray,fromDistance,toDistance,Clouds_iter,transmittance,radiance);
 			if(!DEBUG_ATMO_OFF)
 				raymarchAtmosphere(p, ray, fromDistance, toDistance, /*inout*/ radiance,/*inout*/ transmittance, false);
 		}
@@ -111,17 +111,7 @@ float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDis
 		//Compute HF = height factor
 		float rayleighHF = exp(-sampleHeight/planet.rayleighScaleHeight) * segmentLength;
 		float mieHF = exp(-sampleHeight/planet.mieScaleHeight) * segmentLength;
-		float ozoneHF;
-        if(sampleHeight < planet.ozonePeakHeight)
-        {
-            ozoneHF = planet.ozoneTroposphereCoef * sampleHeight + planet.ozoneTroposphereConst;
-        }
-        else
-        {
-            ozoneHF = planet.ozoneStratosphereCoef * sampleHeight + planet.ozoneStratosphereConst;
-        }
-        ozoneHF = clamp(ozoneHF, 0, 1) * segmentLength;
-		opticalDepthO += ozoneHF;
+		opticalDepthO += ozoneHF(sampleHeight, planet, segmentLength);
 		opticalDepthR += rayleighHF; 
         opticalDepthM += mieHF;
 

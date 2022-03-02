@@ -77,3 +77,17 @@ vec3 GetTransmittanceToSun(
             sin_theta_h * planet.sunAngularRadius,
             mu_s - cos_theta_h);
 }
+
+float ozoneHF(float sampleHeight, Planet planet, float segmentLength)
+{
+    float result;
+    if(sampleHeight < planet.ozonePeakHeight)
+    {
+        result = planet.ozoneTroposphereCoef * sampleHeight + planet.ozoneTroposphereConst;
+    }
+    else
+    {
+        result = planet.ozoneStratosphereCoef * sampleHeight + planet.ozoneStratosphereConst;
+    }
+    return clamp(result, 0, 1) * segmentLength;
+}
