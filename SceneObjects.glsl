@@ -30,7 +30,7 @@ uniform vec4 LightSettings;
 uniform vec4 LightSettings2;
 uniform vec4 SunRadianceToLuminance;
 uniform vec4 SkyRadianceToLuminance;
-uniform vec4 CloudsSettings[6];
+uniform vec4 CloudsSettings[7];
 #else
 vec4 Camera[] =
 {
@@ -58,12 +58,13 @@ vec4 SunRadianceToLuminance;
 vec4 SkyRadianceToLuminance;
 int cloudsOrders = 1;
 vec4 CloudsSettings[] = {
-                            vec4(0.000855, 16, 4, 60),
-                            vec4(8, 2500, 2500, 1000),
-                            vec4(20, 500000, 4, 0.01),
-                            vec4(8e-6,4e-5,1e-5, 0.000855),
-                            vec4(1, 0, 0, 0),
-                            vec4(1, 1, 0.15, 0.3),
+                            vec4(0.000855, 3, 5, 128),
+                            vec4(4, 4000, 10000, 1000),
+                            vec4(20, 200000, 5, 0.01),
+                            vec4(1e-4,2e-4,2e-4, 0.000855),//Size XYZ, extinction coef
+                            vec4(1.0, -120000, 0, 0),//cheapCoef, position
+                            vec4(0,0, 0.5, 0.3),// aerosolAmount, powderDensity
+                            vec4(0.08, 1.5) // coverage, fadePower
                         };
 #endif
 
@@ -111,11 +112,17 @@ vec4 CloudsSettings[] = {
 #define Clouds_cheapThreshold CloudsSettings[2].w
 #define Clouds_size CloudsSettings[3].xyz
 #define Clouds_extinctCoef CloudsSettings[3].w
-#define Clouds_maxDensity CloudsSettings[4].x
+
+#define Clouds_cheapCoef CloudsSettings[4].x
 #define Clouds_position CloudsSettings[4].yzw
+
 #define Clouds_minPowder CloudsSettings[5].x
+#define Clouds_maxPowder CloudsSettings[5].y
 #define Clouds_aerosols CloudsSettings[5].z
 #define Clouds_powderDensity CloudsSettings[5].w
+
+#define Clouds_coverageSize CloudsSettings[6].x
+#define Clouds_fadePower CloudsSettings[6].y
 
 #include "Structures.glsl"
 #endif

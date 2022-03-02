@@ -34,7 +34,7 @@ vec3 sunAndSkyIlluminance(Planet planet,vec3 point, vec3 sun_direction)
         /*sun*/
         planet.solarIrradiance *
         GetTransmittanceToSun(planet, transmittanceTable ,r, mu_s) *
-        SunRadianceToLuminance.xyz * planet.sunIntensity;
+        SunRadianceToLuminance.xyz;
 }
 
 vec3 lightPoint(Planet planet, vec3 p, vec3 normal)

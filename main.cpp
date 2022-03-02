@@ -56,8 +56,8 @@ const Material _materialBuffer[] = {
 };
 
 const float earthRadius = 6360000; // cit. E. Bruneton page 3
-const float cloudsStart = earthRadius + 1000;
-const float cloudsEnd = earthRadius + 15000;
+const float cloudsStart = earthRadius + 500;
+const float cloudsEnd = earthRadius + 20000;
 const float atmosphereRadius = 6420000;
 Sphere _objectBuffer[] = {
 	{//Sun
@@ -149,7 +149,7 @@ namespace RealisticAtmosphere
 		entry::MouseState _mouseState;
 		float _sunAngle = 1.46607657;//84 deg
 		float _secondAngle = -1.6;
-		vec3 _cloudsWind = vec3(0, 0, 0);
+		vec3 _cloudsWind = vec3(50, 0, 0);
 
 		ScreenSpaceQuad _screenSpaceQuad;/**< Output of raytracer (both the compute-shader variant and fragment-shader variant) */
 
@@ -790,6 +790,8 @@ namespace RealisticAtmosphere
 			ImGui::InputFloat("O.Trop Const", &singlePlanet.ozoneTroposphereConst);
 			ImGui::InputFloat("O.Strat Coef", &singlePlanet.ozoneStratosphereCoef, 0, 0, "%e");
 			ImGui::InputFloat("O.Strat Const", &singlePlanet.ozoneStratosphereConst);
+			ImGui::InputFloat("Clouds start", &singlePlanet.cloudsStartRadius);
+			ImGui::InputFloat("Clouds end", &singlePlanet.cloudsEndRadius);
 			ImGui::InputFloat("Sun Intensity", &singlePlanet.sunIntensity);
 			ImGui::InputFloat3("SunRadToLum", &SunRadianceToLuminance.x);
 			ImGui::InputFloat3("SkyRadToLum", &SkyRadianceToLuminance.x);
@@ -955,11 +957,13 @@ namespace RealisticAtmosphere
 			ImGui::InputFloat("LightSteps", &Clouds_lightSteps, 1, 1);
 			ImGui::InputFloat("TerrainSteps", &Clouds_terrainSteps, 1, 1);
 			ImGui::InputFloat("LightFarPlane", &Clouds_lightFarPlane);
+			ImGui::InputFloat("Coverage", &Clouds_coverageSize);
 			ImGui::InputFloat("SizeX", &CloudsSettings[3].x, 0, 0, "%e");
 			ImGui::InputFloat("SizeY", &CloudsSettings[3].y, 0, 0, "%e");
 			ImGui::InputFloat("SizeZ", &CloudsSettings[3].z, 0, 0, "%e");
 			ImGui::InputFloat("Render Distance", &Clouds_farPlane);
 			ImGui::InputFloat("Downsampling", &Clouds_cheapDownsample);
+			ImGui::InputFloat("In-precision", &Clouds_cheapCoef, 0.1, 0.2);
 			ImGui::InputFloat("Threshold", &Clouds_cheapThreshold);
 			ImGui::InputFloat3("Wind", &_cloudsWind.x, "%e");
 			ImGui::InputFloat3("Pos", &CloudsSettings[4].y);
@@ -971,10 +975,11 @@ namespace RealisticAtmosphere
 			ImGui::InputFloat("Density", &Clouds_density, 0, 0, "%e");
 			ImGui::InputFloat("Powder density", &Clouds_powderDensity, 0, 0, "%e");
 			ImGui::InputFloat("Min powder", &Clouds_minPowder, 0, 0, "%e");
-			ImGui::InputFloat("MaxDensity", &Clouds_maxDensity, 0, 0, "%e");
+			ImGui::InputFloat("Max powder", &Clouds_maxPowder, 0, 0, "%e");
 			ImGui::InputFloat("Edges", &Clouds_edges);
 			ImGui::InputFloat("Lower Cutoff", &Clouds_terrainFade);
 			ImGui::InputFloat("Upper Cutoff", &Clouds_atmoFade);
+			ImGui::InputFloat("Fade power", &Clouds_fadePower);
 			ImGui::InputFloat("Scattering", &Clouds_scatCoef, 0, 0, "%e");
 			ImGui::InputFloat("Extinction", &Clouds_extinctCoef, 0, 0, "%e");
 			ImGui::InputFloat("Aerosols", &Clouds_aerosols, 0.05, .1);

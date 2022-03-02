@@ -12,7 +12,7 @@ float cloudsMediumPrec(vec3 x) {
     float v = 0.0;
 	float a = 0.5;
 	vec3 shift = vec3(100);
-    level1 = noise(x);
+    level1 = noise(x) * noise(x * Clouds_coverageSize);
 	x = x * 2.0 + shift;
 	for (int i = 0; i < 2; ++i) {
 		v += a * noise(x);
@@ -27,7 +27,7 @@ float cloudsHighPrec(vec3 x, out float level1) {
     float v = 0.0;
 	float a = 0.5;
 	vec3 shift = vec3(100);
-    level1 = noise(x);
+    level1 = noise(x) * noise(x * Clouds_coverageSize);
 	x = x * 2.0 + shift;
 	for (int i = 0; i < 5; ++i) {
 		v += a * noise(x);
@@ -52,7 +52,7 @@ float cloudsHigherOrders(vec3 x)
 }
 
 float cloudsCheap(vec3 x) {
-	return noise(x);
+	return noise(x) * noise(x * Clouds_coverageSize);
 }
 
 vec3 miePhaseFunction(float cosNu)
@@ -82,17 +82,16 @@ vec3 combinedPhaseFunction(float cosNu)
     return mix(miePhaseFunction(cosNu), vec3(miePhaseFunctionLow(cosNu)), Clouds_aerosols);
 }
 
-float powderTerm(float density, float cosTheta) {
-    float powder = 1.0 - exp(-density* Clouds_powderDensity * 2.0);
-    powder = clamp(powder * 2.0, 0.0, 1.0);
-    return mix(1.0, powder, smoothstep(0.5, -0.5, cosTheta));
+float powder(float density) {
+    float powderApprox = 1.0 - exp(-density * Clouds_powderDensity * 2.0);
+    return clamp(powderApprox * 2.0, 0, 1);
 }
 
 float heightFade(float cloudDensity, Planet p, vec3 worldPos)
 {
     float height = distance(worldPos, p.center);
-    cloudDensity = mix(0, cloudDensity, pow(1-clamp((height - p.cloudsEndRadius + Clouds_atmoFade)/Clouds_atmoFade, 0, 1), 2));
-    cloudDensity = mix(0, cloudDensity, pow(clamp((height - p.cloudsStartRadius)/Clouds_terrainFade, 0, 1), 2));
+    cloudDensity = mix(0, cloudDensity, pow(1-clamp((height - p.cloudsEndRadius + Clouds_atmoFade)/Clouds_atmoFade, 0, 1), Clouds_fadePower));
+    cloudDensity = mix(0, cloudDensity, pow(clamp((height - p.cloudsStartRadius)/Clouds_terrainFade, 0, 1), Clouds_fadePower));
     return cloudDensity;
 }
 
@@ -124,79 +123,6 @@ float normalized_altitude(Planet planet, vec3 position)
             0,1);
 }
 
-vec3 sampleLight(Planet planet, Ray ray, vec3 original_sample_point, float original_sample_density, vec3 transmittance) {
-    vec3 sun_direction = directionalLights[planet.sunDrectionalLightIndex].direction.xyz;
-    float nu = dot(sun_direction, ray.direction);
-
-    float dummy, toDistance, toDistanceInner;
-    Ray shadowRay = Ray(original_sample_point, sun_direction);
-    raySphereIntersection(planet.center, planet.cloudsEndRadius, shadowRay, /*out*/ dummy, /*out*/ toDistance);
-    raySphereIntersection(planet.center, planet.cloudsStartRadius, shadowRay, /*out*/ toDistanceInner, /*out*/ dummy);
-    if(toDistanceInner > 0)
-        toDistance = min(toDistance, toDistanceInner);
-    /*if(!raySphereIntersection(ray.origin, Clouds_farPlane, shadowRay, dummy,  toDistanceInner))
-    {
-        return vec3(1);
-    }
-    if(toDistanceInner > 0)
-        toDistance = min(toDistance, toDistanceInner);*/
-
-    vec3 ray_step = sun_direction * (min(toDistance, Clouds_lightFarPlane)/Clouds_lightSteps);
-    vec3 sample_point = original_sample_point + ray_step;
-
-    float thickness = 0.0;
-
-    for(float i = 0.0; i < Clouds_lightSteps; i++) {
-        sample_point += ray_step;
-        thickness += sampleCloudM(planet, sample_point);
-    }
-
-    sample_point += ray_step * 8.0;
-    thickness += sampleCloudM(planet, sample_point);
-
-    vec3 phase = miePhaseFunction(nu);
-
-    vec3 clouds_position = original_sample_point;
-
-    vec3 point = clouds_position;
-    //float r = length(point);
-    //vec3 sun_dir = sun_direction;
-    //float mu_s = dot(point, sun_dir) / r;
-    vec3 clouds_sky_illuminance = vec3(0);//SkyRadianceToLuminance.xyz * get_irradiance(globals.parameters, irradiance_texture, r, mu_s);
-
-    vec3 clouds_sun_illuminance = SunRadianceToLuminance.xyz * planet.solarIrradiance;
-        // *get_transmittance_to_sun(globals.parameters, transmittance_texture, r, mu_s);
-
-    vec3 clouds_luminance = (1.0 / (pi * pi)) * (clouds_sun_illuminance + clouds_sky_illuminance);
-
-    vec3 clouds_transmittance = transmittance;
-    vec3 clouds_in_scatter = vec3(0);//get_sky_luminance_to_point(ray.origin, clouds_position, sun_direction, clouds_transmittance, transmittance_texture, scattering_texture);
-    
-    vec3 color = clouds_luminance * clouds_transmittance + clouds_in_scatter;
-
-    /*if (color.b != 0.0) {
-        color *= (color.r * color.g) / color.b;
-    }*/
-    //float beer = exp(-thickness*HQSettings_cloudsDensity);
-
-    //color = color * phase * beer * powderTerm(original_sample_density, nu);
-    vec3 planetNormal = normalize(original_sample_density - planet.center);
-    color += max(
-                dot(planetNormal, sun_direction),
-                0.0
-                ) 
-            *
-            mix(
-                vec3(0.507,0.754,1.0),
-                vec3(1.0),
-                normalized_altitude(planet, original_sample_point)
-            )
-        ;
-        
-    //return max(1.0 - textureLod(coverage_texture, original_sample_point.xz * coverage_scale * 0.5 + 0.5 + coverage_offset, 0.0).g, 0.05) * color;
-    return color;
-}
-
 void raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps, inout vec3 transmittance, inout vec3 radiance)
 {
 	float t = fromT;
@@ -216,7 +142,7 @@ void raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps,
         {
             t -= segmentLength * Clouds_cheapDownsample; //Return to the previo  us sample because we could lose some cloud material
             worldSpacePos = ray.origin + ray.direction * t + Clouds_position;
-            float density = min(sampleCloud(planet, worldSpacePos, cheapDensity), Clouds_maxDensity);
+            float density = min(sampleCloud(planet, worldSpacePos, cheapDensity), 1);
             vec3 finalColor = vec3(0);
             do
             {
@@ -227,12 +153,19 @@ void raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps,
 
                     // Shadow rays:
                     float lOpticalDepth = 0;
-                    float lSegmentLength = Clouds_lightFarPlane/Clouds_lightSteps;
+                    Ray shadowRay = Ray(worldSpacePos, sunDir);
+                    float dummy, toDistance, toDistanceInner;
+                    raySphereIntersection(planet.center, planet.cloudsEndRadius, shadowRay, /*out*/ dummy, /*out*/ toDistance);
+                    raySphereIntersection(planet.center, planet.cloudsStartRadius, shadowRay, /*out*/ toDistanceInner, /*out*/ dummy);
+                    if(toDistanceInner > 0)
+                        toDistance = min(toDistance, toDistanceInner);
+
+                    float lSegmentLength = min(toDistance,Clouds_lightFarPlane)/Clouds_lightSteps;
                     vec3 lightRayStep = sunDir * lSegmentLength;
                     vec3 lSamplePos = worldSpacePos;
                     for(float s = 0; s < Clouds_lightSteps; s++)
                     {
-                        float lDensity = min(sampleCloud(planet, lSamplePos, sampleCloudCheap(planet,lSamplePos)), Clouds_maxDensity);
+                        float lDensity = min(sampleCloudM(planet, lSamplePos), 1);
                         lOpticalDepth += lDensity * lSegmentLength;
                         if(s == Clouds_lightSteps - 2)
                         {
@@ -243,21 +176,19 @@ void raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps,
                     }
                     
                     // Single scattering
-                    float attenuation = exp(-(opticalDepth + lOpticalDepth) * Clouds_extinctCoef);
-                    vec3 sampleColor = attenuation * density * segmentLength * Clouds_scatCoef * phase * sunAndSkyIlluminance(planet, worldSpacePos, sunDir) * transmittance;
-                    // Berr's law, Powder process
-                    float beer = exp(-lOpticalDepth * Clouds_powderDensity);
-                    sampleColor *= max(beer * powderTerm(opticalDepth, nu), Clouds_minPowder);
+                    float beer = exp(-lOpticalDepth * Clouds_extinctCoef);
+                    transmittance *= exp(-opticalDepth * Clouds_extinctCoef);
+                    vec3 sampleColor = beer * density * segmentLength * Clouds_scatCoef * phase * sunAndSkyIlluminance(planet, worldSpacePos, sunDir) * transmittance;
 
                     finalColor += sampleColor;
-                    transmittance *= exp(-opticalDepth * Clouds_extinctCoef);
-                    /*if(min(finalColor.r,min(finalColor.g,finalColor.b)) > 1.0)
-                        break;*/
+                    if(transmittance.x < 0.001 && transmittance.y < 0.001 && transmittance.z < 0.001)
+                        break;
                 }
 
                 worldSpacePos = ray.origin + ray.direction * t + Clouds_position;
-                density = min(sampleCloudH(planet, worldSpacePos, /*out*/ cheapDensity), Clouds_maxDensity);
+                density = min(sampleCloudH(planet, worldSpacePos, /*out*/ cheapDensity), 1);
                 t += segmentLength;
+                segmentLength *= Clouds_cheapCoef;
                 i++;
             }
             while(i < iter && cheapDensity > Clouds_cheapThreshold);
@@ -267,6 +198,7 @@ void raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps,
         else
         {
             t += segmentLength * Clouds_cheapDownsample;
+            segmentLength *= Clouds_cheapCoef;
         }
 	}
 }
