@@ -58,13 +58,13 @@ vec4 SunRadianceToLuminance;
 vec4 SkyRadianceToLuminance;
 int cloudsOrders = 1;
 vec4 CloudsSettings[] = {
-                            vec4(0.000855, 3, 5, 128),
-                            vec4(4, 4000, 10000, 1000),
-                            vec4(20, 200000, 5, 0.01),
-                            vec4(1e-4,2e-4,2e-4, 0.000855),//Size XYZ, extinction coef
-                            vec4(1.0, -120000, 0, 0),//cheapCoef, position
-                            vec4(0,0, 0.5, 0.3),// aerosolAmount, powderDensity
-                            vec4(0.08, 1.5) // coverage, fadePower
+                            vec4(0.000855, 3, 5, 128),//Scattering coef, density, edges, samples
+                            vec4(4, 5000, 13000, 1000),//light samples, terrain fade, atmo fade, light far plant
+                            vec4(20, 200000, 5, 0.01),//Terrain steps, far plane, cheap downsamle, cheap thres
+                            vec4(1e-4,2e-4,1e-4, 0.000855),//Size XYZ, extinction coef
+                            vec4(1.0, -23911, 0, 20000),//cheapCoef, position
+                            vec4(1e-4,0, 0.5, 0.3),// sampling thres, aerosolAmount, powderDensity
+                            vec4(0.09, 4) // coverage, fadePower
                         };
 #endif
 
@@ -116,7 +116,7 @@ vec4 CloudsSettings[] = {
 #define Clouds_cheapCoef CloudsSettings[4].x
 #define Clouds_position CloudsSettings[4].yzw
 
-#define Clouds_minPowder CloudsSettings[5].x
+#define Clouds_sampleThres CloudsSettings[5].x
 #define Clouds_maxPowder CloudsSettings[5].y
 #define Clouds_aerosols CloudsSettings[5].z
 #define Clouds_powderDensity CloudsSettings[5].w

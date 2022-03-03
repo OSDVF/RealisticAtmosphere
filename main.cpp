@@ -147,9 +147,9 @@ namespace RealisticAtmosphere
 		uint32_t _debugFlags = 0;
 		uint32_t _resetFlags = 0;
 		entry::MouseState _mouseState;
-		float _sunAngle = 1.46607657;//84 deg
-		float _secondAngle = -1.6;
-		vec3 _cloudsWind = vec3(50, 0, 0);
+		float _sunAngle = 1.518;//87 deg
+		float _secondAngle = -1.55;
+		vec3 _cloudsWind = vec3(-50, 0, 0);
 
 		ScreenSpaceQuad _screenSpaceQuad;/**< Output of raytracer (both the compute-shader variant and fragment-shader variant) */
 
@@ -697,7 +697,7 @@ namespace RealisticAtmosphere
 			bgfx::setTexture(11, _heightmapSampler, _heightmapTextureHandle);
 			bgfx::setTexture(12, _opticalDepthSampler, _opticalDepthTable, BGFX_SAMPLER_UVW_CLAMP);
 			bgfx::setTexture(13, _cloudsPhaseSampler, _cloudsPhaseTextureHandle, BGFX_SAMPLER_UVW_MIRROR);
-			bgfx::setTexture(14, _transmittanceSampler, _transmittanceTable);
+			bgfx::setTexture(14, _transmittanceSampler, _transmittanceTable, BGFX_SAMPLER_UVW_BORDER);
 			bgfx::setTexture(15, _irradianceSampler, _irradianceTable);
 		}
 
@@ -964,18 +964,18 @@ namespace RealisticAtmosphere
 			ImGui::InputFloat("Render Distance", &Clouds_farPlane);
 			ImGui::InputFloat("Downsampling", &Clouds_cheapDownsample);
 			ImGui::InputFloat("In-precision", &Clouds_cheapCoef, 0.1, 0.2);
+			ImGui::InputFloat("Sample thres", &Clouds_sampleThres, 0, 0, "%e");
 			ImGui::InputFloat("Threshold", &Clouds_cheapThreshold);
 			ImGui::InputFloat3("Wind", &_cloudsWind.x, "%e");
 			ImGui::InputFloat3("Pos", &CloudsSettings[4].y);
 			ImGui::End();
 
 			ImGui::SetNextWindowPos(ImVec2(230, 100), ImGuiCond_FirstUseEver);
+			ImGui::SetNextWindowCollapsed(true, ImGuiCond_FirstUseEver);
 			ImGui::Begin("Cloud scattering");
 			ImGui::PushItemWidth(120);
 			ImGui::InputFloat("Density", &Clouds_density, 0, 0, "%e");
 			ImGui::InputFloat("Powder density", &Clouds_powderDensity, 0, 0, "%e");
-			ImGui::InputFloat("Min powder", &Clouds_minPowder, 0, 0, "%e");
-			ImGui::InputFloat("Max powder", &Clouds_maxPowder, 0, 0, "%e");
 			ImGui::InputFloat("Edges", &Clouds_edges);
 			ImGui::InputFloat("Lower Cutoff", &Clouds_terrainFade);
 			ImGui::InputFloat("Upper Cutoff", &Clouds_atmoFade);

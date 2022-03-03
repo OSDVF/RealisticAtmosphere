@@ -143,13 +143,11 @@ void raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps,
             t -= segmentLength * Clouds_cheapDownsample; //Return to the previo  us sample because we could lose some cloud material
             worldSpacePos = ray.origin + ray.direction * t + Clouds_position;
             float density = min(sampleCloud(planet, worldSpacePos, cheapDensity), 1);
-            vec3 finalColor = vec3(0);
+            vec3 scatteringSum = vec3(0);
             do
             {
-                if(density > 0)
+                if(density > Clouds_sampleThres)
                 {
-                    //finalColor.xyz += vec3(density);
-                    float opticalDepth = density * segmentLength;
 
                     // Shadow rays:
                     float lOpticalDepth = 0;
@@ -177,10 +175,10 @@ void raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps,
                     
                     // Single scattering
                     float beer = exp(-lOpticalDepth * Clouds_extinctCoef);
+                    float opticalDepth = density * segmentLength;
                     transmittance *= exp(-opticalDepth * Clouds_extinctCoef);
-                    vec3 sampleColor = beer * density * segmentLength * Clouds_scatCoef * phase * sunAndSkyIlluminance(planet, worldSpacePos, sunDir) * transmittance;
 
-                    finalColor += sampleColor;
+                    scatteringSum += beer * density  * sunAndSkyIlluminance(planet, worldSpacePos, sunDir) * transmittance;
                     if(transmittance.x < 0.001 && transmittance.y < 0.001 && transmittance.z < 0.001)
                         break;
                 }
@@ -193,7 +191,7 @@ void raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps,
             }
             while(i < iter && cheapDensity > Clouds_cheapThreshold);
             
-            radiance += finalColor;
+            radiance += scatteringSum * segmentLength * Clouds_scatCoef * phase;
         }
         else
         {
@@ -215,14 +213,10 @@ void cloudsForPlanet(Planet p, Ray ray, float fromDistance, float toDistance, fl
             {
                 toDistance = min(t0, toDistance);
             }
-            /*else if(toDistance > t1)
+            else if(toDistance > t1)
             {
                 fromDistance = max(t1, fromDistance);
             }
-            else
-            {
-                return;
-            }*/
         }
 		raymarchClouds(p, ray, fromDistance, toDistance, steps, transmittance, radiance);
 	}
