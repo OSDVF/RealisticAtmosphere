@@ -192,9 +192,10 @@ float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDis
 		rayleighColor += attenuation * rayleighHF;
 		mieColor += attenuation * mieHF;
 	}
+	float sunsetArtifactSolution = smoothstep(0.0, 0.01, dot(sunVector, normalize(ray.origin - planet.center)));
 	// Add atmosphere to planet color /* or to nothing */
 	radiance += (rayleighColor * planet.rayleighCoefficients * rayleightPhase
-			+ mieColor * planet.mieCoefficient * miePhase
+			+ mieColor * planet.mieCoefficient * miePhase * sunsetArtifactSolution
 			) * planet.solarIrradiance * transmittance * SkyRadianceToLuminance.rgb;
 	vec3 depth = planet.rayleighCoefficients * opticalDepthR
 						+ mieExtinction * opticalDepthM

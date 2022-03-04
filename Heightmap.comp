@@ -6,7 +6,7 @@ layout(rgba32f, binding=0) writeonly uniform image2D heightmapOutput;//r = heigh
 void main()
 {
 	vec4 color;
-	vec2 tc = vec2(gl_GlobalInvocationID.xy) / float(gl_WorkGroupSize * gl_NumWorkGroups);
+	vec2 tc = vec2(gl_GlobalInvocationID.xy) / vec2(gl_WorkGroupSize * gl_NumWorkGroups);
 	
     vec3 p = toPolar(tc);
     color = fbmTerrain(tc*10)*0.33+0.5;

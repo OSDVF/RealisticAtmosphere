@@ -13,7 +13,7 @@ layout(std430, binding=1) readonly buffer PlanetBuffer
 void main()
 {
 	vec4 color;
-	vec2 tc = vec2(gl_GlobalInvocationID.xy) / float(gl_WorkGroupSize * gl_NumWorkGroups);
+	vec2 tc = vec2(gl_GlobalInvocationID.xy) / vec2(gl_WorkGroupSize * gl_NumWorkGroups);
 	
 	/*float p = 1 - tc.y;
 	float radius = AtmoParameters.x * log(p) + AtmoParameters.y;*/
