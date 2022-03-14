@@ -1,4 +1,6 @@
 //?#version 440
+#ifndef COMMON_H
+#define COMMON_H
 #include "Structures.glsl"
 
 float ClampCosine(float mu) {
@@ -91,3 +93,4 @@ float ozoneHF(float sampleHeight, Planet planet, float segmentLength)
     }
     return clamp(result, 0, 1) * segmentLength;
 }
+#endif

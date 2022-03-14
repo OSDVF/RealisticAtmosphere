@@ -15,8 +15,6 @@ void main()
 	vec4 color;
 	vec2 tc = vec2(gl_GlobalInvocationID.xy) / vec2(gl_WorkGroupSize * gl_NumWorkGroups);
 	
-	/*float p = 1 - tc.y;
-	float radius = AtmoParameters.x * log(p) + AtmoParameters.y;*/
 	const Planet p = planets[0];
 	float cosAlpha = tc.x*1.5-0.5;
 	float sunToViewRayAngle = acos(cosAlpha);

@@ -59,10 +59,13 @@ const float earthRadius = 6360000; // cit. E. Bruneton page 3
 const float cloudsStart = earthRadius + 500;
 const float cloudsEnd = earthRadius + 20000;
 const float atmosphereRadius = 6420000;
+const double sunAngularRadius = 0.00935 / 2.0;
+const float sunObjectDistance = 148500000; // Real sun distance is 148 500 000 km which would introduce errors in 32bit float computations
+const float sunRadius = tan(sunAngularRadius) * sunObjectDistance;
 Sphere _objectBuffer[] = {
 	{//Sun
-		{0, 0, earthRadius * 60}, //Position
-		{earthRadius}, //Radius
+		{0, 0, sunObjectDistance}, //Position
+		{sunRadius}, //Radius
 		0 //Material index
 	},
 	{
@@ -123,7 +126,7 @@ std::array<Planet, 1> _planetBuffer = {
 		(7.0 / 3.0),//Ozone stratosphere density constant
 
 		cloudsEnd - cloudsStart, // Clouds layer thickness
-		0.00935 / 2.0, // Sun angular radius
+		float(sunAngularRadius),
 		atmosphereRadius - earthRadius
 	}
 };
@@ -697,7 +700,7 @@ namespace RealisticAtmosphere
 			bgfx::setTexture(11, _heightmapSampler, _heightmapTextureHandle);
 			bgfx::setTexture(12, _opticalDepthSampler, _opticalDepthTable, BGFX_SAMPLER_UVW_CLAMP);
 			bgfx::setTexture(13, _cloudsPhaseSampler, _cloudsPhaseTextureHandle, BGFX_SAMPLER_UVW_MIRROR);
-			bgfx::setTexture(14, _transmittanceSampler, _transmittanceTable, BGFX_SAMPLER_UVW_BORDER);
+			bgfx::setTexture(14, _transmittanceSampler, _transmittanceTable, BGFX_SAMPLER_UVW_CLAMP);
 			bgfx::setTexture(15, _irradianceSampler, _irradianceTable);
 		}
 
