@@ -3,6 +3,8 @@
 #define COMMON_H
 #include "Structures.glsl"
 
+#define MU_S_MIN -0.2
+
 float ClampCosine(float mu) {
   return clamp(mu, -1.0, 1.0);
 }
@@ -80,7 +82,204 @@ vec3 GetTransmittanceToSun(
             mu_s - cos_theta_h);
 }
 
-float ozoneHF(float sampleHeight, Planet planet, float segmentLength)
+vec3 GetTransmittance(
+    Planet planet,
+    sampler2D transmittance_texture,
+    float r, float mu, float d, bool ray_r_mu_intersects_ground) {
+
+  float r_d = ClampRadius(planet, sqrt(d * d + 2.0 * r * mu * d + r * r));
+  float mu_d = ClampCosine((r * mu + d) / r_d);
+
+  if (ray_r_mu_intersects_ground) {
+    return min(
+        GetTransmittanceToAtmosphereEnd(
+            planet, transmittance_texture, r_d, -mu_d) /
+        GetTransmittanceToAtmosphereEnd(
+            planet, transmittance_texture, r, -mu),
+        vec3(1.0));
+  } else {
+    return min(
+        GetTransmittanceToAtmosphereEnd(
+            planet, transmittance_texture, r, mu) /
+        GetTransmittanceToAtmosphereEnd(
+            planet, transmittance_texture, r_d, mu_d),
+        vec3(1.0));
+  }
+}
+
+float DistanceToTopAtmosphereBoundary(Planet planet,
+    float r, float mu) {
+  float discriminant = r * r * (mu * mu - 1.0) +
+      planet.atmosphereRadius * planet.atmosphereRadius;
+  return ClampDistance(-r * mu + SafeSqrt(discriminant));
+}
+
+float DistanceToBottomAtmosphereBoundary(Planet planet,
+    float r, float mu) {
+  float discriminant = r * r * (mu * mu - 1.0) +
+      planet.surfaceRadius * planet.surfaceRadius;
+  return ClampDistance(-r * mu - SafeSqrt(discriminant));
+}
+
+float DistanceToNearestAtmosphereBoundary(Planet planet,
+    float r, float mu, bool ray_r_mu_intersects_ground) {
+  if (ray_r_mu_intersects_ground) {
+    return DistanceToBottomAtmosphereBoundary(planet, r, mu);
+  } else {
+    return DistanceToTopAtmosphereBoundary(planet, r, mu);
+  }
+}
+
+void GetRMuMuSNuFromScatteringTextureUvwz(Planet planet,
+    vec4 uvwz, out float r, out float mu, out float mu_s,
+    out float nu, out bool ray_r_mu_intersects_ground) {
+
+  // Distance to top atmosphere boundary for a horizontal ray at ground level.
+  float H = sqrt(planet.atmosphereRadius * planet.atmosphereRadius -
+      planet.surfaceRadius * planet.surfaceRadius);
+  // Distance to the horizon.
+  float rho =
+      H * GetUnitRangeFromTextureCoord(uvwz.w, SCATTERING_TEXTURE_R_SIZE);
+  r = sqrt(rho * rho + planet.surfaceRadius * planet.surfaceRadius);
+
+  if (uvwz.z < 0.5) {
+    // Distance to the ground for the ray (r,mu), and its minimum and maximum
+    // values over all mu - obtained for (r,-1) and (r,mu_horizon) - from which
+    // we can recover mu:
+    float d_min = r - planet.surfaceRadius;
+    float d_max = rho;
+    float d = d_min + (d_max - d_min) * GetUnitRangeFromTextureCoord(
+        1.0 - 2.0 * uvwz.z, SCATTERING_TEXTURE_MU_SIZE / 2);
+    mu = d == 0.0 ? 1.0 :
+        ClampCosine(-(rho * rho + d * d) / (2.0 * r * d));
+    ray_r_mu_intersects_ground = true;
+  } else {
+    // Distance to the top atmosphere boundary for the ray (r,mu), and its
+    // minimum and maximum values over all mu - obtained for (r,1) and
+    // (r,mu_horizon) - from which we can recover mu:
+    float d_min = planet.atmosphereRadius - r;
+    float d_max = rho + H;
+    float d = d_min + (d_max - d_min) * GetUnitRangeFromTextureCoord(
+        2.0 * uvwz.z - 1.0, SCATTERING_TEXTURE_MU_SIZE / 2);
+    mu = d == 0.0 ? 1.0 :
+        ClampCosine((H * H - rho * rho - d * d) / (2.0 * r * d));
+    ray_r_mu_intersects_ground = false;
+  }
+
+  float x_mu_s =
+      GetUnitRangeFromTextureCoord(uvwz.y, SCATTERING_TEXTURE_MU_S_SIZE);
+  float d_min = planet.atmosphereRadius - planet.surfaceRadius;
+  float d_max = H;
+  float D = DistanceToTopAtmosphereBoundary(
+      planet, planet.surfaceRadius, MU_S_MIN);
+  float A = (D - d_min) / (d_max - d_min);
+  float a = (A - x_mu_s * A) / (1.0 + x_mu_s * A);
+  float d = d_min + min(a, A) * (d_max - d_min);
+  mu_s = d == 0.0 ? float(1.0) :
+     ClampCosine((H * H - d * d) / (2.0 * planet.surfaceRadius * d));
+
+  nu = ClampCosine(uvwz.x * 2.0 - 1.0);
+}
+
+void GetRMuMuSNuFromScatteringTextureFragCoord(
+    Planet planet, vec3 frag_coord,
+    out float r, out float mu, out float mu_s, out float nu,
+    out bool ray_r_mu_intersects_ground) {
+  const vec4 SCATTERING_TEXTURE_SIZE = vec4(
+      SCATTERING_TEXTURE_NU_SIZE - 1,
+      SCATTERING_TEXTURE_MU_S_SIZE,
+      SCATTERING_TEXTURE_MU_SIZE,
+      SCATTERING_TEXTURE_R_SIZE);
+  float frag_coord_nu =
+      floor(frag_coord.x / float(SCATTERING_TEXTURE_MU_S_SIZE));
+  float frag_coord_mu_s =
+      mod(frag_coord.x, float(SCATTERING_TEXTURE_MU_S_SIZE));
+  vec4 uvwz =
+      vec4(frag_coord_nu, frag_coord_mu_s, frag_coord.y, frag_coord.z) /
+          SCATTERING_TEXTURE_SIZE;
+  GetRMuMuSNuFromScatteringTextureUvwz(
+      planet, uvwz, r, mu, mu_s, nu, ray_r_mu_intersects_ground);
+  // Clamp nu to its valid range of values, given mu and mu_s.
+  nu = clamp(nu, mu * mu_s - sqrt((1.0 - mu * mu) * (1.0 - mu_s * mu_s)),
+      mu * mu_s + sqrt((1.0 - mu * mu) * (1.0 - mu_s * mu_s)));
+}
+
+vec4 GetScatteringTextureUvwzFromRMuMuSNu(Planet planet,
+    float r, float mu, float mu_s, float nu,
+    bool ray_r_mu_intersects_ground) {
+
+  // Distance to top atmosphere boundary for a horizontal ray at ground level.
+  float H = sqrt(planet.atmosphereRadius * planet.atmosphereRadius -
+      planet.surfaceRadius * planet.surfaceRadius);
+  // Distance to the horizon.
+  float rho =
+      SafeSqrt(r * r - planet.surfaceRadius * planet.surfaceRadius);
+  float u_r = GetTextureCoordFromUnitRange(rho / H, SCATTERING_TEXTURE_R_SIZE);
+
+  // Discriminant of the quadratic equation for the intersections of the ray
+  // (r,mu) with the ground (see RayIntersectsGround).
+  float r_mu = r * mu;
+  float discriminant =
+      r_mu * r_mu - r * r + planet.surfaceRadius * planet.surfaceRadius;
+  float u_mu;
+  if (ray_r_mu_intersects_ground) {
+    // Distance to the ground for the ray (r,mu), and its minimum and maximum
+    // values over all mu - obtained for (r,-1) and (r,mu_horizon).
+    float d = -r_mu - SafeSqrt(discriminant);
+    float d_min = r - planet.surfaceRadius;
+    float d_max = rho;
+    u_mu = 0.5 - 0.5 * GetTextureCoordFromUnitRange(d_max == d_min ? 0.0 :
+        (d - d_min) / (d_max - d_min), SCATTERING_TEXTURE_MU_SIZE / 2);
+  } else {
+    // Distance to the top atmosphere boundary for the ray (r,mu), and its
+    // minimum and maximum values over all mu - obtained for (r,1) and
+    // (r,mu_horizon).
+    float d = -r_mu + SafeSqrt(discriminant + H * H);
+    float d_min = planet.atmosphereRadius - r;
+    float d_max = rho + H;
+    u_mu = 0.5 + 0.5 * GetTextureCoordFromUnitRange(
+        (d - d_min) / (d_max - d_min), SCATTERING_TEXTURE_MU_SIZE / 2);
+  }
+
+  float d = DistanceToTopAtmosphereBoundary(
+      planet, planet.surfaceRadius, mu_s);
+  float d_min = planet.atmosphereRadius - planet.surfaceRadius;
+  float d_max = H;
+  float a = (d - d_min) / (d_max - d_min);
+  float D = DistanceToTopAtmosphereBoundary(
+      planet, planet.surfaceRadius, MU_S_MIN);
+  float A = (D - d_min) / (d_max - d_min);
+  // An ad-hoc function equal to 0 for mu_s = mu_s_min (because then d = D and
+  // thus a = A), equal to 1 for mu_s = 1 (because then d = d_min and thus
+  // a = 0), and with a large slope around mu_s = 0, to get more texture 
+  // samples near the horizon.
+  float u_mu_s = GetTextureCoordFromUnitRange(
+      max(1.0 - a / A, 0.0) / (1.0 + a), SCATTERING_TEXTURE_MU_S_SIZE);
+
+  float u_nu = (nu + 1.0) / 2.0;
+  return vec4(u_nu, u_mu_s, u_mu, u_r);
+}
+
+vec3 GetScattering(
+    Planet planet,
+    sampler3D scattering_texture,
+    float r, float mu, float mu_s, float nu,
+    bool ray_r_mu_intersects_ground)
+{
+  vec4 uvwz = GetScatteringTextureUvwzFromRMuMuSNu(
+      planet, r, mu, mu_s, nu, ray_r_mu_intersects_ground);
+  float tex_coord_x = uvwz.x * float(SCATTERING_TEXTURE_NU_SIZE - 1);
+  float tex_x = floor(tex_coord_x);
+  float lerp = tex_coord_x - tex_x;
+  vec3 uvw0 = vec3((tex_x + uvwz.y) / float(SCATTERING_TEXTURE_NU_SIZE),
+      uvwz.z, uvwz.w);
+  vec3 uvw1 = vec3((tex_x + 1.0 + uvwz.y) / float(SCATTERING_TEXTURE_NU_SIZE),
+      uvwz.z, uvwz.w);
+  return vec3(texture(scattering_texture, uvw0) * (1.0 - lerp) +
+      texture(scattering_texture, uvw1) * lerp);
+}
+
+float ozoneHF(float sampleHeight, Planet planet, float segmentfloat)
 {
     float result;
     if(sampleHeight < planet.ozonePeakHeight)
@@ -91,6 +290,6 @@ float ozoneHF(float sampleHeight, Planet planet, float segmentLength)
     {
         result = planet.ozoneStratosphereCoef * sampleHeight + planet.ozoneStratosphereConst;
     }
-    return clamp(result, 0, 1) * segmentLength;
+    return clamp(result, 0, 1) * segmentfloat;
 }
 #endif

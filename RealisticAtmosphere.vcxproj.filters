@@ -155,6 +155,9 @@
     <None Include="Structures.glsl">
       <Filter>Shader Programs</Filter>
     </None>
+    <None Include="SingleScattering.comp">
+      <Filter>Shader Programs\Compute Render\Precompute</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="TestCube.h">

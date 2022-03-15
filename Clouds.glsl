@@ -123,7 +123,7 @@ float normalized_altitude(Planet planet, vec3 position)
             0,1);
 }
 
-void raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps, inout vec3 transmittance, inout vec3 radiance)
+void raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps, inout vec3 transmittance, inout vec3 luminance)
 {
 	float t = fromT;
 	float segmentLength = (toT - fromT) / steps;
@@ -191,7 +191,7 @@ void raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps,
             }
             while(i < iter && cheapDensity > Clouds_cheapThreshold);
             
-            radiance += scatteringSum * segmentLength * Clouds_scatCoef * phase;
+            luminance += scatteringSum * segmentLength * Clouds_scatCoef * phase;
         }
         else
         {
@@ -201,7 +201,7 @@ void raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps,
 	}
 }
 
-void cloudsForPlanet(Planet p, Ray ray, float fromDistance, float toDistance, float steps, inout vec3 transmittance, inout vec3 radiance)
+void cloudsForPlanet(Planet p, Ray ray, float fromDistance, float toDistance, float steps, inout vec3 transmittance, inout vec3 luminance)
 {
     float t0,t1;
     if(raySphereIntersection(p.center, p.cloudsEndRadius, ray, t0, t1) && t1>0)
@@ -218,7 +218,7 @@ void cloudsForPlanet(Planet p, Ray ray, float fromDistance, float toDistance, fl
                 fromDistance = max(t1, fromDistance);
             }
         }
-		raymarchClouds(p, ray, fromDistance, toDistance, steps, transmittance, radiance);
+		raymarchClouds(p, ray, fromDistance, toDistance, steps, transmittance, luminance);
 	}
 }
 #endif

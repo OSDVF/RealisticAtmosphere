@@ -220,11 +220,13 @@ namespace RealisticAtmosphere
 		bgfx::TextureHandle _opticalDepthTable;
 		bgfx::TextureHandle _irradianceTable;/**< used firstly for direct, then for indirect */
 		bgfx::TextureHandle _transmittanceTable;
+		bgfx::TextureHandle _singleScatteringTable;
 		bgfx::UniformHandle _texSampler1;
 		bgfx::UniformHandle _texSampler2;
 		bgfx::UniformHandle _texSampler3;
 		bgfx::UniformHandle _texSampler4;
 		bgfx::UniformHandle _opticalDepthSampler;
+		bgfx::UniformHandle _singleScatteringSampler;
 		bgfx::UniformHandle _irradianceSampler;
 		bgfx::UniformHandle _transmittanceSampler;
 		bgfx::UniformHandle _heightmapSampler;
@@ -292,6 +294,7 @@ namespace RealisticAtmosphere
 			_opticalDepthSampler = bgfx::createUniform("opticalDepthTable", bgfx::UniformType::Sampler);
 			_irradianceSampler = bgfx::createUniform("irradianceTable", bgfx::UniformType::Sampler);
 			_transmittanceSampler = bgfx::createUniform("transmittanceTable", bgfx::UniformType::Sampler);
+			_singleScatteringSampler = bgfx::createUniform("singleScatteringTable", bgfx::UniformType::Sampler);
 			_texSampler1 = bgfx::createUniform("texSampler1", bgfx::UniformType::Sampler);
 			_texSampler2 = bgfx::createUniform("texSampler2", bgfx::UniformType::Sampler);
 			_texSampler3 = bgfx::createUniform("texSampler3", bgfx::UniformType::Sampler);
@@ -396,6 +399,18 @@ namespace RealisticAtmosphere
 			bgfx::setTexture(2, _transmittanceSampler, _transmittanceTable);
 			bgfx::dispatch(0, irradianceProgram, bx::ceil(64 / 16.0f), bx::ceil(16 / 16.0f));
 
+			bgfx::ShaderHandle precomputeSingleScattering = loadShader("SingleScattering.comp");
+			bgfx::ProgramHandle scatteringProgram = bgfx::createProgram(precomputeSingleScattering);
+			constexpr int SCATTERING_TEXTURE_WIDTH =
+				SCATTERING_TEXTURE_NU_SIZE * SCATTERING_TEXTURE_MU_S_SIZE;
+			constexpr int SCATTERING_TEXTURE_HEIGHT = SCATTERING_TEXTURE_MU_SIZE;
+			constexpr int SCATTERING_TEXTURE_DEPTH = SCATTERING_TEXTURE_R_SIZE;
+			_singleScatteringTable = bgfx::createTexture3D(SCATTERING_TEXTURE_WIDTH, SCATTERING_TEXTURE_HEIGHT, SCATTERING_TEXTURE_DEPTH, false, bgfx::TextureFormat::RGBA32F, BGFX_TEXTURE_COMPUTE_WRITE);
+			bgfx::setImage(0, _singleScatteringTable, 0, bgfx::Access::Write, bgfx::TextureFormat::RGBA32F);
+			updateBuffers();
+			bgfx::setTexture(7, _opticalDepthSampler, _opticalDepthTable, BGFX_SAMPLER_UVW_CLAMP);
+			bgfx::dispatch(0, scatteringProgram, bx::ceil(SCATTERING_TEXTURE_WIDTH / 16.0f), bx::ceil(SCATTERING_TEXTURE_HEIGHT / 16.0f), bx::ceil(SCATTERING_TEXTURE_DEPTH / 4.0f));
+
 			bgfx::touch(0);
 			bgfx::frame(); // Actually execute the compute shaders
 
@@ -405,6 +420,8 @@ namespace RealisticAtmosphere
 			bgfx::destroy(precomputeOptical);
 			bgfx::destroy(transmittanceProgram);
 			bgfx::destroy(precomputeTransmittance);
+			bgfx::destroy(scatteringProgram);
+			bgfx::destroy(precomputeSingleScattering);
 		}
 
 		void resetBufferSize()
@@ -475,6 +492,8 @@ namespace RealisticAtmosphere
 			bgfx::destroy(_irradianceSampler);
 			bgfx::destroy(_transmittanceSampler);
 			bgfx::destroy(_opticalDepthTable);
+			bgfx::destroy(_singleScatteringSampler);
+			bgfx::destroy(_singleScatteringTable);
 			bgfx::destroy(_sunRadToLumHandle);
 			bgfx::destroy(_skyRadToLumHandle);
 			bgfx::destroy(_cloudsPhaseSampler);
@@ -624,7 +643,7 @@ namespace RealisticAtmosphere
 
 		void renderScene()
 		{
-			updateBuffersAndUniforms();
+			updateBuffersAndSamplers();
 
 #if _DEBUG
 			updateDebugUniforms();
@@ -647,10 +666,6 @@ namespace RealisticAtmosphere
 
 				auto& sunLight = _directionalLightBuffer[planet.sunDrectionalLightIndex];
 				sunLight.color = _sunColor;
-				/*auto intensity = _planetBuffer[0].sunIntensity / 10;
-				sunLight.color.x *= intensity;
-				sunLight.color.y *= intensity;
-				sunLight.color.z *= intensity;*/
 				sunLight.direction = vec4::fromVec3(bx::sub(sun.position, planet.center /* light direction is reverse */)).normalize();
 			}
 		}
@@ -669,7 +684,7 @@ namespace RealisticAtmosphere
 			bgfx::dispatch(0, _computeShaderProgram, bx::ceil(_windowWidth / 16.0f), bx::ceil(_windowHeight / 16.0f));
 		}
 
-		void updateBuffersAndUniforms()
+		void updateBuffers()
 		{
 			bgfx::update(_objectBufferHandle, 0, bgfx::makeRef((void*)_objectBuffer, sizeof(_objectBuffer)));
 			bgfx::update(_atmosphereBufferHandle, 0, bgfx::makeRef((void*)_planetBuffer.data(), sizeof(_planetBuffer)));
@@ -693,6 +708,11 @@ namespace RealisticAtmosphere
 			bgfx::setUniform(_sunRadToLumHandle, &SunRadianceToLuminance);
 			bgfx::setUniform(_skyRadToLumHandle, &SkyRadianceToLuminance);
 			bgfx::setUniform(_cloudsSettings, CloudsSettings, sizeof(CloudsSettings) / sizeof(vec4));
+		}
+
+		void updateBuffersAndSamplers()
+		{
+			updateBuffers();
 			bgfx::setTexture(7, _texSampler1, _texture1Handle);
 			bgfx::setTexture(8, _texSampler2, _texture2Handle);
 			bgfx::setTexture(9, _texSampler3, _texture3Handle);
@@ -702,6 +722,7 @@ namespace RealisticAtmosphere
 			bgfx::setTexture(13, _cloudsPhaseSampler, _cloudsPhaseTextureHandle, BGFX_SAMPLER_UVW_MIRROR);
 			bgfx::setTexture(14, _transmittanceSampler, _transmittanceTable, BGFX_SAMPLER_UVW_CLAMP);
 			bgfx::setTexture(15, _irradianceSampler, _irradianceTable);
+			bgfx::setTexture(15, _singleScatteringSampler, _singleScatteringTable);
 		}
 
 		void viewportActions()

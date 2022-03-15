@@ -6,10 +6,7 @@
 #include "Lighting.glsl"
 #include "Clouds.glsl"
 
-uniform sampler2D opticalDepthTable;
-#define PI pi
-
-float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDistance, inout vec3 radiance, inout vec3 transmittance, bool terrainWasHit);
+float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDistance, inout vec3 luminance, inout vec3 transmittance, bool terrainWasHit);
 
 /**
   * Does a raymarching through the atmosphere and planet
@@ -17,9 +14,9 @@ float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDis
   * @param tMax By tweaking the tMax parameter, you can limit the assumed ray length
   * This is useful when the ray was blocked by some objects
   */
-bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out vec3 radiance, inout vec3 transmittance, out Hit planetHit)
+bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out vec3 luminance, inout vec3 transmittance, out Hit planetHit)
 {
-	radiance = vec3(0);
+	luminance = vec3(0);
 	for (int k = 0; k < planets.length(); ++k)
     {
         Planet p = planets[k];
@@ -57,56 +54,64 @@ bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out vec
 			{
 				planetAlbedo = terrainColor(p, toDistance, worldSamplePos, worldNormal, sampleHeight);
 			}
-			cloudsForPlanet(p,ray,fromDistance,toDistance,Clouds_terrainSteps,transmittance,radiance);
-			if(!DEBUG_ATMO_OFF) raymarchAtmosphere(p, ray, fromDistance, toDistance, /*inout*/ radiance, /*inout*/ transmittance, true);
-			radiance += planetAlbedo * lightPoint(p, worldSamplePos, worldNormal) * transmittance;
+			cloudsForPlanet(p,ray,fromDistance,toDistance,Clouds_terrainSteps,transmittance,luminance);
+			if(!DEBUG_ATMO_OFF) raymarchAtmosphere(p, ray, fromDistance, toDistance, /*inout*/ luminance, /*inout*/ transmittance, true);
+			luminance += planetAlbedo * lightPoint(p, worldSamplePos, worldNormal) * transmittance;
 			transmittance *= planetAlbedo;
 			planetHit = Hit(worldSamplePos, worldNormal, -1, toDistance);
 			return true;
 		}
 		else
 		{
-			cloudsForPlanet(p,ray,fromDistance,toDistance,Clouds_iter,transmittance,radiance);
+			cloudsForPlanet(p,ray,fromDistance,toDistance,Clouds_iter,transmittance,luminance);
 			if(!DEBUG_ATMO_OFF)
-				raymarchAtmosphere(p, ray, fromDistance, toDistance, /*inout*/ radiance,/*inout*/ transmittance, false);
+				raymarchAtmosphere(p, ray, fromDistance, toDistance, /*inout*/ luminance,/*inout*/ transmittance, false);
 		}
 		return false;
 	}
 }
 
-float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDistance, inout vec3 radiance, inout vec3 transmittance, bool terrainWasHit)
+int M_perAtmospherePixel = floatBitsToInt(Multisampling_perAtmospherePixel);;
+
+float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDistance, inout vec3 luminance, inout vec3 transmittance, bool terrainWasHit)
 {
 	float t0, t1;
 
-	float segmentLength = (maxDistance - minDistance) / floatBitsToInt(Multisampling_perAtmospherePixel);
+	float segmentLength = (maxDistance - minDistance) / M_perAtmospherePixel;
 	segmentLength = max(segmentLength, QualitySettings_minStepSize);// Otherwise too close object would evaluate too much steps
 
 	vec3 rayleighColor = vec3(0);
 	vec3 mieColor = vec3(0);
-	vec3 lastAttenuation;
 	float opticalDepthR = 0, opticalDepthM = 0, opticalDepthO = 0; 
 
 	vec3 sunVector = directionalLights[planet.sunDrectionalLightIndex].direction.xyz;
-	float sunToViewCos /*cos(Phi)*/ = dot(sunVector, ray.direction);
+	float sunToViewCos /*nu*/ = dot(sunVector, ray.direction);
 
-	float cosPhi2 = sunToViewCos * sunToViewCos;
+	float nu2 = sunToViewCos * sunToViewCos;
+	vec3 planetRelativePos = ray.origin - planet.center;
+	vec3 relPosNorm = normalize(planetRelativePos);
+	float mu = dot(ray.direction, relPosNorm);
+	float mu_s = dot(sunVector, relPosNorm);
+	luminance += GetScattering(planet, singleScatteringTable, length(planetRelativePos), mu, mu_s, sunToViewCos, terrainWasHit);
+	return minDistance;
 
-	float rayleightPhase = 3.0 / (16.0 * PI) * (1 + cosPhi2);
+	float rayleightPhase = 3.0 / (16.0 * pi) * (1 + nu2);
 	//There should be extinction coefficients, but for Rayleigh, they are the same as scattering coeff.s and for Mie, it is 1.11 times the s.c.
 	float mieExtinction = 1.11 * planet.mieCoefficient;
 	float assymetryFactor2 = planet.mieAsymmetryFactor * planet.mieAsymmetryFactor;
 	float miePhase = 3.0 /
-		(8.0 * PI) * ((1.0 - assymetryFactor2) * (1.0 + (cosPhi2)))
+		(8.0 * pi) * ((1.0 - assymetryFactor2) * (1.0 + (nu2)))
 		/ ((2.f + assymetryFactor2) * pow(1.0 + assymetryFactor2 - 2.0 * planet.mieAsymmetryFactor * sunToViewCos, 1.5f));
 
 	float currentDistance;
-	float i = 0;
-	for(currentDistance = minDistance; currentDistance < maxDistance; currentDistance += segmentLength, i++)
+	float i = 0;//float iterator
+	int iter = 0;//integer iterator
+	for(currentDistance = minDistance; iter < M_perAtmospherePixel; currentDistance += segmentLength, iter++, i++)
 	{
 		// Always sample at the center of sample
 		vec3 worldSamplePos;
 		vec3 sphNormal;
-		float sampleHeight = getSampleParameters(planet, ray, currentDistance + segmentLength*0.5, /*out*/ sphNormal, /*out*/ worldSamplePos);
+		float sampleHeight = getSampleParameters(planet, ray, currentDistance + segmentLength * 0.5, /*out*/ sphNormal, /*out*/ worldSamplePos);
 
 		//Compute HF = height factor
 		float rayleighHF = exp(-sampleHeight/planet.rayleighScaleHeight) * segmentLength;
@@ -156,7 +161,7 @@ float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDis
 		if(sunToNormalCos > LightSettings_noRayThres || currentDistance > QualitySettings_farPlane)
 		{
 			if(DEBUG_RM)
-				radiance = vec3(0,1,0);
+				luminance = vec3(0,1,0);
 			noSureIfEclipse = false;
 		}
 
@@ -168,7 +173,7 @@ float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDis
 				if(dot(sunOnPlanetPlane,viewOnPlanetPlane) > 0 && terrainWasHit && currentDistance > maxDistance * LightSettings_cutoffDist)
 				{
 					if(DEBUG_RM)
-						radiance = vec3(1,0,0);
+						luminance = vec3(1,0,0);
 					// In all the later samples, the sun will be also occluded
 					break;//The later samples would all be occluded by the terrain
 				}
@@ -194,7 +199,7 @@ float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDis
 	}
 	float sunsetArtifactSolution = smoothstep(0.0, 0.01, dot(sunVector, normalize(ray.origin - planet.center)));
 	// Add atmosphere to planet color /* or to nothing */
-	radiance += (rayleighColor * planet.rayleighCoefficients * rayleightPhase
+	luminance += (rayleighColor * planet.rayleighCoefficients * rayleightPhase
 			+ mieColor * planet.mieCoefficient * miePhase * sunsetArtifactSolution
 			) * planet.solarIrradiance * transmittance * SkyRadianceToLuminance.rgb;
 	vec3 depth = planet.rayleighCoefficients * opticalDepthR

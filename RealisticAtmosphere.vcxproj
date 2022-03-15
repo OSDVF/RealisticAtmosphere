@@ -279,6 +279,7 @@
     <None Include="ComputeRender\varying.def.sc" />
     <None Include="shaders\scripts\shaderc64debug.ps1" />
     <None Include="shaders\scripts\shaderc64release.ps1" />
+    <None Include="SingleScattering.comp" />
     <None Include="Structures.glsl" />
     <None Include="Terrain.glsl" />
     <None Include="Transmittance.comp" />

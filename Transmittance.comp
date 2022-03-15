@@ -72,6 +72,7 @@ void main()
         planets[0].rayleighCoefficients * optical_length_rayleigh +
         planets[0].mieCoefficient * 1.11 * optical_length_mie +
         planets[0].absorptionCoefficients * optical_length_absorption));
+    transmittance = min(transmittance, vec3(1.0));
 
-	imageStore(transmittanceOutput, ivec2(gl_GlobalInvocationID.xy), vec4(transmittance,0));
+	imageStore(transmittanceOutput, ivec2(gl_GlobalInvocationID.xy), vec4(transmittance, 0));
 }
