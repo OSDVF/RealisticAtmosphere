@@ -11,9 +11,11 @@
 #include <bx/string.h>
 #include <bgfx/bgfx.h>
 #include <bimg/bimg.h>
+#include <bimg/decode.h>
 
 #include <tinystl/allocator.h>
 #include <tinystl/vector.h>
+#include <string>
 namespace stl = tinystl;
 
 
@@ -177,6 +179,84 @@ namespace bgfx_utils
 		BX_UNUSED(_ptr);
 		bimg::ImageContainer* imageContainer = (bimg::ImageContainer*)_userData;
 		bimg::imageFree(imageContainer);
+	}
+
+	static void textureArrayRelease(void* _ptr, void* _userData)
+	{
+		BX_UNUSED(_ptr);
+		delete[] _userData;
+	}
+
+
+	static bgfx::TextureHandle createTextureArray(stl::vector<std::string> filePaths, uint64_t _flags)
+	{
+		assert(filePaths.size() > 0);
+
+		bgfx::TextureHandle handle = BGFX_INVALID_HANDLE;
+		char* arrayData = nullptr;
+		bgfx::TextureFormat::Enum format;
+		uint16_t width;
+		uint16_t height;
+		uint16_t numLayers = 0;
+		uint32_t totalMemorySize;
+		bool hasMips;
+
+		int i = 0;
+		do
+		{
+			auto filePath = filePaths[i];
+			uint32_t size;
+			void* currentImageData = load(filePath.c_str(), &size);
+
+			if (NULL != currentImageData)
+			{
+				bimg::ImageContainer* imageContainer = bimg::imageParse(entry::getAllocator(), currentImageData, size);
+
+				if (NULL != imageContainer)
+				{
+					unload(currentImageData);
+					auto thisFormat = bgfx::TextureFormat::Enum(imageContainer->m_format);
+					if (bgfx::isTextureValid(0, false, imageContainer->m_numLayers, thisFormat, _flags))
+					{
+						if (i == 0)//First texture sets the dimensions
+						{
+							width = imageContainer->m_width;
+							height = imageContainer->m_height;
+							format = thisFormat;
+							hasMips = 1 < imageContainer->m_numMips;
+
+							totalMemorySize = filePaths.size() * imageContainer->m_size;
+							arrayData = new char[totalMemorySize];
+
+						}
+						else
+						{
+							BX_ASSERT(width == imageContainer->m_width, "All images must have the same size. The first had width %d and the %dth has %d.", width, i+1, imageContainer->m_width);
+							BX_ASSERT(height == imageContainer->m_height, "All images must have the same size. The first had height %d and the %dth has %d.", height, i + 1, imageContainer->m_height);
+							BX_ASSERT(format == thisFormat, "All images must have the same format");
+							BX_ASSERT(hasMips == 1 < imageContainer->m_numMips, "All array images must have same mip format");
+						}
+						//Copy image to array
+						bx::memCopy(arrayData + i * imageContainer->m_size, imageContainer->m_data, imageContainer->m_size);
+						numLayers++;
+					}
+					bimg::imageFree(imageContainer);
+				}
+			}
+		} while (filePaths.size() > ++i);
+
+		const bgfx::Memory* mem = bgfx::makeRef(
+			arrayData, totalMemorySize, textureArrayRelease, arrayData
+		);
+
+		handle = bgfx::createTexture2D(width, height, hasMips, numLayers, format, _flags, mem);
+
+		if (bgfx::isValid(handle))
+		{
+			bgfx::setName(handle, filePaths[0].c_str());
+		}
+
+		return handle;
 	}
 }
 #endif // BGFX_UTILS_H_HEADER_GUARD

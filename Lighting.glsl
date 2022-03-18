@@ -12,14 +12,14 @@ vec3 sunAndSkyIlluminance(Planet planet,vec3 point, vec3 normal, vec3 sun_direct
     float r = length(toPlanetSpace);
     float mu_s = dot(toPlanetSpace, sun_direction) / r;
     return /*sky*/
-        /*GetIrradiance(planet, irradianceTable, r, mu_s) *
+        (GetIrradiance(planet, irradianceTable, r, mu_s) *
         (1.0 + dot(normal, toPlanetSpace) / r) * 0.5 *
-        SkyRadianceToLuminance.xyz +*/ // Indirect irradiance precomputation not yet implemented. The table contains direct irradiance
+        SkyRadianceToLuminance.xyz +
         /*sun*/
         planet.solarIrradiance *
         GetTransmittanceToSun(planet, transmittanceTable ,r, mu_s) *
         max(dot(normal, sun_direction), 0.0) *
-        SunRadianceToLuminance.xyz * planet.sunIntensity;
+        SunRadianceToLuminance.xyz) * planet.sunIntensity;
 }
 
 vec3 sunAndSkyIlluminance(Planet planet,vec3 point, vec3 sun_direction)
@@ -28,9 +28,8 @@ vec3 sunAndSkyIlluminance(Planet planet,vec3 point, vec3 sun_direction)
     float r = length(toPlanetSpace);
     float mu_s = dot(toPlanetSpace, sun_direction) / r;
     return /*sky*/
-        /*GetIrradiance(planet, irradianceTable, r, mu_s) *
-        (1.0 + dot(normal, toPlanetSpace) / r) * 0.5 *
-        SkyRadianceToLuminance.xyz +*/ // Indirect irradiance precomputation not yet implemented. The table contains direct irradiance
+        GetIrradiance(planet, irradianceTable, r, mu_s) *
+        SkyRadianceToLuminance.xyz +
         /*sun*/
         planet.solarIrradiance *
         GetTransmittanceToSun(planet, transmittanceTable ,r, mu_s) *

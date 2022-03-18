@@ -17,6 +17,7 @@
 #include <entry/input.h>
 #include <SDL2/SDL.h>
 #include <array>
+#include <tinystl/vector.h>
 #include <sstream>
 #include "Tonemapping.h"
 #include "PhaseFunctions.h"
@@ -213,7 +214,7 @@ namespace RealisticAtmosphere
 #pragma region Textures_And_Samplers
 		bgfx::TextureHandle _heightmapTextureHandle;
 		bgfx::TextureHandle _cloudsPhaseTextureHandle;
-		bgfx::TextureHandle _texture1Handle;
+		bgfx::TextureHandle _textureArrayHandle;
 		bgfx::TextureHandle _texture2Handle;
 		bgfx::TextureHandle _texture3Handle;
 		bgfx::TextureHandle _texture4Handle;
@@ -221,10 +222,7 @@ namespace RealisticAtmosphere
 		bgfx::TextureHandle _irradianceTable;/**< used firstly for direct, then for indirect */
 		bgfx::TextureHandle _transmittanceTable;
 		bgfx::TextureHandle _singleScatteringTable;
-		bgfx::UniformHandle _texSampler1;
-		bgfx::UniformHandle _texSampler2;
-		bgfx::UniformHandle _texSampler3;
-		bgfx::UniformHandle _texSampler4;
+		bgfx::UniformHandle _terrainTexSampler;
 		bgfx::UniformHandle _opticalDepthSampler;
 		bgfx::UniformHandle _singleScatteringSampler;
 		bgfx::UniformHandle _irradianceSampler;
@@ -295,10 +293,7 @@ namespace RealisticAtmosphere
 			_irradianceSampler = bgfx::createUniform("irradianceTable", bgfx::UniformType::Sampler);
 			_transmittanceSampler = bgfx::createUniform("transmittanceTable", bgfx::UniformType::Sampler);
 			_singleScatteringSampler = bgfx::createUniform("singleScatteringTable", bgfx::UniformType::Sampler);
-			_texSampler1 = bgfx::createUniform("texSampler1", bgfx::UniformType::Sampler);
-			_texSampler2 = bgfx::createUniform("texSampler2", bgfx::UniformType::Sampler);
-			_texSampler3 = bgfx::createUniform("texSampler3", bgfx::UniformType::Sampler);
-			_texSampler4 = bgfx::createUniform("texSampler4", bgfx::UniformType::Sampler);
+			_terrainTexSampler = bgfx::createUniform("terrainTextures", bgfx::UniformType::Sampler);
 			_debugAttributesHandle = bgfx::createUniform("debugAttributes", bgfx::UniformType::Vec4);
 			_timeHandle = bgfx::createUniform("time", bgfx::UniformType::Vec4);
 			_multisamplingSettingsHandle = bgfx::createUniform("MultisamplingSettings", bgfx::UniformType::Vec4);
@@ -313,10 +308,15 @@ namespace RealisticAtmosphere
 			_computeShaderProgram = bgfx::createProgram(_computeShaderHandle);
 			_heightmapShaderHandle = loadShader("Heightmap.comp");
 			_heightmapShaderProgram = bgfx::createProgram(_heightmapShaderHandle);
-			_texture1Handle = loadTexture("textures/rocks.dds", BGFX_TEXTURE_SRGB);
-			_texture2Handle = loadTexture("textures/dirt.dds", BGFX_TEXTURE_SRGB);
-			_texture3Handle = loadTexture("textures/rock.dds");
-			_texture4Handle = loadTexture("textures/grass.dds", BGFX_TEXTURE_SRGB);
+			tinystl::vector<std::string> textureFileNames(4);
+			textureFileNames[0] = ("textures/rocks.dds");
+			textureFileNames[1] = ("textures/dirt.dds");
+			textureFileNames[2] = ("textures/rock.dds");
+			textureFileNames[3] = ("textures/grass.dds");
+
+			_textureArrayHandle = bgfx_utils::createTextureArray(
+				textureFileNames, BGFX_TEXTURE_SRGB
+			);
 
 			/*auto data = imageLoad("textures/grass.ktx", bgfx::TextureFormat::RGB8);
 			bgfx::updateTexture2D(_texturesHandle, 0, 0, 0, 0, 2048, 2048, bgfx::makeRef(data->m_data, data->m_size));
@@ -386,18 +386,10 @@ namespace RealisticAtmosphere
 
 			bgfx::ShaderHandle precomputeTransmittance = loadShader("Transmittance.comp");
 			bgfx::ProgramHandle transmittanceProgram = bgfx::createProgram(precomputeTransmittance);
-			_transmittanceTable = bgfx::createTexture2D(256, 64, false, 1, bgfx::TextureFormat::RGBA8, BGFX_TEXTURE_COMPUTE_WRITE);
-			bgfx::setImage(0, _transmittanceTable, 0, bgfx::Access::Write, bgfx::TextureFormat::RGBA8);
+			_transmittanceTable = bgfx::createTexture2D(256, 128, false, 1, bgfx::TextureFormat::RGBA16F, BGFX_TEXTURE_COMPUTE_WRITE);
+			bgfx::setImage(0, _transmittanceTable, 0, bgfx::Access::Write, bgfx::TextureFormat::RGBA16F);
 			bgfx::setBuffer(1, _atmosphereBufferHandle, bgfx::Access::Read);
-			bgfx::dispatch(0, transmittanceProgram, bx::ceil(256 / 16.0f), bx::ceil(64 / 16.0f));
-
-			bgfx::ShaderHandle precomputeIrradiance = loadShader("DirectIrradiance.comp");
-			bgfx::ProgramHandle irradianceProgram = bgfx::createProgram(precomputeIrradiance);
-			_irradianceTable = bgfx::createTexture2D(64, 16, false, 1, bgfx::TextureFormat::RGBA32F, BGFX_TEXTURE_COMPUTE_WRITE);
-			bgfx::setImage(0, _irradianceTable, 0, bgfx::Access::Write, bgfx::TextureFormat::RGBA32F);
-			bgfx::setBuffer(1, _atmosphereBufferHandle, bgfx::Access::Read);
-			bgfx::setTexture(2, _transmittanceSampler, _transmittanceTable);
-			bgfx::dispatch(0, irradianceProgram, bx::ceil(64 / 16.0f), bx::ceil(16 / 16.0f));
+			bgfx::dispatch(0, transmittanceProgram, bx::ceil(256 / 16.0f), bx::ceil(128 / 16.0f));
 
 			bgfx::ShaderHandle precomputeSingleScattering = loadShader("SingleScattering.comp");
 			bgfx::ProgramHandle scatteringProgram = bgfx::createProgram(precomputeSingleScattering);
@@ -410,6 +402,14 @@ namespace RealisticAtmosphere
 			updateBuffers();
 			bgfx::setTexture(7, _opticalDepthSampler, _opticalDepthTable, BGFX_SAMPLER_UVW_CLAMP);
 			bgfx::dispatch(0, scatteringProgram, bx::ceil(SCATTERING_TEXTURE_WIDTH / 16.0f), bx::ceil(SCATTERING_TEXTURE_HEIGHT / 16.0f), bx::ceil(SCATTERING_TEXTURE_DEPTH / 4.0f));
+
+			bgfx::ShaderHandle precomputeIrradiance = loadShader("IndirectIrradiance.comp");
+			bgfx::ProgramHandle irradianceProgram = bgfx::createProgram(precomputeIrradiance);
+			_irradianceTable = bgfx::createTexture2D(64, 16, false, 1, bgfx::TextureFormat::RGBA32F, BGFX_TEXTURE_COMPUTE_WRITE);
+			bgfx::setImage(0, _irradianceTable, 0, bgfx::Access::Write, bgfx::TextureFormat::RGBA32F);
+			bgfx::setBuffer(1, _atmosphereBufferHandle, bgfx::Access::Read);
+			bgfx::setTexture(2, _singleScatteringSampler, _singleScatteringTable);
+			bgfx::dispatch(0, irradianceProgram, bx::ceil(64 / 16.0f), bx::ceil(16 / 16.0f));
 
 			bgfx::touch(0);
 			bgfx::frame(); // Actually execute the compute shaders
@@ -471,10 +471,7 @@ namespace RealisticAtmosphere
 			bgfx::destroy(_raytracerColorOutput);
 			bgfx::destroy(_raytracerNormalsOutput);
 			bgfx::destroy(_colorOutputSampler);
-			bgfx::destroy(_texSampler1);
-			bgfx::destroy(_texSampler2);
-			bgfx::destroy(_texSampler3);
-			bgfx::destroy(_texSampler4);
+			bgfx::destroy(_terrainTexSampler);
 			bgfx::destroy(_computeShaderHandle);
 			bgfx::destroy(_computeShaderProgram);
 			bgfx::destroy(_displayingShaderProgram);
@@ -713,16 +710,13 @@ namespace RealisticAtmosphere
 		void updateBuffersAndSamplers()
 		{
 			updateBuffers();
-			bgfx::setTexture(7, _texSampler1, _texture1Handle);
-			bgfx::setTexture(8, _texSampler2, _texture2Handle);
-			bgfx::setTexture(9, _texSampler3, _texture3Handle);
-			bgfx::setTexture(10, _texSampler4, _texture4Handle);
-			bgfx::setTexture(11, _heightmapSampler, _heightmapTextureHandle);
-			bgfx::setTexture(12, _opticalDepthSampler, _opticalDepthTable, BGFX_SAMPLER_UVW_CLAMP);
-			bgfx::setTexture(13, _cloudsPhaseSampler, _cloudsPhaseTextureHandle, BGFX_SAMPLER_UVW_MIRROR);
-			bgfx::setTexture(14, _transmittanceSampler, _transmittanceTable, BGFX_SAMPLER_UVW_CLAMP);
-			bgfx::setTexture(15, _irradianceSampler, _irradianceTable);
-			bgfx::setTexture(15, _singleScatteringSampler, _singleScatteringTable);
+			bgfx::setTexture(7, _terrainTexSampler, _textureArrayHandle);
+			bgfx::setTexture(8, _heightmapSampler, _heightmapTextureHandle);
+			bgfx::setTexture(9, _opticalDepthSampler, _opticalDepthTable, BGFX_SAMPLER_UVW_CLAMP);
+			bgfx::setTexture(10, _cloudsPhaseSampler, _cloudsPhaseTextureHandle, BGFX_SAMPLER_UVW_MIRROR);
+			bgfx::setTexture(11, _transmittanceSampler, _transmittanceTable, BGFX_SAMPLER_UVW_CLAMP);
+			bgfx::setTexture(12, _irradianceSampler, _irradianceTable);
+			bgfx::setTexture(13, _singleScatteringSampler, _singleScatteringTable);
 		}
 
 		void viewportActions()

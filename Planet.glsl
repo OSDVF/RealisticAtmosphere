@@ -6,6 +6,76 @@
 #include "Lighting.glsl"
 #include "Clouds.glsl"
 
+vec3 GetSkyLuminance(
+    Planet planet,
+	float shadow_length,
+	Ray ray,
+	bool ray_r_mu_intersects_ground,
+    vec3 sunVector, out vec3 transmittance) {
+	// Compute the distance to the top atmosphere boundary along the view ray,
+	// assuming the viewer is in space (or NaN if the view ray does not intersect
+	// the atmosphere).
+	vec3 planetRelativePos = ray.origin - planet.center;
+	float r = length(planetRelativePos);
+	float rmu = dot(planetRelativePos, ray.direction);
+	float distance_to_top_atmosphere_boundary = -rmu -
+		sqrt(rmu * rmu - r * r + planet.atmosphereRadius * planet.atmosphereRadius);
+	// If the viewer is in space and the view ray intersects the atmosphere, move
+	// the viewer to the top atmosphere boundary (along the view ray):
+	if (distance_to_top_atmosphere_boundary > 0.0) {
+		ray.origin = ray.origin + ray.direction * distance_to_top_atmosphere_boundary;
+		r = planet.atmosphereRadius;
+		rmu += distance_to_top_atmosphere_boundary;
+	}
+
+	float nu /*sun to view*/ = dot(sunVector, ray.direction);
+
+	float nu2 = nu * nu;
+	float mu = rmu / r;
+	float mu_s = dot(sunVector, ray.origin - planet.center) / r;
+
+	transmittance = ray_r_mu_intersects_ground ? vec3(0.0) : GetTransmittanceToAtmosphereEnd(planet, transmittanceTable, r, mu);
+
+	vec3 single_mie_scattering;
+	vec3 scattering;
+	if (shadow_length == 0.0)
+	{
+		vec4 combinedScattering = GetScattering(
+			planet, singleScatteringTable, r, mu, mu_s, nu, ray_r_mu_intersects_ground);
+		scattering = combinedScattering.rgb;
+		single_mie_scattering = GetExtrapolatedSingleMieScattering(planet, combinedScattering);
+	}
+	else
+	{
+		// Case of light shafts (shadow_length is the total length noted l in our
+		// paper): we omit the scattering between the camera and the point at
+		// distance l, by implementing Eq. (18) of the paper (shadow_transmittance
+		// is the T(x,x_s) term, scattering is the S|x_s=x+lv term).
+		float d = shadow_length;
+		float r_p =
+			ClampRadius(planet, sqrt(d * d + 2.0 * r * mu * d + r * r));
+		float mu_p = (r * mu + d) / r_p;
+		float mu_s_p = (r * mu_s + d * nu) / r_p;
+
+		vec4 combinedScattering = GetScattering(planet, singleScatteringTable, length(planetRelativePos), mu, mu_s, nu, ray_r_mu_intersects_ground);
+		scattering = combinedScattering.rgb;
+		single_mie_scattering = GetExtrapolatedSingleMieScattering(planet, combinedScattering);
+
+		vec3 shadow_transmittance =
+			GetTransmittance(planet, transmittanceTable, r, mu, shadow_length, ray_r_mu_intersects_ground);
+
+		scattering = scattering * shadow_transmittance;
+		single_mie_scattering = single_mie_scattering * shadow_transmittance;
+	}
+	float rayleightPhase = 3.0 / (16.0 * pi) * (1 + nu2);
+	float assymetryFactor2 = planet.mieAsymmetryFactor * planet.mieAsymmetryFactor;
+	float miePhase = 3.0 /
+		(8.0 * pi) * ((1.0 - assymetryFactor2) * (1.0 + nu2))
+		/ ((2.f + assymetryFactor2) * pow(1.0 + assymetryFactor2 - 2.0 * planet.mieAsymmetryFactor * nu, 1.5f));
+
+	return (scattering * rayleightPhase + single_mie_scattering * miePhase) * SkyRadianceToLuminance.rgb;
+}
+
 float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDistance, inout vec3 luminance, inout vec3 transmittance, bool terrainWasHit);
 
 /**
@@ -26,8 +96,10 @@ bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out vec
 		{
 			return false;
 		}
+		float atmoDistance = toDistance;
         float t0, t1; 
-        if (raySphereIntersection(p.center, p.surfaceRadius, ray, t0, t1) && t1 > 0) 
+		bool surfaceIntersection;
+        if (surfaceIntersection = raySphereIntersection(p.center, p.surfaceRadius, ray, t0, t1) && t1 > 0) 
         {
 			tMax = min(tMax, max(0, t0));//Limit by planet surface or "some object" distance
         }
@@ -92,8 +164,6 @@ float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDis
 	vec3 relPosNorm = normalize(planetRelativePos);
 	float mu = dot(ray.direction, relPosNorm);
 	float mu_s = dot(sunVector, relPosNorm);
-	luminance += GetScattering(planet, singleScatteringTable, length(planetRelativePos), mu, mu_s, sunToViewCos, terrainWasHit);
-	return minDistance;
 
 	float rayleightPhase = 3.0 / (16.0 * pi) * (1 + nu2);
 	//There should be extinction coefficients, but for Rayleigh, they are the same as scattering coeff.s and for Mie, it is 1.11 times the s.c.

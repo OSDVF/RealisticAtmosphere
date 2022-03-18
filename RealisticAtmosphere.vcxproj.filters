@@ -158,6 +158,9 @@
     <None Include="SingleScattering.comp">
       <Filter>Shader Programs\Compute Render\Precompute</Filter>
     </None>
+    <None Include="IndirectIrradiance.comp">
+      <Filter>Shader Programs\Compute Render\Precompute</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="TestCube.h">

@@ -8,14 +8,15 @@
 #ifndef SCENEOBJECTS
 #define SCENEOBJECTS
 #define AMBIENT_LIGHT vec3(0)
+#define HQFlags_NONE 0u
+#define HQFlags_EARTH_SHADOWS 1u
+#define HQFlags_ATMO_COMPUTE 2u
+
 #ifdef BGFX_SHADER_LANGUAGE_GLSL
 const float POSITIVE_INFINITY = 3.402823466e+38;
 const float NEGATIVE_INFINITY = uintBitsToFloat(0xFF800000);
 #define SPACE_COLOR vec3(0.1,0.1,0.3)
-uniform sampler2D texSampler1;
-uniform sampler2D texSampler2;
-uniform sampler2D texSampler3;
-uniform sampler2D texSampler4;
+uniform sampler2DArray terrainTextures;
 uniform sampler2D heightmapTexture;
 uniform sampler2D opticalDepthTable;
 uniform sampler2D transmittanceTable;
@@ -49,7 +50,8 @@ vec4 MultisamplingSettings = {*(float*)&perPixel,*(float*)&bounces,*(float*)&per
 vec4 QualitySettings = {5, 50, 12000, 0.4};
 int currentSample = 0;
 int directSamples = 1;//Direct samples per all samples
-vec4 HQSettings = {0.1, *(float*)&currentSample, *(float*)&directSamples, 1};
+unsigned int flags = HQFlags_NONE;
+vec4 HQSettings = {*(float*)&flags, *(float*)&currentSample, *(float*)&directSamples, 1};
 vec4 LightSettings = {1000, 0.03, 0.4, -0.09};
 int lightTerrainDetectSteps = 40;
 vec4 LightSettings2 = {0.5, *(float*)&lightTerrainDetectSteps, 3, 0.8};
@@ -89,6 +91,7 @@ vec4 CloudsSettings[] = {
 #define LightSettings_gradient LightSettings2.z
 #define LightSettings_terrainOptimMult LightSettings2.w
 
+#define HQSettings_flags HQSettings.x
 #define HQSettings_sampleNum HQSettings.y
 #define HQSettings_directSamples HQSettings.z
 #define HQSettings_exposure HQSettings.w
@@ -125,6 +128,10 @@ vec4 CloudsSettings[] = {
 
 #define Clouds_coverageSize CloudsSettings[6].x
 #define Clouds_fadePower CloudsSettings[6].y
+
+#ifdef BGFX_SHADER_LANGUAGE_GLSL
+bool HQSettings_atmoCompute = (floatBitsToUint(HQSettings_flags) & HQFlags_ATMO_COMPUTE) != 0u;
+#endif
 
 #include "Structures.glsl"
 #endif

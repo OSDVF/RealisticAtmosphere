@@ -2,8 +2,9 @@
 #ifndef COMMON_H
 #define COMMON_H
 #include "Structures.glsl"
+#include "Math.glsl"
 
-#define MU_S_MIN -0.2
+#define MU_S_MIN -1
 
 float ClampCosine(float mu) {
   return clamp(mu, -1.0, 1.0);
@@ -204,6 +205,12 @@ void GetRMuMuSNuFromScatteringTextureFragCoord(
       mu * mu_s + sqrt((1.0 - mu * mu) * (1.0 - mu_s * mu_s)));
 }
 
+bool RayIntersectsGround(Planet planet,
+    float r, float mu) {
+  return mu < 0.0 && r * r * (mu * mu - 1.0) +
+      planet.surfaceRadius * planet.surfaceRadius >= 0.0;
+}
+
 vec4 GetScatteringTextureUvwzFromRMuMuSNu(Planet planet,
     float r, float mu, float mu_s, float nu,
     bool ray_r_mu_intersects_ground) {
@@ -260,7 +267,19 @@ vec4 GetScatteringTextureUvwzFromRMuMuSNu(Planet planet,
   return vec4(u_nu, u_mu_s, u_mu, u_r);
 }
 
-vec3 GetScattering(
+vec3 GetExtrapolatedSingleMieScattering(
+    Planet planet, vec4 scattering) {
+  // Algebraically this can never be negative, but rounding errors can produce
+  // that effect for sufficiently short view rays.
+  if (scattering.r <= 0.0) {
+    return vec3(0.0);
+  }
+  return scattering.rgb * scattering.a / scattering.r *
+	    (planet.rayleighCoefficients.r / planet.mieCoefficient) *
+	    (planet.mieCoefficient / planet.rayleighCoefficients);
+}
+
+vec4 GetScattering(
     Planet planet,
     sampler3D scattering_texture,
     float r, float mu, float mu_s, float nu,
@@ -275,8 +294,137 @@ vec3 GetScattering(
       uvwz.z, uvwz.w);
   vec3 uvw1 = vec3((tex_x + 1.0 + uvwz.y) / float(SCATTERING_TEXTURE_NU_SIZE),
       uvwz.z, uvwz.w);
-  return vec3(texture(scattering_texture, uvw0) * (1.0 - lerp) +
-      texture(scattering_texture, uvw1) * lerp);
+  return texture(scattering_texture, uvw0) * (1.0 - lerp) +
+      texture(scattering_texture, uvw1) * lerp;
+}
+
+vec3 GetCombinedScattering(
+    Planet planet,
+    sampler3D scattering_texture,
+    float r, float mu, float mu_s, float nu,
+    bool ray_r_mu_intersects_ground,
+    out vec3 single_mie_scattering) {
+  vec4 uvwz = GetScatteringTextureUvwzFromRMuMuSNu(
+      planet, r, mu, mu_s, nu, ray_r_mu_intersects_ground);
+  float tex_coord_x = uvwz.x * float(SCATTERING_TEXTURE_NU_SIZE - 1);
+  float tex_x = floor(tex_coord_x);
+  float lerp = tex_coord_x - tex_x;
+  vec3 uvw0 = vec3((tex_x + uvwz.y) / float(SCATTERING_TEXTURE_NU_SIZE),
+      uvwz.z, uvwz.w);
+  vec3 uvw1 = vec3((tex_x + 1.0 + uvwz.y) / float(SCATTERING_TEXTURE_NU_SIZE),
+      uvwz.z, uvwz.w);
+  vec4 combined_scattering =
+      texture(scattering_texture, uvw0) * (1.0 - lerp) +
+      texture(scattering_texture, uvw1) * lerp;
+  vec3 scattering = vec3(combined_scattering);
+  single_mie_scattering =
+      GetExtrapolatedSingleMieScattering(planet, combined_scattering);
+  return scattering;
+}
+
+float RayleighPhaseFunction(float nu) {
+  float k = 3.0 / (16.0 * pi);
+  return k * (1.0 + nu * nu);
+}
+
+float MiePhaseFunction(float g, float nu) {
+  float k = 3.0 / (8.0 * pi) * (1.0 - g * g) / (2.0 + g * g);
+  return k * (1.0 + nu * nu) / pow(1.0 + g * g - 2.0 * g * nu, 1.5);
+}
+
+
+vec3 GetSkyRadianceToPoint(
+    Planet planet,
+    sampler2D transmittance_texture,
+    sampler3D scattering_texture,
+    vec3 camera, vec3 point, float shadow_length,
+    vec3 sun_direction, out vec3 transmittance) {
+  // Compute the distance to the top atmosphere boundary along the view ray,
+  // assuming the viewer is in space (or NaN if the view ray does not intersect
+  // the atmosphere).
+  vec3 view_ray = normalize(point - camera);
+  float r = length(camera);
+  float rmu = dot(camera, view_ray);
+  float distance_to_top_atmosphere_boundary = -rmu -
+      sqrt(rmu * rmu - r * r + planet.atmosphereRadius * planet.atmosphereRadius);
+  // If the viewer is in space and the view ray intersects the planet, move
+  // the viewer to the top atmosphere boundary (along the view ray):
+  if (distance_to_top_atmosphere_boundary > 0.0) {
+    camera = camera + view_ray * distance_to_top_atmosphere_boundary;
+    r = planet.atmosphereRadius;
+    rmu += distance_to_top_atmosphere_boundary;
+  }
+
+  // Compute the r, mu, mu_s and nu parameters for the first texture lookup.
+  float mu = rmu / r;
+  float mu_s = dot(camera, sun_direction) / r;
+  float nu = dot(view_ray, sun_direction);
+  float d = length(point - camera);
+  bool ray_r_mu_intersects_ground = RayIntersectsGround(planet, r, mu);
+
+  transmittance = GetTransmittance(planet, transmittance_texture,
+      r, mu, d, ray_r_mu_intersects_ground);
+
+  vec3 single_mie_scattering;
+  vec3 scattering = GetCombinedScattering(
+      planet, scattering_texture,
+      r, mu, mu_s, nu, ray_r_mu_intersects_ground,
+      single_mie_scattering);
+
+  // Compute the r, mu, mu_s and nu parameters for the second texture lookup.
+  // If shadow_length is not 0 (case of light shafts), we want to ignore the
+  // scattering along the last shadow_length meters of the view ray, which we
+  // do by subtracting shadow_length from d (this way scattering_p is equal to
+  // the S|x_s=x_0-lv term in Eq. (17) of our paper).
+  d = max(d - shadow_length, 0.0);
+  float r_p = ClampRadius(planet, sqrt(d * d + 2.0 * r * mu * d + r * r));
+  float mu_p = (r * mu + d) / r_p;
+  float mu_s_p = (r * mu_s + d * nu) / r_p;
+
+  vec3 single_mie_scattering_p;
+  vec3 scattering_p = GetCombinedScattering(
+      planet, scattering_texture,
+      r_p, mu_p, mu_s_p, nu, ray_r_mu_intersects_ground,
+      single_mie_scattering_p);
+
+  // Combine the lookup results to get the scattering between camera and point.
+  vec3 shadow_transmittance = transmittance;
+  if (shadow_length > 0.0) {
+    // This is the T(x,x_s) term in Eq. (17) of our paper, for light shafts.
+    shadow_transmittance = GetTransmittance(planet, transmittance_texture,
+        r, mu, d, ray_r_mu_intersects_ground);
+  }
+  scattering = scattering - shadow_transmittance * scattering_p;
+  single_mie_scattering =
+      single_mie_scattering - shadow_transmittance * single_mie_scattering_p;
+  single_mie_scattering = GetExtrapolatedSingleMieScattering(
+      planet, vec4(scattering, single_mie_scattering.r));
+
+  // Hack to avoid rendering artifacts when the sun is below the horizon.
+  single_mie_scattering = single_mie_scattering *
+      smoothstep(float(0.0), float(0.01), mu_s);
+
+  return scattering * RayleighPhaseFunction(nu) + single_mie_scattering *
+      MiePhaseFunction(planet.mieAsymmetryFactor, nu);
+}
+
+vec2 GetIrradianceTextureUvFromRMuS(Planet planet,
+    float r, float mu_s, vec2 textureDimensions) {
+  float x_r = (r - planet.surfaceRadius) /
+      (planet.atmosphereRadius - planet.surfaceRadius);
+  float x_mu_s = mu_s * 0.5 + 0.5;
+  return vec2(GetTextureCoordFromUnitRange(x_mu_s, textureDimensions.x),
+              GetTextureCoordFromUnitRange(x_r, textureDimensions.y));
+}
+
+
+void GetRMuSFromIrradianceTextureUv(Planet planet,
+    vec2 uv, out float r, out float mu_s, vec2 textureDimensions) {
+  float x_mu_s = GetUnitRangeFromTextureCoord(uv.x, textureDimensions.x);
+  float x_r = GetUnitRangeFromTextureCoord(uv.y, textureDimensions.y);
+  r = planet.surfaceRadius +
+      x_r * (planet.atmosphereRadius - planet.surfaceRadius);
+  mu_s = ClampCosine(2.0 * x_mu_s - 1.0);
 }
 
 float ozoneHF(float sampleHeight, Planet planet, float segmentfloat)

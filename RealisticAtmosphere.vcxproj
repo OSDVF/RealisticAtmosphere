@@ -255,6 +255,7 @@
     <None Include="Clouds.glsl" />
     <None Include="Common.glsl" />
     <None Include="DirectIrradiance.comp" />
+    <None Include="IndirectIrradiance.comp" />
     <None Include="Lambert.glsl" />
     <None Include="Buffers.glsl" />
     <None Include="ComputeRender\rt_display.vert" />

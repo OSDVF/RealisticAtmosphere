@@ -11,15 +11,15 @@ vec2 mirrorTilingUV(vec2 uv);
 uvec2 quadIndex = gl_LocalInvocationID.xy / 2;
 shared vec3 hitPosition;
 #endif
-vec3 triplanarSample(sampler2D sampl, vec3 pos, vec3 normal, float lod)
+vec3 triplanarSample(sampler2DArray sampl, vec4 pos, vec3 normal, float lod)
 {
-	pos /= 5;
-	vec2 triUVx = (pos.zy);
-	vec2 triUVy = (pos.xz);
-	vec2 triUVz = (pos.xy);
+	pos.xyz = pos.xyz / 5;
+	vec3 triUVx = vec3(pos.zy,pos.w);
+	vec3 triUVy = vec3(pos.xz,pos.w);
+	vec3 triUVz = vec3(pos.xy,pos.w);
 	float bigLod = lod-0.5;
-	const float bigUvFrac = 10;
-	vec2 biggerUV = triUVx/bigUvFrac;
+	const vec3 bigUvFrac = vec3(10,10,1);
+	vec3 biggerUV = triUVx/bigUvFrac;
 	vec4 texX = textureLod(sampl, triUVx, lod);
 	texX *= textureLod(sampl, biggerUV, bigLod);
 
@@ -49,13 +49,13 @@ vec3 terrainColor(Planet planet, float T, vec3 pos, vec3 normal, float elev)
 	return mix(
 				mix(
 					mix(
-						triplanarSample(texSampler2, pos, normal, lod),
-						triplanarSample(texSampler3, pos, normal, lod),
+						triplanarSample(terrainTextures, vec4(pos,2), normal, lod),
+						triplanarSample(terrainTextures, vec4(pos,1), normal, lod),
 						pow(mix(firstRatio, gradParams.y, gradParams.z*PlanetMaterial.z),2)) + smoothstep(PlanetMaterial.x,PlanetMaterial.y,randomizedElev-800)*0.6,
-					triplanarSample(texSampler1, pos, normal, lod),
+					triplanarSample(terrainTextures, vec4(pos,0), normal, lod),
 						clamp(pow((gradParams.y+gradParams.z+gradParams.w-PlanetMaterial.w),10), 0,1)
 				),
-			triplanarSample(texSampler4, pos, normal, lod),
+			triplanarSample(terrainTextures, vec4(pos,3), normal, lod),
 			max(clamp(pow(-(normal.x+normal.z)*7,15),0,1),1 - smoothstep(700,1000,randomizedElev))
 		);
 }
