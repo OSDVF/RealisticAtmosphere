@@ -271,6 +271,7 @@
     <None Include="normal_render.vert" />
     <None Include="Planet.glsl" />
     <None Include="OpticalDepth.comp" />
+    <None Include="PrecomputeSettings.glsl" />
     <None Include="Random.glsl" />
     <None Include="raytracer.glsl" />
     <None Include="Sampling.glsl" />

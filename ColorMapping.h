@@ -193,9 +193,7 @@ namespace ColorMapping {
 	// 300 Dobson units of ozone - for this we divide 300 DU by the integral of
 	// the ozone density profile defined below, which is equal to 15km).
 	constexpr double kMaxOzoneNumberDensity = 300.0 * kDobsonUnit / 15000.0;
-	// Wavelength independent solar irradiance "spectrum" (not physically
-	// realistic, but was used in the original implementation).
 
-	void FillSpectrum(vec4& SkyRadianceToLuminance, vec4& SunRadianceToLuminance, Planet& planet);
+	void FillSpectrum(vec4& SkyRadianceToLuminance, vec4& SunRadianceToLuminance, Planet& planet, DirectionalLight& sun);
 };
 

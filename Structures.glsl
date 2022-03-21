@@ -5,16 +5,36 @@ const int SCATTERING_TEXTURE_R_SIZE = 32;
 const int SCATTERING_TEXTURE_MU_SIZE = 128;
 const int SCATTERING_TEXTURE_MU_S_SIZE = 32;
 const int SCATTERING_TEXTURE_NU_SIZE = 8;
+const float SCATTERING_TEXTURE_LIGHT_COUNT = 2;
 
-const int SCATTERING_TEXTURE_WIDTH =
-    SCATTERING_TEXTURE_NU_SIZE * SCATTERING_TEXTURE_MU_S_SIZE;
-const int SCATTERING_TEXTURE_HEIGHT = SCATTERING_TEXTURE_MU_SIZE;
-const int SCATTERING_TEXTURE_DEPTH = SCATTERING_TEXTURE_R_SIZE;
+const int SCATTERING_TEXTURE_HEIGHT = SCATTERING_TEXTURE_MU_SIZE * int(SCATTERING_TEXTURE_LIGHT_COUNT);
+
+struct CloudLayer
+{
+    vec3 position;
+    float coverage;
+
+    float startRadius;
+    float endRadius;
+    float layerThickness;// Should be precomputed as (cloudsEndRadius - cloudsStartRadius)
+    float density;
+
+    float lowerGradient;
+    float upperGradient;
+    float scatteringCoef;
+    float extinctionCoef;
+
+    vec3 sizeMultiplier;
+    float sharpness;
+};
 
 struct DirectionalLight
 {
-    vec4 direction;
-    vec4 color;
+    vec3 direction;
+    float angularRadius;
+
+    vec3 irradiance;
+    float intensity;
 };
 
 struct SpotLight
@@ -55,26 +75,25 @@ struct Planet
     vec3 rayleighCoefficients;
     float rayleighScaleHeight; /* Air molecular density would be uniform if the atmosfere was homogenous and had this "Scale" height */
 
-    float sunIntensity;
-    uint sunDrectionalLightIndex;
-    float mountainsRadius;
-    float cloudsStartRadius;
-
-    vec3 solarIrradiance;
-    float cloudsEndRadius;
-
     vec3 absorptionCoefficients; // Ozone layer
+    float mountainsRadius;
+    
+    float atmosphereThickness;// Should be precomputed as (atmosphereRadius - surfaceRadius)
     float ozonePeakHeight;
-
     float ozoneTroposphereCoef;
     float ozoneTroposphereConst;
+
     float ozoneStratosphereCoef;
     float ozoneStratosphereConst;
+    uint firstLight;
+    uint lastLight;
+    
+    CloudLayer clouds;
 
-    float cloudLayerThickness;// Should be precomputed as (cloudsEndRadius - cloudsStartRadius)
-    float sunAngularRadius;
-    float atmosphereThickness;// Should be precomputed as (atmosphereRadius - surfaceRadius)
+    float firstLightCoord;
+    float padding1;
     float padding2;
+    float padding3;
 };
 
 struct Hit

@@ -1,6 +1,4 @@
 //?#version 440
-#include "Intersections.glsl"
-#include "SceneObjects.glsl"
 #include "Common.glsl"
 
 layout(local_size_x=16, local_size_y=16, local_size_z = 1) in;
@@ -9,70 +7,110 @@ layout(std430, binding=1) readonly buffer PlanetBuffer
 {
     Planet planets[];
 };
+vec2 texSize = vec2(gl_WorkGroupSize * gl_NumWorkGroups);
+
+float ComputeOpticalLengthToTopAtmosphereBoundaryR(
+    const Planet planet,
+    float r, float mu) {
+  // Number of intervals for the numerical integration.
+  const int SAMPLE_COUNT = 500;
+  // The integration step, i.e. the length of each integration interval.
+  float dx =
+      DistanceToTopAtmosphereBoundary(planet, r, mu) / float(SAMPLE_COUNT);
+  // Integration loop.
+  float result = 0.0;
+  for (int i = 0; i <= SAMPLE_COUNT; ++i) {
+    float d_i = float(i) * dx;
+    // Distance between the current sample point and the planet center.
+    float r_i = sqrt(d_i * d_i + 2.0 * r * mu * d_i + r * r);
+    // Number density at the current sample point (divided by the number density
+    // at the bottom of the atmosphere, yielding a dimensionless number).
+    float y_i = exp(-(r_i - planet.surfaceRadius)/planet.rayleighScaleHeight);
+    // Sample weight (from the trapezoidal rule).
+    float weight_i = i == 0 || i == SAMPLE_COUNT ? 0.5 : 1.0;
+    result += y_i * weight_i * dx;
+  }
+  return result;
+}
+
+float ComputeOpticalLengthToTopAtmosphereBoundaryM(
+    const Planet planet,
+    float r, float mu) {
+  // Number of intervals for the numerical integration.
+  const int SAMPLE_COUNT = 500;
+  // The integration step, i.e. the length of each integration interval.
+  float dx =
+      DistanceToTopAtmosphereBoundary(planet, r, mu) / float(SAMPLE_COUNT);
+  // Integration loop.
+  float result = 0.0;
+  for (int i = 0; i <= SAMPLE_COUNT; ++i) {
+    float d_i = float(i) * dx;
+    // Distance between the current sample point and the planet center.
+    float r_i = sqrt(d_i * d_i + 2.0 * r * mu * d_i + r * r);
+    // Number density at the current sample point (divided by the number density
+    // at the bottom of the atmosphere, yielding a dimensionless number).
+    float y_i = exp(-(r_i - planet.surfaceRadius)/planet.mieScaleHeight);
+    // Sample weight (from the trapezoidal rule).
+    float weight_i = i == 0 || i == SAMPLE_COUNT ? 0.5 : 1.0;
+    result += y_i * weight_i * dx;
+  }
+  return 1;
+  return result;
+}
+
+float ComputeOpticalLengthToTopAtmosphereBoundaryO(
+    const Planet planet,
+    float r, float mu) {
+  // Number of intervals for the numerical integration.
+  const int SAMPLE_COUNT = 500;
+  // The integration step, i.e. the length of each integration interval.
+  float dx =
+      DistanceToTopAtmosphereBoundary(planet, r, mu) / float(SAMPLE_COUNT);
+  // Integration loop.
+  float result = 0.0;
+  for (int i = 0; i <= SAMPLE_COUNT; ++i) {
+    float d_i = float(i) * dx;
+    // Distance between the current sample point and the planet center.
+    float r_i = sqrt(d_i * d_i + 2.0 * r * mu * d_i + r * r);
+    // Number density at the current sample point (divided by the number density
+    // at the bottom of the atmosphere, yielding a dimensionless number).
+    float y_i = ozoneHF(r_i - planet.surfaceRadius, planet, dx);
+    // Sample weight (from the trapezoidal rule).
+    float weight_i = i == 0 || i == SAMPLE_COUNT ? 0.5 : 1.0;
+    result += y_i * weight_i;
+  }
+  return result;
+}
+
+vec3 ComputeTransmittanceToTopAtmosphereBoundary(
+    const Planet planet, float r, float mu) {
+  return exp(-(
+      planet.rayleighCoefficients *
+          ComputeOpticalLengthToTopAtmosphereBoundaryR(
+              planet, r, mu) +
+      1.11 * planet.mieCoefficient *
+          ComputeOpticalLengthToTopAtmosphereBoundaryM(
+              planet, r, mu) +
+      planet.absorptionCoefficients *
+          ComputeOpticalLengthToTopAtmosphereBoundaryO(
+              planet, r, mu)));
+}
+
+vec3 ComputeTransmittanceToTopAtmosphereBoundaryTexture(
+    const Planet planet, vec2 frag_coord) {
+  float r;
+  float mu;
+  GetRMuFromTransmittanceTextureUv(
+      planet, texSize, frag_coord, r, mu);
+  return ComputeTransmittanceToTopAtmosphereBoundary(planet, r, mu);
+}
 
 void main()
 {
 	vec4 color;
-    vec2 texSize = vec2(gl_WorkGroupSize * gl_NumWorkGroups);
-	vec2 uv = (vec2(gl_GlobalInvocationID.xy) + 0.5f) / texSize;
+	vec2 uv = (vec2(gl_GlobalInvocationID.xy) + 0.5f);
 	
-	float x_mu = GetUnitRangeFromTextureCoord(uv.x, texSize.x);
-    float x_r = GetUnitRangeFromTextureCoord(uv.y, texSize.y);
-    float bottomRadius2 = planets[0].surfaceRadius * planets[0].surfaceRadius;
-    float topRadius2 = planets[0].atmosphereRadius * planets[0].atmosphereRadius;
-    float H = sqrt(topRadius2 - bottomRadius2);
-    float rho = H * x_r;
-    float r = sqrt(rho * rho + bottomRadius2);
-    float d_min = planets[0].atmosphereRadius - r;
-    float d_max = rho + H;
-    float d = d_min + x_mu * (d_max - d_min);
-    float mu = d == 0.0 ?
-          1.0 :
-          (H * H - rho * rho - d * d) / (2.0 * r * d);
-    mu = clamp(mu, -1.0, 1.0);
+	vec3 result = ComputeTransmittanceToTopAtmosphereBoundaryTexture(planets[0], uv / texSize);
 
-    const int SAMPLE_COUNT = 500;
-    float dx = max(-r * mu + sqrt(max(r * r * (mu * mu - 1.0) + topRadius2, 0.0)), 0.0) / SAMPLE_COUNT;
-    float optical_length_rayleigh = 0.0;
-        for (int i = 0; i <= SAMPLE_COUNT; i++) {
-        float d_i = i * dx;
-        float r_i = sqrt(d_i * d_i + 2.0 * r * mu * d_i + r * r);
-        float rayleighHF = exp(-(r_i - planets[0].surfaceRadius)/planets[0].rayleighScaleHeight);
-        float weight_i = i == 0 || i == SAMPLE_COUNT ? 0.5 : 1.0;
-        optical_length_rayleigh += rayleighHF * weight_i * dx;
-    }
-    float optical_length_mie = 0.0;
-        for (int i = 0; i <= SAMPLE_COUNT; i++) {
-        float d_i = i * dx;
-        float r_i = sqrt(d_i * d_i + 2.0 * r * mu * d_i + r * r);
-        float rayleighHF = exp(-(r_i - planets[0].surfaceRadius)/planets[0].mieScaleHeight);
-        float weight_i = i == 0 || i == SAMPLE_COUNT ? 0.5 : 1.0;
-        optical_length_mie += rayleighHF * weight_i * dx;
-    }
-    float optical_length_absorption = 0.0;
-        for (int i = 0; i <= SAMPLE_COUNT; i++) {
-        float d_i = i * dx;
-        float r_i = sqrt(d_i * d_i + 2.0 * r * mu * d_i + r * r);
-        float ozoneHF;
-        float altitude = (r_i - planets[0].surfaceRadius);
-        if(altitude < 25000)
-        {
-            ozoneHF = (1.0/15000.0) * altitude - (2.0/3.0);
-        }
-        else
-        {
-            ozoneHF = (-1.0/15000.0) * altitude + 8.0/3.0;
-        }
-        ozoneHF = clamp(ozoneHF,0,1);
-        float weight_i = i == 0 || i == SAMPLE_COUNT ? 0.5 : 1.0;
-        optical_length_absorption += ozoneHF * weight_i * dx;
-    }
-
-    vec3 transmittance = exp(-(
-        planets[0].rayleighCoefficients * optical_length_rayleigh +
-        planets[0].mieCoefficient * 1.11 * optical_length_mie +
-        planets[0].absorptionCoefficients * optical_length_absorption));
-    transmittance = min(transmittance, vec3(1.0));
-
-	imageStore(transmittanceOutput, ivec2(gl_GlobalInvocationID.xy), vec4(transmittance, 0));
+	imageStore(transmittanceOutput, ivec2(gl_GlobalInvocationID.xy), vec4(result, 0));
 }

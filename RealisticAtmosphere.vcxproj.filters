@@ -149,9 +149,6 @@
     <None Include="Transmittance.comp">
       <Filter>Shader Programs\Compute Render\Precompute</Filter>
     </None>
-    <None Include="Common.glsl">
-      <Filter>Shader Programs\Compute Render\Precompute</Filter>
-    </None>
     <None Include="Structures.glsl">
       <Filter>Shader Programs</Filter>
     </None>
@@ -159,6 +156,12 @@
       <Filter>Shader Programs\Compute Render\Precompute</Filter>
     </None>
     <None Include="IndirectIrradiance.comp">
+      <Filter>Shader Programs\Compute Render\Precompute</Filter>
+    </None>
+    <None Include="Common.glsl">
+      <Filter>Shader Programs</Filter>
+    </None>
+    <None Include="PrecomputeSettings.glsl">
       <Filter>Shader Programs\Compute Render\Precompute</Filter>
     </None>
   </ItemGroup>

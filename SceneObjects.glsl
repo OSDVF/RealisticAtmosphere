@@ -20,7 +20,7 @@ uniform sampler2DArray terrainTextures;
 uniform sampler2D heightmapTexture;
 uniform sampler2D opticalDepthTable;
 uniform sampler2D transmittanceTable;
-uniform sampler2D irradianceTable;
+uniform sampler2DArray irradianceTable;
 uniform sampler3D singleScatteringTable;
 uniform vec4 u_viewRect;
 uniform vec4 Camera[4];
@@ -33,7 +33,7 @@ uniform vec4 LightSettings;
 uniform vec4 LightSettings2;
 uniform vec4 SunRadianceToLuminance;
 uniform vec4 SkyRadianceToLuminance;
-uniform vec4 CloudsSettings[7];
+uniform vec4 CloudsSettings[3];
 #else
 vec4 Camera[] =
 {
@@ -62,13 +62,9 @@ vec4 SunRadianceToLuminance;
 vec4 SkyRadianceToLuminance;
 int cloudsOrders = 1;
 vec4 CloudsSettings[] = {
-                            vec4(0.000855, 3, 5, 128),//Scattering coef, density, edges, samples
-                            vec4(4, 5000, 13000, 1000),//light samples, terrain fade, atmo fade, light far plant
-                            vec4(20, 200000, 5, 0.01),//Terrain steps, far plane, cheap downsamle, cheap thres
-                            vec4(1e-4,2e-4,1e-4, 0.000855),//Size XYZ, extinction coef
-                            vec4(1.0, -23911, 0, 20000),//cheapCoef, position
-                            vec4(1e-4,0, 0.5, 0.3),// sampling thres, aerosolAmount, powderDensity
-                            vec4(0.09, 4) // coverage, fadePower
+                            vec4(128, 4, 200000, 1000),//samples, light samples, far plane, light far plane
+                            vec4(20, 5, 0.01, 0),//Terrain steps, cheap downsamle, cheap thres, max powder
+                            vec4(1e-4,0.5,0.3, 4),//sampling thres, aerosol amount, powder density, fade power
                         };
 #endif
 
@@ -103,34 +99,24 @@ vec4 CloudsSettings[] = {
 #define Camera_fovX (Camera[3].w)
 #define Camera_fovY (Camera[2].w)
 
-#define Clouds_scatCoef CloudsSettings[0].x
-#define Clouds_density CloudsSettings[0].y
-#define Clouds_edges CloudsSettings[0].z
-#define Clouds_iter CloudsSettings[0].w
-#define Clouds_lightSteps CloudsSettings[1].x
-#define Clouds_terrainFade CloudsSettings[1].y
-#define Clouds_atmoFade CloudsSettings[1].z
-#define Clouds_lightFarPlane CloudsSettings[1].w
-#define Clouds_terrainSteps CloudsSettings[2].x
-#define Clouds_farPlane CloudsSettings[2].y
-#define Clouds_cheapDownsample CloudsSettings[2].z
-#define Clouds_cheapThreshold CloudsSettings[2].w
-#define Clouds_size CloudsSettings[3].xyz
-#define Clouds_extinctCoef CloudsSettings[3].w
+#define Clouds_iter CloudsSettings[0].x
+#define Clouds_lightSteps CloudsSettings[0].y
+#define Clouds_farPlane CloudsSettings[0].z
+#define Clouds_lightFarPlane CloudsSettings[0].w
 
-#define Clouds_cheapCoef CloudsSettings[4].x
-#define Clouds_position CloudsSettings[4].yzw
+#define Clouds_terrainSteps CloudsSettings[1].x
+#define Clouds_cheapDownsample CloudsSettings[1].y
+#define Clouds_cheapThreshold CloudsSettings[1].z
+#define Clouds_maxPowder CloudsSettings[1].w
 
-#define Clouds_sampleThres CloudsSettings[5].x
-#define Clouds_maxPowder CloudsSettings[5].y
-#define Clouds_aerosols CloudsSettings[5].z
-#define Clouds_powderDensity CloudsSettings[5].w
-
-#define Clouds_coverageSize CloudsSettings[6].x
-#define Clouds_fadePower CloudsSettings[6].y
+#define Clouds_sampleThres CloudsSettings[2].x
+#define Clouds_aerosols CloudsSettings[2].y
+#define Clouds_powderDensity CloudsSettings[2].z
+#define Clouds_fadePower CloudsSettings[2].w
 
 #ifdef BGFX_SHADER_LANGUAGE_GLSL
 bool HQSettings_atmoCompute = (floatBitsToUint(HQSettings_flags) & HQFlags_ATMO_COMPUTE) != 0u;
+bool HQSettings_earthShadows = (floatBitsToUint(HQSettings_flags) & HQFlags_EARTH_SHADOWS) != 0u;
 #endif
 
 #include "Structures.glsl"

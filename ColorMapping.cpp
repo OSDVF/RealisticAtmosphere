@@ -90,7 +90,7 @@ namespace ColorMapping {
         *k_b *= dlambda * MAX_LUMINOUS_EFFICACY;
     }
 
-    void FillSpectrum(vec4& SkyRadianceToLuminance, vec4& SunRadianceToLuminance, Planet& planet)
+    void FillSpectrum(vec4& SkyRadianceToLuminance, vec4& SunRadianceToLuminance, Planet& planet, DirectionalLight& sun)
     {
         std::vector<double> wavelengths;
         std::vector<double> solar_irradiance;
@@ -129,7 +129,7 @@ namespace ColorMapping {
         SunRadianceToLuminance.y = sun_k_g;
         SunRadianceToLuminance.z = sun_k_b;
 
-        planet.solarIrradiance = GetValuesForRGBSpectrum(wavelengths, solar_irradiance);
+        sun.irradiance = GetValuesForRGBSpectrum(wavelengths, solar_irradiance);
         planet.absorptionCoefficients = GetValuesForRGBSpectrum(wavelengths, absorption_extinction);
         planet.rayleighCoefficients = GetValuesForRGBSpectrum(wavelengths, rayleigh_scattering);
         vec3 mie = GetValuesForRGBSpectrum(wavelengths, mie_scattering);

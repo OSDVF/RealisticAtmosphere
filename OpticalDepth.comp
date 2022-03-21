@@ -2,6 +2,7 @@
 #include "Intersections.glsl"
 #include "Structures.glsl"
 #include "Common.glsl"
+#include "PrecomputeSettings.glsl"
 
 layout(local_size_x=16, local_size_y=16, local_size_z = 1) in;
 layout(rgba32f, binding=0) writeonly uniform image2D opticalDepth;//r = rayleigh, g = mie, b = ozone
@@ -15,7 +16,7 @@ void main()
 	vec4 color;
 	vec2 tc = vec2(gl_GlobalInvocationID.xy) / vec2(gl_WorkGroupSize * gl_NumWorkGroups);
 	
-	const Planet p = planets[0];
+	const Planet p = planets[PrecomputeSettings_planetIndex];
 	float cosAlpha = tc.x*1.5-0.5;
 	float sunToViewRayAngle = acos(cosAlpha);
 	float sampleHeight = tc.y * p.atmosphereThickness + p.surfaceRadius;

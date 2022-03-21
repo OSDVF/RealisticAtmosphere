@@ -3,7 +3,7 @@
 #define HIT_H
 #include "Intersections.glsl"
 #include "Buffers.glsl"
-Hit findObjectHit(Ray ray)
+Hit findObjectHit(Ray ray, bool includeTranslucent)
 {
     float closestDistance = POSITIVE_INFINITY;
     uint hitObjectIndex = -1;
@@ -14,6 +14,8 @@ Hit findObjectHit(Ray ray)
     //Firstly try hitting objects
     for (int k = 0; k < objects.length(); ++k)
     {
+        if(!includeTranslucent && materials[objects[k].materialIndex].albedo.a == 0)
+            continue;
         float lastDistance;
         if (getRaySphereIntersection(objects[k], ray, hitPosition, normalAtHit, lastDistance)) // Update hit position and normal
         {
@@ -27,5 +29,10 @@ Hit findObjectHit(Ray ray)
     }
     
     return Hit(closesHitPosition, closestNormalAtHit, hitObjectIndex, closestDistance);
+}
+
+Hit findObjectHit(Ray ray)
+{
+    return findObjectHit(ray, true);
 }
 #endif

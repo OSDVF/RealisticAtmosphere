@@ -2,6 +2,7 @@
 #include "Intersections.glsl"
 #include "SceneObjects.glsl"
 #include "Common.glsl"
+#include "PrecomputeSettings.glsl"
 
 layout(local_size_x=16, local_size_y=16, local_size_z = 1) in;
 layout(rgba8, binding=0) writeonly uniform image2D directIrradianceOutput;
@@ -9,29 +10,37 @@ layout(std430, binding=1) readonly buffer PlanetBuffer
 {
     Planet planets[];
 };
+layout(std430, binding=1) readonly buffer DirectionalLightBuffer
+{
+    DirectionalLight lights[];
+};
+
+uniform uvec4 Indexes;
 
 vec2 texSize = vec2(gl_WorkGroupSize * gl_NumWorkGroups);
 vec2 uv = vec2(gl_GlobalInvocationID.xy) / texSize;
 
 void main()
 {
-	float r = planets[0].surfaceRadius +
+    Planet planet = planets[PrecomputeSettings_planetIndex];
+    DirectionalLight light = lights[PrecomputeSettings_lightIndex];
+	float r = planet.surfaceRadius +
         GetUnitRangeFromTextureCoord(uv.y, texSize.y) *
-        (planets[0].atmosphereRadius - planets[0].surfaceRadius);
-    float mu_s = clamp(2.0 * GetUnitRangeFromTextureCoord(uv.x, texSize.x) - 1.0, -1.0, 1.0);
-    float a_s = planets[0].sunAngularRadius;
+        (planet.atmosphereRadius - planet.surfaceRadius);
+    float mu_l = clamp(2.0 * GetUnitRangeFromTextureCoord(uv.x, texSize.x) - 1.0, -1.0, 1.0);
+    float a_s = light.angularRadius;
     float average_cosine_factor;
-    if (mu_s < -a_s) {
+    if (mu_l < -a_s) {
         average_cosine_factor = 0.0;
-    } else if (mu_s > a_s) {
-        average_cosine_factor = mu_s;
+    } else if (mu_l > a_s) {
+        average_cosine_factor = mu_l;
     } else {
-        average_cosine_factor = (mu_s + a_s) * (mu_s + a_s) / (4.0 * a_s);
+        average_cosine_factor = (mu_l + a_s) * (mu_l + a_s) / (4.0 * a_s);
     }
 
     vec3 delta_irradiance =
-        planets[0].solarIrradiance * 
-        GetTransmittanceToAtmosphereEnd(planets[0], transmittanceTable, r, mu_s) *
+        light.irradiance * 
+        GetTransmittanceToTopAtmosphereBoundary(planet, transmittanceTable, r, mu_l) *
         average_cosine_factor;
 
 	imageStore(directIrradianceOutput, ivec2(gl_GlobalInvocationID.xy), vec4(delta_irradiance,0));
