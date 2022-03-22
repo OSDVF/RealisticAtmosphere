@@ -69,6 +69,103 @@ vec3 GetSkyRadiance(
       MiePhaseFunction(planet.mieAsymmetryFactor, nu)) * SkyRadianceToLuminance.rgb;
 }
 
+int M_perAtmospherePixel = floatBitsToInt(Multisampling_perAtmospherePixel);;
+float raymarchOcclusion(Planet planet, Ray ray, float fromT, float toT, bool viewTerrainHit, DirectionalLight l)
+{
+	float t = fromT;
+	float dx = (toT - fromT) / float(M_perAtmospherePixel);
+	dx = max(dx, QualitySettings_minStepSize);// Otherwise too close object would evaluate too much steps
+	return dx;
+	float shadowLength = 0;
+	for(int i = 0; i < M_perAtmospherePixel; i++,t+=dx)
+	{
+		vec3 worldPos = ray.origin + ray.direction * t;
+		vec3 planetRelativePos = worldPos - planet.center;
+		float r = length(planetRelativePos);
+		vec3 sphNormal = planetRelativePos /r;
+		float mu = dot(sphNormal, ray.direction);
+		float mu_s = dot(sphNormal, l.direction);
+		float nu = dot(ray.direction, l.direction);
+		bool noSureIfEclipse = true;
+		float lightFromT = 0, lightToT, _;
+		if(viewTerrainHit)
+		{
+			if(mu_s < LightSettings_viewThres)
+			{
+				shadowLength += dx;
+				continue;//No light when sun is under the horizon
+			}
+			// When view ray and sun are on the opposite side, there nearly "should not be" any rays
+			float diff = nu - LightSettings_noRayThres;
+			// But it whould sometimes create a visible seam, so we create a gradient here
+			if(diff < 0 && mod(i, LightSettings_gradient) < 1)
+			{
+				noSureIfEclipse = false;
+			}
+			else
+			{
+				// We can start terrain raymarching at the distance of the terrain from the camera
+				lightFromT = (toT - t) * LightSettings_terrainOptimMult;
+			}
+		}
+		if(mu_s > LightSettings_noRayThres || t > QualitySettings_farPlane)
+		{
+			noSureIfEclipse = false;
+		}
+
+		// Intersect light ray with outer shell of the atmosphere
+		Ray shadowRay = Ray(worldPos, l.direction);
+		raySphereIntersection(planet.center, planet.atmosphereRadius,
+							shadowRay, _, lightToT);
+
+		//Firstly check for opaque object hits
+		Hit hit = findObjectHit(shadowRay, false);
+		lightToT = min(hit.t, lightToT);
+		// Secondly check if sun is in shadow of the planet
+		vec3 viewOnPlanetPlane = ray.direction - mu * sphNormal;
+		vec3 sunOnPlanetPlane = l.direction - mu_s * sphNormal;
+
+		if(noSureIfEclipse && r < planet.mountainsRadius)
+		{
+			//If we hit the mountains			
+			if(raymarchTerrainL(planet, shadowRay, lightFromT, lightToT))
+			{
+				if(dot(sunOnPlanetPlane, viewOnPlanetPlane) > 0 && viewTerrainHit && t > toT * LightSettings_cutoffDist)
+				{
+					// In all the later samples, the sun will be also occluded
+					return shadowLength + toT - t;//The later samples would all be occluded by the terrain
+				}
+				shadowLength += dx;
+				continue;//Skip to next sample. This effectively creates light rays
+			}
+		}
+		if(hit.hitObjectIndex != -1)
+		{
+			shadowLength += dx;
+			continue;//Light is occluded by a object
+		}
+	}
+	return shadowLength;
+}
+
+void precomputedAtmosphere(Planet p, Ray ray, float toT, bool terrainWasHit, inout vec3 luminance, inout vec3 transmittance)
+{
+	vec3 atmoTransmittance;
+	float lightIndex = 0;
+	vec3 planetSpaceCam = ray.origin - p.center;
+	for(uint l = p.firstLight; l <= p.lastLight; l++)
+	{
+		DirectionalLight light = directionalLights[l];
+		float shadow = raymarchOcclusion(p, ray, 0, toT, terrainWasHit, light);
+		luminance += GetSkyRadianceToPoint(p, transmittanceTable, singleScatteringTable,
+											planetSpaceCam, toT, ray.direction, shadow, 
+											light.direction, lightIndex, /*out*/ atmoTransmittance)
+					* SkyRadianceToLuminance.rgb;
+		lightIndex++;
+	}
+	transmittance *= atmoTransmittance;
+}
+
 float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDistance, inout vec3 luminance, inout vec3 transmittance, bool terrainWasHit);
 
 /**
@@ -105,19 +202,6 @@ bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out vec
 		vec2 normalMap;
 		vec3 worldSamplePos, sphNormal;
 		float sampleHeight;
-		if(!HQSettings_atmoCompute)
-		{
-			vec3 atmoTransmittance;
-		
-			float lightIndex = 0;
-			for(uint l = p.firstLight; l <= p.lastLight; l++)
-			{
-				luminance += GetSkyRadiance(p, ray.origin - p.center, ray.direction, 0, directionalLights[l].direction, lightIndex, /*out*/ atmoTransmittance);
-				lightIndex++;
-			}
-			transmittance *= atmoTransmittance;
-			return false;
-		}
 		if(raymarchTerrain(p, ray, fromDistance, /* inout */ toDistance,
 			/* the rest params are "out" */
 					normalMap, sphNormal, worldSamplePos, sampleHeight ))
@@ -133,7 +217,15 @@ bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out vec
 				planetAlbedo = terrainColor(p, toDistance, worldSamplePos, worldNormal, sampleHeight);
 			}
 			cloudsForPlanet(p,ray,fromDistance,toDistance,Clouds_terrainSteps,transmittance,luminance);
-			if(!DEBUG_ATMO_OFF) raymarchAtmosphere(p, ray, fromDistance, toDistance, /*inout*/ luminance, /*inout*/ transmittance, true);
+			if(!DEBUG_ATMO_OFF)
+			{
+				if(HQSettings_atmoCompute)
+					raymarchAtmosphere(p, ray, fromDistance, toDistance, /*inout*/ luminance, /*inout*/ transmittance, true);
+				else
+				{
+					precomputedAtmosphere(p, ray, toDistance, true, luminance, transmittance);
+				}
+			}
 			luminance += planetAlbedo * lightPoint(p, worldSamplePos, worldNormal) * transmittance;
 			transmittance *= planetAlbedo;
 			planetHit = Hit(worldSamplePos, worldNormal, -1, toDistance);
@@ -143,13 +235,19 @@ bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out vec
 		{
 			cloudsForPlanet(p,ray,fromDistance,toDistance,Clouds_iter,transmittance,luminance);
 			if(!DEBUG_ATMO_OFF)
-				raymarchAtmosphere(p, ray, fromDistance, toDistance, /*inout*/ luminance,/*inout*/ transmittance, false);
+			{	
+				if(HQSettings_atmoCompute)
+					raymarchAtmosphere(p, ray, fromDistance, toDistance, /*inout*/ luminance,/*inout*/ transmittance, false);
+				else
+				{
+					precomputedAtmosphere(p, ray, toDistance, false, luminance, transmittance);
+				}
+			}
 		}
 		return false;
 	}
 }
 
-int M_perAtmospherePixel = floatBitsToInt(Multisampling_perAtmospherePixel);;
 
 float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDistance, inout vec3 luminance, inout vec3 transmittance, bool terrainWasHit)
 {

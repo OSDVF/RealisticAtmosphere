@@ -198,7 +198,7 @@ namespace bgfx_utils
 		uint16_t width;
 		uint16_t height;
 		uint16_t numLayers = 0;
-		uint32_t totalMemorySize;
+		uint32_t totalMemorySize = 0;
 		bool hasMips;
 
 		int i = 0;

@@ -100,9 +100,9 @@ std::array<DirectionalLight,2> _directionalLightBuffer = {
 		{0,0,0},//Direction will be assigned
 		moonAngularRadiusMax,
 		{
-			0.01,
-			0.01,
-			0.01
+			0.005,
+			0.005,
+			0.005
 		},
 		//https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4487308/
 		//values are in μW.m−2.nm−1 so we need to convert them to lumens
@@ -144,9 +144,9 @@ std::array<Planet, 1> _planetBuffer = {
 
 		-(1.0),//Ozone troposphere density constant
 		(7.0 / 3.0),//Ozone stratosphere density constant
-		0,1,
+		0,0,
 		CloudLayer{
-			{- 23911, earthRadius, 20000}, // position
+			{- 23911, 0, 20000}, // position
 			0.09,//coverage
 
 			cloudsStart, // Clouds start radius
@@ -427,8 +427,8 @@ namespace RealisticAtmosphere
 
 			bgfx::ShaderHandle precomputeTransmittance = loadShader("Transmittance.comp");
 			bgfx::ProgramHandle transmittanceProgram = bgfx::createProgram(precomputeTransmittance);
-			_transmittanceTable = bgfx::createTexture2D(256, 64, false, 1, bgfx::TextureFormat::RGBA16F, BGFX_TEXTURE_COMPUTE_WRITE | BGFX_SAMPLER_UVW_CLAMP);
-			bgfx::setImage(0, _transmittanceTable, 0, bgfx::Access::Write, bgfx::TextureFormat::RGBA16F);
+			_transmittanceTable = bgfx::createTexture2D(256, 64, false, 1, bgfx::TextureFormat::RGBA32F, BGFX_TEXTURE_COMPUTE_WRITE | BGFX_SAMPLER_UVW_CLAMP);
+			bgfx::setImage(0, _transmittanceTable, 0, bgfx::Access::Write, bgfx::TextureFormat::RGBA32F);
 			bgfx::setBuffer(1, _atmosphereBufferHandle, bgfx::Access::Read);
 			bgfx::setBuffer(2, _directionalLightBufferHandle, bgfx::Access::Read);
 			bgfx::dispatch(0, transmittanceProgram, bx::ceil(256 / 16.0f), bx::ceil(64 / 16.0f));
@@ -446,8 +446,8 @@ namespace RealisticAtmosphere
 
 			bgfx::ShaderHandle precomputeIrradiance = loadShader("IndirectIrradiance.comp");
 			bgfx::ProgramHandle irradianceProgram = bgfx::createProgram(precomputeIrradiance);
-			_irradianceTable = bgfx::createTexture2D(64, 16, false, _directionalLightBuffer.size(), bgfx::TextureFormat::RGBA32F, BGFX_TEXTURE_COMPUTE_WRITE);
-			bgfx::setImage(0, _irradianceTable, 0, bgfx::Access::Write, bgfx::TextureFormat::RGBA32F);
+			_irradianceTable = bgfx::createTexture2D(64, 16, false, _directionalLightBuffer.size(), bgfx::TextureFormat::RGBA16F, BGFX_TEXTURE_COMPUTE_WRITE);
+			bgfx::setImage(0, _irradianceTable, 0, bgfx::Access::Write, bgfx::TextureFormat::RGBA16F);
 			bgfx::setBuffer(1, _atmosphereBufferHandle, bgfx::Access::Read);
 			bgfx::setBuffer(2, _directionalLightBufferHandle, bgfx::Access::Read);
 			bgfx::setTexture(3, _singleScatteringSampler, _singleScatteringTable);
@@ -802,11 +802,11 @@ namespace RealisticAtmosphere
 
 		void drawFlagsGUI()
 		{
-			ImGui::Begin("Flags");
 			ImGui::SetNextWindowPos(
-				ImVec2(0, 420)
+				ImVec2(0, 440)
 				, ImGuiCond_FirstUseEver
 			);
+			ImGui::Begin("Flags");
 			flags = *(int*)&HQSettings_flags;
 			bool usePrecomputedAtmo = (flags & HQFlags_ATMO_COMPUTE) != 0;
 			bool earthShadows = (flags & HQFlags_EARTH_SHADOWS) != 0;
@@ -848,8 +848,18 @@ namespace RealisticAtmosphere
 			ImGui::InputFloat("Sun Angle", &_sunAngle);
 			ImGui::SliderAngle("", &_sunAngle, 0, 180);
 			ImGui::InputFloat("Second Angle", &_secondSunAngle);
-			ImGui::SliderAngle("Moon Angle", &_moonAngle, 0, 180);
-			ImGui::SliderAngle("Sec M. Angle", &_secondMoonAngle, 0, 359);
+			bool showMoon = singlePlanet.lastLight == 1;
+			ImGui::Checkbox("Moon illuminance", &showMoon);
+			if (showMoon)
+			{
+				ImGui::SliderAngle("Moon Angle", &_moonAngle, 0, 180);
+				ImGui::SliderAngle("Sec M. Angle", &_secondMoonAngle, 0, 359);
+				singlePlanet.lastLight = 1;
+			}
+			else
+			{
+				singlePlanet.lastLight = 0;
+			}
 			ImGui::PopItemWidth();
 			static vec3 previousOzoneCoefs(0, 0, 0);
 			bool ozone = singlePlanet.absorptionCoefficients.x != 0;

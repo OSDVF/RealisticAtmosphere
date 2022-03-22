@@ -87,32 +87,31 @@ float powder(float density) {
     return clamp(powderApprox * 2.0, 0, 1);
 }
 
-float heightFade(float cloudDensity, CloudLayer c, vec3 planetSpacePos)
+float heightFade(float cloudDensity, CloudLayer c, float height)
 {
-    float height = length(planetSpacePos);
-    cloudDensity = mix(0, cloudDensity, pow(1-clamp((height - c.endRadius + c.upperGradient)/c.lowerGradient, 0, 1), Clouds_fadePower));
+    cloudDensity = mix(0, cloudDensity, pow(1-clamp((height - c.endRadius + c.upperGradient)/c.upperGradient, 0, 1), Clouds_fadePower));
     cloudDensity = mix(0, cloudDensity, pow(clamp((height - c.startRadius)/c.lowerGradient, 0, 1), Clouds_fadePower));
     return cloudDensity;
 }
 
-float sampleCloudM(CloudLayer c, vec3 planetSpacePos)
+float sampleCloudM(CloudLayer c, vec3 cloudSpacePos, float height)
 {
-    float cloudDensity = clamp(pow(cloudsMediumPrec(c, planetSpacePos * c.sizeMultiplier) * c.density, c.sharpness), 0, 1);
-    return heightFade(cloudDensity, c, planetSpacePos);
+    float cloudDensity = clamp(pow(cloudsMediumPrec(c, cloudSpacePos * c.sizeMultiplier) * c.density, c.sharpness), 0, 1);
+    return heightFade(cloudDensity, c, height);
 }
-float sampleCloudH(CloudLayer c, vec3 planetSpacePos, out float cheapDensity)
+float sampleCloudH(CloudLayer c, vec3 cloudSpacePos, float height, out float cheapDensity)
 {
-    float cloudDensity = clamp(pow(cloudsHighPrec(c, planetSpacePos * c.sizeMultiplier, cheapDensity) * c.density, c.sharpness), 0, 1);
-    return heightFade(cloudDensity, c, planetSpacePos);
+    float cloudDensity = clamp(pow(cloudsHighPrec(c, cloudSpacePos * c.sizeMultiplier, cheapDensity) * c.density, c.sharpness), 0, 1);
+    return heightFade(cloudDensity, c, height);
 }
-float sampleCloud(CloudLayer c, vec3 planetSpacePos, float level1)
+float sampleCloud(CloudLayer c, vec3 cloudSpacePos, float height, float level1)
 {
-    float cloudDensity = clamp(pow((level1 - cloudsHigherOrders(planetSpacePos * c.sizeMultiplier)) * c.density, c.sharpness), 0, 1);
-    return heightFade(cloudDensity, c, planetSpacePos);
+    float cloudDensity = clamp(pow((level1 - cloudsHigherOrders(cloudSpacePos * c.sizeMultiplier)) * c.density, c.sharpness), 0, 1);
+    return heightFade(cloudDensity, c, height);
 }
-float sampleCloudCheap(CloudLayer c, vec3 planetSpacePos)
+float sampleCloudCheap(CloudLayer c, vec3 cloudSpacePos)
 {
-    return clamp(cloudsCheap(c, planetSpacePos * c.sizeMultiplier),0,1);
+    return clamp(cloudsCheap(c, cloudSpacePos * c.sizeMultiplier),0,1);
 }
 
 void raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps, inout vec3 transmittance, inout vec3 luminance)
@@ -131,14 +130,17 @@ void raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps,
 	    {
             if(t > toT)
                 break;
-		    vec3 worldSpacePos = ray.origin + ray.direction * t + c.position;
-            float cheapDensity = sampleCloudCheap(c, worldSpacePos);
+            vec3 worldSpacePos = ray.origin + ray.direction * t;
+		    vec3 cloudSpacePos = worldSpacePos + c.position;
+            float cheapDensity = sampleCloudCheap(c, cloudSpacePos);
             
             if(cheapDensity > Clouds_cheapThreshold)
             {
                 t -= segmentLength * Clouds_cheapDownsample; //Return to the previo  us sample because we could lose some cloud material
-                worldSpacePos = ray.origin + ray.direction * t + c.position;
-                float density = min(sampleCloud(c, worldSpacePos, cheapDensity), 1);
+                worldSpacePos = ray.origin + ray.direction * t;
+                cloudSpacePos = worldSpacePos + c.position;
+                float height = distance(worldSpacePos, planet.center);
+                float density = min(sampleCloud(c, cloudSpacePos, height, cheapDensity), 1);
                 vec3 scatteringSum = vec3(0);
                 do
                 {
@@ -147,7 +149,7 @@ void raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps,
 
                         // Shadow rays:
                         float lOpticalDepth = 0;
-                        Ray shadowRay = Ray(worldSpacePos, sunDir);
+                        Ray shadowRay = Ray(cloudSpacePos, sunDir);
                         float dummy, toDistance, toDistanceInner;
                         raySphereIntersection(planet.center, c.endRadius, shadowRay, /*out*/ dummy, /*out*/ toDistance);
                         raySphereIntersection(planet.center, c.startRadius, shadowRay, /*out*/ toDistanceInner, /*out*/ dummy);
@@ -156,17 +158,20 @@ void raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps,
 
                         float lSegmentLength = min(toDistance,Clouds_lightFarPlane)/Clouds_lightSteps;
                         vec3 lightRayStep = sunDir * lSegmentLength;
-                        vec3 lSamplePos = worldSpacePos;
+                        vec3 lCloudSamplePos = cloudSpacePos;
+                        vec3 lWorldSamplePos = worldSpacePos;
                         for(float s = 0; s < Clouds_lightSteps; s++)
                         {
-                            float lDensity = min(sampleCloudM(c, lSamplePos), 1);
+                            float lheight = distance(lWorldSamplePos, planet.center);
+                            float lDensity = min(sampleCloudM(c, lCloudSamplePos, lheight), 1);
                             lOpticalDepth += lDensity * lSegmentLength;
                             if(s == Clouds_lightSteps - 2)
                             {
                                 lightRayStep *= 8;
                                 lSegmentLength *= 8;
                             }
-                            lSamplePos += lightRayStep;
+                            lCloudSamplePos += lightRayStep;
+                            lWorldSamplePos += lightRayStep;
                         }
                     
                         // Single scattering
@@ -179,8 +184,10 @@ void raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps,
                             break;
                     }
 
-                    worldSpacePos = ray.origin + ray.direction * t + c.position;
-                    density = min(sampleCloudH(c, worldSpacePos, /*out*/ cheapDensity), 1);
+                    worldSpacePos = ray.origin + ray.direction * t;
+                    cloudSpacePos = worldSpacePos + c.position;
+                    height = distance(worldSpacePos, planet.center);
+                    density = min(sampleCloudH(c, cloudSpacePos, height, /*out*/ cheapDensity), 1);
                     t += segmentLength;
                     i++;
                 }

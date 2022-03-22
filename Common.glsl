@@ -331,12 +331,11 @@ vec3 GetSkyRadianceToPoint(
     Planet planet,
     sampler2D transmittance_texture,
     sampler3D scattering_texture,
-    vec3 camera, vec3 point, float shadow_length,
-    vec3 sun_direction, out vec3 transmittance) {
+    vec3 camera, float d, vec3 view_ray, float shadow_length,
+    vec3 sun_direction, float lightIndex, out vec3 transmittance) {
   // Compute the distance to the top atmosphere boundary along the view ray,
   // assuming the viewer is in space (or NaN if the view ray does not intersect
   // the atmosphere).
-  vec3 view_ray = normalize(point - camera);
   float r = length(camera);
   float rmu = dot(camera, view_ray);
   float distance_to_top_atmosphere_boundary = -rmu -
@@ -353,7 +352,6 @@ vec3 GetSkyRadianceToPoint(
   float mu = rmu / r;
   float mu_s = dot(camera, sun_direction) / r;
   float nu = dot(view_ray, sun_direction);
-  float d = length(point - camera);
   bool ray_r_mu_intersects_ground = RayIntersectsGround(planet, r, mu);
 
   transmittance = GetTransmittance(planet, transmittance_texture,
@@ -362,7 +360,7 @@ vec3 GetSkyRadianceToPoint(
   vec3 single_mie_scattering;
   vec3 scattering = GetCombinedScattering(
       planet, scattering_texture,
-      r, mu, mu_s, nu, ray_r_mu_intersects_ground, 0,
+      r, mu, mu_s, nu, ray_r_mu_intersects_ground, lightIndex,
       single_mie_scattering);
 
   // Compute the r, mu, mu_s and nu parameters for the second texture lookup.
@@ -378,7 +376,7 @@ vec3 GetSkyRadianceToPoint(
   vec3 single_mie_scattering_p;
   vec3 scattering_p = GetCombinedScattering(
       planet, scattering_texture,
-      r_p, mu_p, mu_s_p, nu, ray_r_mu_intersects_ground, 0,
+      r_p, mu_p, mu_s_p, nu, ray_r_mu_intersects_ground, lightIndex,
       single_mie_scattering_p);
 
   // Combine the lookup results to get the scattering between camera and point.

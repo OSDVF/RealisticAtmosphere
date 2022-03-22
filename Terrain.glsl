@@ -18,17 +18,18 @@ vec3 triplanarSample(sampler2DArray sampl, vec4 pos, vec3 normal, float lod)
 	vec3 triUVy = vec3(pos.xz,pos.w);
 	vec3 triUVz = vec3(pos.xy,pos.w);
 	float bigLod = lod-0.5;
-	const vec3 bigUvFrac = vec3(10,10,1);
-	vec3 biggerUV = triUVx/bigUvFrac;
+	float bigUvFrac = 10;
+	vec3 biggerUV = triUVx;
+	biggerUV.xy /= bigUvFrac;
 	vec4 texX = textureLod(sampl, triUVx, lod);
 	texX *= textureLod(sampl, biggerUV, bigLod);
 
 	vec4 texY = textureLod(sampl, triUVy, lod);
-	biggerUV = triUVy/bigUvFrac;
+	biggerUV.xy = triUVy.xy/bigUvFrac;
 	texY *= textureLod(sampl, biggerUV, bigLod);
 
 	vec4 texZ = textureLod(sampl, triUVz, lod);
-	biggerUV = triUVz/bigUvFrac;
+	biggerUV.xy = triUVz.xy/bigUvFrac;
 	texZ *= textureLod(sampl, biggerUV, bigLod);
 
 	vec3 weights = abs(normal);
