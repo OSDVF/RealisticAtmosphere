@@ -89,7 +89,7 @@ Sphere _objectBuffer[] = {
 	}
 };
 
-std::array<DirectionalLight,2> _directionalLightBuffer = {
+std::array<DirectionalLight, 2> _directionalLightBuffer = {
 	DirectionalLight{//Sun
 		{0,0,0},//Direction will be assigned
 		float(sunAngularRadius),
@@ -104,10 +104,10 @@ std::array<DirectionalLight,2> _directionalLightBuffer = {
 			0.005,
 			0.005
 		},
-		//https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4487308/
-		//values are in μW.m−2.nm−1 so we need to convert them to lumens
-		1
-	}
+	//https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4487308/
+	//values are in μW.m−2.nm−1 so we need to convert them to lumens
+	1
+}
 };
 
 //When rendering participating media, all the coeficients start with β
@@ -136,7 +136,7 @@ std::array<Planet, 1> _planetBuffer = {
 
 		vec3(0,0,0),//Absorption extinction coefficients - will be assigned later
 		earthRadius + 5000, // Mountains radius
-		
+
 		atmosphereRadius - earthRadius, // Atmosphere thickness
 		25000,//Ozone peak height - height at which the ozone has maximum relative density
 		(1.0 / 15000.0),//Ozone troposphere density coefficient - for heights below ozonePeakHeight
@@ -146,7 +146,7 @@ std::array<Planet, 1> _planetBuffer = {
 		(7.0 / 3.0),//Ozone stratosphere density constant
 		0,0,
 		CloudLayer{
-			{- 23911, 0, 20000}, // position
+			{-23911, 0, 20000}, // position
 			0.09,//coverage
 
 			cloudsStart, // Clouds start radius
@@ -190,6 +190,7 @@ namespace RealisticAtmosphere
 		float _moonAngle = 0;
 		float _secondSunAngle = -1.55;
 		float _secondMoonAngle = 1;
+		bool _cloudsDSDUniformNotDisperse = true;
 		vec3 _cloudsWind = vec3(-50, 0, 0);
 
 		ScreenSpaceQuad _screenSpaceQuad;/**< Output of raytracer (both the compute-shader variant and fragment-shader variant) */
@@ -250,7 +251,7 @@ namespace RealisticAtmosphere
 #pragma endregion Shaders_And_Buffers
 #pragma region Textures_And_Samplers
 		bgfx::TextureHandle _heightmapTextureHandle;
-		bgfx::TextureHandle _cloudsPhaseTextureHandle;
+		bgfx::TextureHandle _cloudsPhaseTextureHandle = BGFX_INVALID_HANDLE;
 		bgfx::TextureHandle _textureArrayHandle;
 		bgfx::TextureHandle _texture2Handle;
 		bgfx::TextureHandle _texture3Handle;
@@ -397,23 +398,43 @@ namespace RealisticAtmosphere
 		void cloudsMiePhaseFunction()
 		{
 			auto cloudsMieData = new std::array<float, 1801 * 4>();
+			const float* red;
+			const float* green;
+			const float* blue;
+			if (_cloudsDSDUniformNotDisperse)
+			{
+				red = PhaseFunctions::CloudsRedUniform;
+				green = PhaseFunctions::CloudsGreenUniform;
+				blue = PhaseFunctions::CloudsBlueUniform;
+			}
+			else
+			{
+				red = PhaseFunctions::CloudsRedDisperse;
+				green = PhaseFunctions::CloudsGreenDisperse;
+				blue = PhaseFunctions::CloudsBlueDisperse;
+			}
 			for (int i = 0; i < 1801 * 4; i += 4)
 			{
 				auto singlePhaseFuncIndex = i / 4;
 
-				(*cloudsMieData)[i] = PhaseFunctions::CloudsRed[singlePhaseFuncIndex];
-				(*cloudsMieData)[i + 1] = PhaseFunctions::CloudsGreen[singlePhaseFuncIndex];
-				(*cloudsMieData)[i + 2] = PhaseFunctions::CloudsBlue[singlePhaseFuncIndex];
+				(*cloudsMieData)[i] = red[singlePhaseFuncIndex];
+				(*cloudsMieData)[i + 1] = green[singlePhaseFuncIndex];
+				(*cloudsMieData)[i + 2] = blue[singlePhaseFuncIndex];
 			}
-			_cloudsPhaseTextureHandle = bgfx::createTexture2D(1801, 1, false, 1, bgfx::TextureFormat::RGBA32F, 0,
-				bgfx::makeRef(cloudsMieData->data(), cloudsMieData->size() * sizeof(float), [](void* ptr, void* userData) {delete ptr; })
-			);
+			auto memData = bgfx::makeRef(cloudsMieData->data(), cloudsMieData->size() * sizeof(float), [](void* ptr, void* userData) {delete ptr; });
+			if (bgfx::isValid(_cloudsPhaseTextureHandle))
+			{
+				bgfx::destroy(_cloudsPhaseTextureHandle);
+			}
+
+			_cloudsPhaseTextureHandle = bgfx::createTexture2D(1801, 1, false, 1, bgfx::TextureFormat::RGBA32F, 0, memData);
+
 		}
 
 		void precompute()
 		{
 			bgfx::UniformHandle precomputeSettingsHandle = bgfx::createUniform("PrecomputeSettings", bgfx::UniformType::Vec4);
-			uint32_t PrecomputeSettings[] = {0,0,0,0};
+			uint32_t PrecomputeSettings[] = { 0,0,0,0 };
 			bgfx::setUniform(precomputeSettingsHandle, PrecomputeSettings);
 			bgfx::ShaderHandle precomputeOptical = loadShader("OpticalDepth.comp");
 			bgfx::ProgramHandle opticalProgram = bgfx::createProgram(precomputeOptical);
@@ -1096,6 +1117,13 @@ namespace RealisticAtmosphere
 			ImGui::SetNextWindowPos(ImVec2(230, 100), ImGuiCond_FirstUseEver);
 			ImGui::SetNextWindowCollapsed(true, ImGuiCond_FirstUseEver);
 			ImGui::Begin("Cloud scattering");
+			int currentDSDItem = _cloudsDSDUniformNotDisperse ? 0 : 1;
+			const char* const items[] = { "Uniform", "Disperse" };
+			if (ImGui::Combo("DSD", &currentDSDItem, (const char* const*)items, 2))
+			{
+				_cloudsDSDUniformNotDisperse = currentDSDItem == 0;
+				cloudsMiePhaseFunction();
+			}
 			ImGui::PushItemWidth(120);
 			ImGui::InputFloat("Density", &cloudsLayer.density, 0, 0, "%e");
 			ImGui::InputFloat("Powder density", &Clouds_powderDensity, 0, 0, "%e");
