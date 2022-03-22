@@ -156,7 +156,7 @@ std::array<Planet, 1> _planetBuffer = {
 			3,
 			5000,//Thickness of clouds fade gradient above terrain
 			13000, //Thickness of clouds gradient below stratosphere
-			0.000855,// Scattering coefficient
+			0.000855 * 0.999,// Scattering coefficient = ext. coef * single scat.albedo
 			0.000855,// Extinction coefficient
 
 			{1e-4,2e-4,1e-4},//size
@@ -1121,7 +1121,15 @@ namespace RealisticAtmosphere
 			const char* const items[] = { "Uniform", "Disperse" };
 			if (ImGui::Combo("DSD", &currentDSDItem, (const char* const*)items, 2))
 			{
-				_cloudsDSDUniformNotDisperse = currentDSDItem == 0;
+				_cloudsDSDUniformNotDisperse = !_cloudsDSDUniformNotDisperse;
+				if (_cloudsDSDUniformNotDisperse)
+				{
+					Clouds_aerosols *= 10;//Because uniform is too much uniform and we must add some aerosols to preserver realism
+				}
+				else
+				{
+					Clouds_aerosols *= 0.1;
+				}
 				cloudsMiePhaseFunction();
 			}
 			ImGui::PushItemWidth(120);

@@ -159,7 +159,7 @@ void precomputedAtmosphere(Planet p, Ray ray, float toT, bool terrainWasHit, ino
 		luminance += GetSkyRadianceToPoint(p, transmittanceTable, singleScatteringTable,
 											planetSpaceCam, toT, ray.direction, shadow, 
 											light.direction, lightIndex, /*out*/ atmoTransmittance)
-					* SkyRadianceToLuminance.rgb;
+					* SkyRadianceToLuminance.rgb * transmittance;
 		lightIndex++;
 	}
 	transmittance *= atmoTransmittance;
