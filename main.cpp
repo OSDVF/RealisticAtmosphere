@@ -810,8 +810,10 @@ namespace RealisticAtmosphere
 			flags = *(int*)&HQSettings_flags;
 			bool usePrecomputedAtmo = (flags & HQFlags_ATMO_COMPUTE) != 0;
 			bool earthShadows = (flags & HQFlags_EARTH_SHADOWS) != 0;
+			bool lightShafts = (flags & HQFlags_LIGHT_SHAFTS) != 0;
 			ImGui::Checkbox("Compute exactly", &usePrecomputedAtmo);
 			ImGui::Checkbox("Terrain shadows", &earthShadows);
+			ImGui::Checkbox("Light shafts", &lightShafts);
 
 			if (usePrecomputedAtmo)
 			{
@@ -829,6 +831,15 @@ namespace RealisticAtmosphere
 			else
 			{
 				flags &= ~HQFlags_EARTH_SHADOWS;
+			}
+
+			if (lightShafts)
+			{
+				flags |= HQFlags_LIGHT_SHAFTS;
+			}
+			else
+			{
+				flags &= ~HQFlags_LIGHT_SHAFTS;
 			}
 			HQSettings_flags = *(float*)&flags;
 			ImGui::End();

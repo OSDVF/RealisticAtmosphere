@@ -75,7 +75,6 @@ float raymarchOcclusion(Planet planet, Ray ray, float fromT, float toT, bool vie
 	float t = fromT;
 	float dx = (toT - fromT) / float(M_perAtmospherePixel);
 	dx = max(dx, QualitySettings_minStepSize);// Otherwise too close object would evaluate too much steps
-	return dx;
 	float shadowLength = 0;
 	for(int i = 0; i < M_perAtmospherePixel; i++,t+=dx)
 	{
@@ -156,7 +155,7 @@ void precomputedAtmosphere(Planet p, Ray ray, float toT, bool terrainWasHit, ino
 	for(uint l = p.firstLight; l <= p.lastLight; l++)
 	{
 		DirectionalLight light = directionalLights[l];
-		float shadow = raymarchOcclusion(p, ray, 0, toT, terrainWasHit, light);
+		float shadow = HQSettings_lightShafts ? raymarchOcclusion(p, ray, 0, toT, terrainWasHit, light) : 0;
 		luminance += GetSkyRadianceToPoint(p, transmittanceTable, singleScatteringTable,
 											planetSpaceCam, toT, ray.direction, shadow, 
 											light.direction, lightIndex, /*out*/ atmoTransmittance)

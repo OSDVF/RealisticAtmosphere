@@ -1,8 +1,9 @@
 //?#version 440
+#ifndef TERRAIN_H_
+#define TERRAIN_H_
 #include "Random.glsl"
 #include "Buffers.glsl"
 #include "Intersections.glsl"
-#include "Lighting.glsl"
 
 float getSampleParameters(Planet planet, Ray ray, float currentDistance, out vec3 sphNormal, out vec3 worldSamplePos);
 vec2 mirrorTilingUV(vec2 uv);
@@ -167,7 +168,7 @@ bool raymarchTerrain(Planet planet, Ray ray, float fromDistance, inout float toD
 		{
 			sampleHeight = getSampleParametersH(planet, ray, currentT, /*out*/sphNormal, /*out*/worldSamplePos);
 			terrainDistance = terrainSDF(planet, sampleHeight, worldSamplePos.xz, /*out*/ normalMap);
-			if(abs(terrainDistance) < RaymarchingSteps.z * currentT || terrainDistance < -100)
+			if(abs(terrainDistance) < RaymarchingSteps.z * currentT || terrainDistance < -50)
 			{
 				// Sufficient distance to claim as "hit"
 				toDistance = currentT;
@@ -215,3 +216,4 @@ bool raymarchTerrainL(Planet planet, Ray ray, float fromDistance, float toDistan
 	}
 	return false;
 }
+#endif

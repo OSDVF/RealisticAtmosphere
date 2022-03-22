@@ -11,6 +11,7 @@
 #define HQFlags_NONE 0u
 #define HQFlags_EARTH_SHADOWS 1u
 #define HQFlags_ATMO_COMPUTE 2u
+#define HQFlags_LIGHT_SHAFTS 4u
 
 #ifdef BGFX_SHADER_LANGUAGE_GLSL
 const float POSITIVE_INFINITY = 3.402823466e+38;
@@ -117,6 +118,7 @@ vec4 CloudsSettings[] = {
 #ifdef BGFX_SHADER_LANGUAGE_GLSL
 bool HQSettings_atmoCompute = (floatBitsToUint(HQSettings_flags) & HQFlags_ATMO_COMPUTE) != 0u;
 bool HQSettings_earthShadows = (floatBitsToUint(HQSettings_flags) & HQFlags_EARTH_SHADOWS) != 0u;
+bool HQSettings_lightShafts = (floatBitsToUint(HQSettings_flags) & HQFlags_LIGHT_SHAFTS) != 0u;
 #endif
 
 #include "Structures.glsl"

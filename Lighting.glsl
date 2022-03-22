@@ -5,6 +5,7 @@
 #include "Buffers.glsl"
 #include "Intersections.glsl"
 #include "Common.glsl"
+#include "Terrain.glsl"
 
 vec3 PlanetIlluminance(Planet planet, vec3 point)
 {
@@ -46,6 +47,16 @@ vec3 lightPoint(Planet planet, vec3 p, vec3 normal)
             if (materials[objects[k].materialIndex].albedo.a > 0 && raySphereIntersection(objects[k].position, objects[k].radius, shadowRay, t0, t1) && t1 > 0) {
                 inShadow = true;
                 break;
+            }
+        }
+        if(HQSettings_earthShadows && !inShadow)
+        {
+            for(int k = 0; k < planets.length();++k)
+            {
+                if(raymarchTerrainL(planets[k], shadowRay, 0.01, LightSettings_farPlane))
+                {
+                    inShadow = true;
+                }
             }
         }
         float mu_l = dot(sphNormal, light.direction);
@@ -91,15 +102,18 @@ vec3 computeLightColor(Hit hit)
                 break;
             }
         }
+        if(HQSettings_earthShadows && !inShadow)
+        {
+            for(int k = 0; k < planets.length();++k)
+            {
+                if(raymarchTerrainL(planets[k], shadowRay, 0.01, LightSettings_farPlane))
+                {
+                    inShadow = true;
+                }
+            }
+        }
         if(inShadow)
             continue;
-        /*for(int k = 0; k < planets.length();++k)
-        {
-            if(intersectsPlanet(planets[k], shadowRay))
-            {
-                return vec3(0,0,1);
-            }
-        }*/
         totalLightColor += light.irradiance * max(dot(lDir, hit.normalAtHit),0);
     }
     return totalLightColor;
