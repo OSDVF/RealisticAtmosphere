@@ -3,8 +3,8 @@
 #include <bx/math.h>
 #include <SDL2/SDL_events.h>
 
-void FirstPersonController::Update(float deltaTime, bool mouseLocked) {
-	this->Camera.handleMouseInput(mouseLocked, deltaTime);
+void FirstPersonController::Update(float deltaTime, bool mouseLocked, entry::MouseState mouseState) {
+	this->Camera.handleMouseInput(mouseLocked, deltaTime, mouseState);
 
 	auto keyboardState = SDL_GetKeyboardState(nullptr);
 	//Speed Modifier

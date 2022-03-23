@@ -203,6 +203,59 @@ void raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps,
     }
 }
 
+//Returns accumulated density
+float raymarchCloudsL(Planet planet, Ray ray, float fromT, float toT, float steps)
+{
+    float t = fromT;
+	float segmentLength = (toT - fromT) / steps;
+    int iter = int(steps);
+
+    
+    float accumulatedDensity = 0;
+    CloudLayer c = planet.clouds;
+	for(int i = 0; i < iter ; i++)
+	{
+        if(t > toT)
+            break;
+        vec3 worldSpacePos = ray.origin + ray.direction * t;
+		vec3 cloudSpacePos = worldSpacePos + c.position;
+        float cheapDensity = sampleCloudCheap(c, cloudSpacePos);
+            
+        if(cheapDensity > Clouds_cheapThreshold)
+        {
+            t -= segmentLength * Clouds_cheapDownsample; //Return to the previo  us sample because we could lose some cloud material
+            worldSpacePos = ray.origin + ray.direction * t;
+            cloudSpacePos = worldSpacePos + c.position;
+            float height = distance(worldSpacePos, planet.center);
+            float density = min(sampleCloud(c, cloudSpacePos, height, cheapDensity), 1);
+            do
+            {
+                if(density > Clouds_sampleThres)
+                {
+                    accumulatedDensity+=density;
+                }
+                else if(accumulatedDensity >= 1)
+                {
+                    return 1;
+                }
+
+                worldSpacePos = ray.origin + ray.direction * t;
+                cloudSpacePos = worldSpacePos + c.position;
+                height = distance(worldSpacePos, planet.center);
+                density = min(sampleCloudH(c, cloudSpacePos, height, /*out*/ cheapDensity), 1);
+                t += segmentLength;
+                i++;
+            }
+            while(i < iter && cheapDensity > Clouds_cheapThreshold);
+        }
+        else
+        {
+            t += segmentLength * Clouds_cheapDownsample;
+        }
+	}
+    return accumulatedDensity;
+}
+
 void cloudsForPlanet(Planet p, Ray ray, float fromDistance, float toDistance, float steps, inout vec3 transmittance, inout vec3 luminance)
 {
     float t0,t1;

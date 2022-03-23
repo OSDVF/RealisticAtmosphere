@@ -24,6 +24,6 @@ public:
 	bool isUnderWater = true;
 	bool isJumping = false;
 
-	void Update(float deltaTime, bool mouseLocked = false);
+	void Update(float deltaTime, bool mouseLocked, entry::MouseState mouseState);
 };
 

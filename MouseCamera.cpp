@@ -3,7 +3,6 @@
 #include <glm/gtx/euler_angles.hpp>
 #include <bx/bx.h>
 #include <sstream>
-#include <SDL2/SDL_events.h>
 #include <bx/debug.h>
 /*****************************************************************************
  * Copyright (c) 2018-2021 openblack developers
@@ -116,35 +115,29 @@ bool MouseCamera::ProjectWorldToScreen(const glm::vec3 worldPosition, const glm:
 	return true;
 }
 
-void MouseCamera::handleMouseInput(bool mouseLocked, float deltaTime)
+void MouseCamera::handleMouseInput(bool mouseLocked, float deltaTime, entry::MouseState mouseState)
 {
 
 	glm::vec3 rot = GetRotation();
 	float relY = 0;
 	float relX = 0;
-	SDL_Event sdlEvent;
-	SDL_PollEvent(&sdlEvent);
-	if (sdlEvent.type == SDL_MOUSEMOTION)
+	if (mouseLocked)
 	{
-		if (mouseLocked)
-		{
 
-			relX = (float)sdlEvent.motion.xrel;
-			relY = (float)sdlEvent.motion.yrel;
-
-		}
-		else
-		{
-			relY = sdlEvent.motion.y - _previousMouseState.x;
-			relX = sdlEvent.motion.x - _previousMouseState.y;
-		}
-		_previousMouseState = sdlEvent.motion;
-		rot.x -= relY * Sensitivity * deltaTime;
-		rot.y -= relX * Sensitivity * deltaTime;
-		std::ostringstream d;
-		d << relX << " " << relY << std::endl;
-		bx::debugOutput(d.str().c_str());
-		SetRotation(rot);
+		relX = (float)mouseState.xrel;
+		relY = (float)mouseState.yrel;
 
 	}
+	else
+	{
+		relY = mouseState.m_my - mouseState.m_my;
+		relX = mouseState.m_my - mouseState.m_my;
+	}
+	_previousMouseState = mouseState;
+	rot.x -= relY * Sensitivity * deltaTime;
+	rot.y -= relX * Sensitivity * deltaTime;
+	std::ostringstream d;
+	d << relX << " " << relY << std::endl;
+	SetRotation(rot);
+
 }

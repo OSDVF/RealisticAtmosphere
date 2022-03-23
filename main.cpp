@@ -206,6 +206,7 @@ namespace RealisticAtmosphere
 		float _fovY = 45;
 		FirstPersonController _person;
 		vec4 _settingsBackup[7];
+		int _outBufferIndex;
 
 		// Save these to be returned in place when the terrain rendering is re-enabled
 		float prevTerrainSteps;
@@ -221,7 +222,7 @@ namespace RealisticAtmosphere
 		bgfx::UniformHandle _timeHandle;
 		bgfx::UniformHandle _multisamplingSettingsHandle;
 		bgfx::UniformHandle _qualitySettingsHandle;
-		bgfx::TextureHandle _raytracerColorOutput;
+		bgfx::TextureHandle _raytracerColorOutput;//For double buffering
 		bgfx::TextureHandle _raytracerNormalsOutput;
 		bgfx::TextureHandle _raytracerDepthBuffer;
 		bgfx::UniformHandle _colorOutputSampler;
@@ -292,9 +293,6 @@ namespace RealisticAtmosphere
 			// Supply program arguments for setting graphics backend to BGFX.
 			Args args(argc, argv);
 
-			_debugFlags = BGFX_DEBUG_TEXT;
-			_resetFlags = BGFX_RESET_VSYNC;
-
 			//Check for OpenGL backend
 			if (args.m_type != bgfx::RendererType::Count && args.m_type != bgfx::RendererType::OpenGL)
 			{
@@ -307,11 +305,8 @@ namespace RealisticAtmosphere
 			init.vendorId = args.m_pciId;
 			init.resolution.width = _windowWidth;
 			init.resolution.height = _windowHeight;
-			init.resolution.reset = _resetFlags;
+			init.resolution.reset = BGFX_RESET_NONE;
 			bgfx::init(init);
-
-			// Enable debug text.
-			bgfx::setDebug(_debugFlags);
 
 			// Set view 0 clear state.
 			bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH);
@@ -438,10 +433,10 @@ namespace RealisticAtmosphere
 			bgfx::setUniform(precomputeSettingsHandle, PrecomputeSettings);
 			bgfx::ShaderHandle precomputeOptical = loadShader("OpticalDepth.comp");
 			bgfx::ProgramHandle opticalProgram = bgfx::createProgram(precomputeOptical);
-			_opticalDepthTable = bgfx::createTexture2D(512, 256, false, 1, bgfx::TextureFormat::RGBA32F, BGFX_TEXTURE_COMPUTE_WRITE | BGFX_SAMPLER_UVW_CLAMP);
+			_opticalDepthTable = bgfx::createTexture2D(512, 256, false, 1, bgfx::TextureFormat::RGBA16F, BGFX_TEXTURE_COMPUTE_WRITE | BGFX_SAMPLER_UVW_CLAMP);
 			//steps are locked to 300
 			updateBuffers();
-			bgfx::setImage(0, _opticalDepthTable, 0, bgfx::Access::Write, bgfx::TextureFormat::RGBA32F);
+			bgfx::setImage(0, _opticalDepthTable, 0, bgfx::Access::Write, bgfx::TextureFormat::RGBA16F);
 			bgfx::setBuffer(1, _atmosphereBufferHandle, bgfx::Access::Read);
 			bgfx::setBuffer(2, _directionalLightBufferHandle, bgfx::Access::Read);
 			bgfx::dispatch(0, opticalProgram, bx::ceil(512 / 16.0f), bx::ceil(256 / 16.0f));
@@ -499,6 +494,14 @@ namespace RealisticAtmosphere
 				,
 				bgfx::TextureFormat::RGBA32F
 				, BGFX_TEXTURE_COMPUTE_WRITE | BGFX_TEXTURE_READ_BACK);
+			/*_raytracerColorOutput[1] = bgfx::createTexture2D(
+				uint16_t(_windowWidth)
+				, uint16_t(_windowHeight)
+				, false
+				, 1
+				,
+				bgfx::TextureFormat::RGBA32F
+				, BGFX_TEXTURE_COMPUTE_WRITE);*/
 			_raytracerNormalsOutput = bgfx::createTexture2D(
 				uint16_t(_windowWidth)
 				, uint16_t(_windowHeight)
@@ -533,6 +536,7 @@ namespace RealisticAtmosphere
 			bgfx::destroy(_heightmapTextureHandle);
 			bgfx::destroy(_raytracerDepthBuffer);
 			bgfx::destroy(_raytracerColorOutput);
+			//bgfx::destroy(_raytracerColorOutput[1]);
 			bgfx::destroy(_raytracerNormalsOutput);
 			bgfx::destroy(_colorOutputSampler);
 			bgfx::destroy(_terrainTexSampler);
@@ -575,6 +579,7 @@ namespace RealisticAtmosphere
 			// Polling about mouse, keyboard and window events
 			// Returns true when the window is up to close itself
 			auto previousWidth = _windowWidth, previousHeight = _windowHeight;
+			_mouseState.xrel = _mouseState.yrel = 0;
 			if (!entry::processEvents(_windowWidth, _windowHeight, _debugFlags, _resetFlags, &_mouseState))
 			{
 				// Maybe reset window buffer size
@@ -620,7 +625,7 @@ namespace RealisticAtmosphere
 				{
 					auto nowTicks = SDL_GetPerformanceCounter();
 					auto deltaTime = (float)((nowTicks - _lastTicks) * 1000 / (float)_freq);
-					_person.Update(_mouseLock, deltaTime);
+					_person.Update(_mouseLock, deltaTime, _mouseState);
 
 					_lastTicks = nowTicks;
 				}
@@ -673,10 +678,11 @@ namespace RealisticAtmosphere
 					bgfx::setTexture(0, _colorOutputSampler, _raytracerNormalsOutput);
 				else
 					bgfx::setTexture(0, _colorOutputSampler, _raytracerColorOutput);
+				_outBufferIndex = _outBufferIndex == 0 ? 1 : 0;//Swap buffers
 				_screenSpaceQuad.draw();//Draw screen space quad with our shader program
-
-				bgfx::setState(BGFX_STATE_DEFAULT);
+				bgfx::setState(BGFX_STATE_WRITE_RGB);
 				bgfx::submit(0, _displayingShaderProgram);
+				void* syncObj = bgfx::fenceSync();
 				updateClouds();
 
 				// Advance to next frame. Rendering thread will be kicked to

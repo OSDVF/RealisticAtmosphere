@@ -143,6 +143,9 @@ float raymarchOcclusion(Planet planet, Ray ray, float fromT, float toT, bool vie
 			shadowLength += dx;
 			continue;//Light is occluded by a object
 		}
+
+		float cloudsDensity = raymarchCloudsL(planet, shadowRay, 0, Clouds_lightFarPlane, Clouds_terrainSteps);
+		shadowLength += dx * cloudsDensity;
 	}
 	return shadowLength;
 }
@@ -173,7 +176,7 @@ float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDis
   * @param tMax By tweaking the tMax parameter, you can limit the assumed ray length
   * This is useful when the ray was blocked by some objects
   */
-bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out vec3 luminance, inout vec3 transmittance, out Hit planetHit)
+bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out vec3 luminance, inout vec3 throughput, out Hit planetHit)
 {
 	luminance = vec3(0);
 	for (int k = 0; k < planets.length(); ++k)
@@ -215,31 +218,31 @@ bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out vec
 			{
 				planetAlbedo = terrainColor(p, toDistance, worldSamplePos, worldNormal, sampleHeight);
 			}
-			cloudsForPlanet(p,ray,fromDistance,toDistance,Clouds_terrainSteps,transmittance,luminance);
+			cloudsForPlanet(p,ray,fromDistance,toDistance,Clouds_terrainSteps,throughput,luminance);
 			if(!DEBUG_ATMO_OFF)
 			{
 				if(HQSettings_atmoCompute)
-					raymarchAtmosphere(p, ray, fromDistance, toDistance, /*inout*/ luminance, /*inout*/ transmittance, true);
+					raymarchAtmosphere(p, ray, fromDistance, toDistance, /*inout*/ luminance, /*inout*/ throughput, true);
 				else
 				{
-					precomputedAtmosphere(p, ray, toDistance, true, luminance, transmittance);
+					precomputedAtmosphere(p, ray, toDistance, true, luminance, throughput);
 				}
 			}
-			luminance += planetAlbedo * lightPoint(p, worldSamplePos, worldNormal) * transmittance;
-			transmittance *= planetAlbedo;
+			luminance += planetAlbedo * lightPoint(p, worldSamplePos, worldNormal) * throughput;
+			throughput *= planetAlbedo;
 			planetHit = Hit(worldSamplePos, worldNormal, -1, toDistance);
 			return true;
 		}
 		else
 		{
-			cloudsForPlanet(p,ray,fromDistance,toDistance,Clouds_iter,transmittance,luminance);
+			cloudsForPlanet(p,ray,fromDistance,toDistance,Clouds_iter,throughput,luminance);
 			if(!DEBUG_ATMO_OFF)
 			{	
 				if(HQSettings_atmoCompute)
-					raymarchAtmosphere(p, ray, fromDistance, toDistance, /*inout*/ luminance,/*inout*/ transmittance, false);
+					raymarchAtmosphere(p, ray, fromDistance, toDistance, /*inout*/ luminance,/*inout*/ throughput, false);
 				else
 				{
-					precomputedAtmosphere(p, ray, toDistance, false, luminance, transmittance);
+					precomputedAtmosphere(p, ray, toDistance, false, luminance, throughput);
 				}
 			}
 		}

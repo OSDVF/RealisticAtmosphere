@@ -4,7 +4,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
-#include <SDL2/SDL_events.h>
+#include <entry/entry.h>
 
 #include <chrono>
 #include <memory>
@@ -50,7 +50,7 @@ public:
 		glm::vec3& out_worldDirection);
 	bool ProjectWorldToScreen(const glm::vec3 worldPosition, const glm::vec4 viewport, glm::vec3& out_screenPosition) const;
 
-	void handleMouseInput(bool mouseLocked, float deltaTime);
+	void handleMouseInput(bool mouseLocked, float deltaTime, entry::MouseState mouseState);
 
 	[[nodiscard]] glm::mat4 getRotationMatrix() const;
 
@@ -60,6 +60,6 @@ protected:
 
 	glm::mat4 _projectionMatrix;
 
-	SDL_MouseMotionEvent _previousMouseState;
+	entry::MouseState _previousMouseState;
 	bool _wasLocked = false;
 };
