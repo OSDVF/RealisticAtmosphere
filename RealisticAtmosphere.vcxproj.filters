@@ -98,9 +98,6 @@
     <None Include="ComputeRender\rt_display.vert">
       <Filter>Shader Programs\Compute Render</Filter>
     </None>
-    <None Include="SceneObjects.glsl">
-      <Filter>Shader Programs</Filter>
-    </None>
     <None Include="Intersections.glsl">
       <Filter>Shader Programs</Filter>
     </None>
@@ -148,9 +145,6 @@
     </None>
     <None Include="Transmittance.comp">
       <Filter>Shader Programs\Compute Render\Precompute</Filter>
-    </None>
-    <None Include="Structures.glsl">
-      <Filter>Shader Programs</Filter>
     </None>
     <None Include="SingleScattering.comp">
       <Filter>Shader Programs\Compute Render\Precompute</Filter>
@@ -210,6 +204,15 @@
     </ClInclude>
     <ClInclude Include="PhaseFunctions.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="DefaultScene.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Structures.glsl">
+      <Filter>Shader Programs</Filter>
+    </ClInclude>
+    <ClInclude Include="SceneObjects.glsl">
+      <Filter>Shader Programs</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

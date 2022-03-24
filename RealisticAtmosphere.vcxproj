@@ -275,14 +275,18 @@
     <None Include="Random.glsl" />
     <None Include="raytracer.glsl" />
     <None Include="Sampling.glsl" />
-    <None Include="SceneObjects.glsl" />
+    <ClInclude Include="SceneObjects.glsl">
+      <FileType>Document</FileType>
+    </ClInclude>
     <None Include="shaders\scripts\shaderc32debug.ps1" />
     <None Include="shaders\scripts\shaderc32release.ps1" />
     <None Include="ComputeRender\varying.def.sc" />
     <None Include="shaders\scripts\shaderc64debug.ps1" />
     <None Include="shaders\scripts\shaderc64release.ps1" />
     <None Include="SingleScattering.comp" />
-    <None Include="Structures.glsl" />
+    <ClInclude Include="Structures.glsl">
+      <FileType>Document</FileType>
+    </ClInclude>
     <None Include="Terrain.glsl" />
     <None Include="Transmittance.comp" />
     <None Include="varying.def.sc" />
@@ -299,6 +303,7 @@
     <ClInclude Include="PosNormalTangentTexcoordVertex.h" />
     <ClInclude Include="PosTexCoordVertex.h" />
     <ClInclude Include="PosVertex.h" />
+    <ClInclude Include="DefaultScene.h" />
     <ClInclude Include="ScreenSpaceQuad.h" />
     <ClInclude Include="TestCube.h" />
     <ClInclude Include="SceneObjects.h" />

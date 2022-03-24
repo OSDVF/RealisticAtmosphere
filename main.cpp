@@ -22,6 +22,7 @@
 #include "Tonemapping.h"
 #include "PhaseFunctions.h"
 #include "ColorMapping.h"
+#include "DefaultScene.h"
 
 #define swap(x,y) do \
    { unsigned char swap_temp[sizeof(x) == sizeof(y) ? (signed)sizeof(x) : -1]; \
@@ -31,141 +32,8 @@
 	} while (0)
 
 #define HANDLE_OF_DEFALUT_WINDOW entry::WindowHandle{ 0 }
-
-const Material _materialBuffer[] = {
-	{
-		{1,1,1,0},// White transparent
-		{0,0,0},// No Specular part
-		{0},// No Roughness
-		{20,20,20}, // Max emission
-		0
-	},
-	{
-		{1, 1, 1, 1},// White albedo
-		{0.5,0.5,0.5},// Half specular
-		{0.5},// Half Roughness
-		{0,0,0}, // No emission
-		0
-	},
-	{
-		{0, 0, 1, 1},// Blue albedo
-		{0.5,0.5,0.5},// Half specular
-		{0.5},// Half Roughness
-		{0,0,0}, // No emission
-		0
-	}
-};
-
-const float earthRadius = 6360000; // cit. E. Bruneton page 3
-const float cloudsStart = earthRadius + 500;
-const float cloudsEnd = earthRadius + 20000;
-const float atmosphereRadius = 6420000;
-const double sunAngularRadius = 0.00935 / 2.0;
-const float moonAngularRadiusMin = 0.00855211333f;
-const float moonAngularRadiusMax = 0.00973893723f;
-const float sunObjectDistance = 148500000; // Real sun distance is 148 500 000 km which would introduce errors in 32bit float computations
-const float sunRadius = tan(sunAngularRadius) * sunObjectDistance;
-const float moonRadius = tan(moonAngularRadiusMax) * sunObjectDistance;
-Sphere _objectBuffer[] = {
-	{//Sun
-		{0, 0, sunObjectDistance}, //Position
-		{sunRadius}, //Radius
-		0 //Material index
-	},
-	{//Moon
-		{0, 0, sunObjectDistance}, //Position
-		{moonRadius}, //Radius
-		0 //Material index
-	},
-	{
-		{-18260, 1706, 16065}, //Position
-		{1}, //Radius
-		1, //Material index
-	},
-	{
-		{-18260, 1706, 16065.7}, //Position
-		{1}, //Radius
-		2, //Material index
-	}
-};
-
-std::array<DirectionalLight, 2> _directionalLightBuffer = {
-	DirectionalLight{//Sun
-		{0,0,0},//Direction will be assigned
-		float(sunAngularRadius),
-		{1,1,1},//irradiance will be assigned
-		0.3
-	},
-	DirectionalLight{//Moon
-		{0,0,0},//Direction will be assigned
-		moonAngularRadiusMax,
-		{
-			0.005,
-			0.005,
-			0.005
-		},
-	//https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4487308/
-	//values are in μW.m−2.nm−1 so we need to convert them to lumens
-	1
-}
-};
-
-//When rendering participating media, all the coeficients start with β
-/* Scattering coefficient for Rayleigh scattering βˢᵣ */
-const vec3 precomputedRayleighScatteringCoefficients = vec3(0.0000058, 0.0000135, 0.0000331);/*for wavelengths (680,550,440)nm (roughly R,G,B)*/
-/*Scattering coefficient for Mie scattering βˢₘ */
-const float precomputedMieScaterringCoefficient = 21e-6f;
-const float mieAssymetryFactor = 0.8;
-const float mieScaleHeight = 1200;
-const float rayleighScaleHeight = 7994;
-
-std::array<Planet, 1> _planetBuffer = {
-	Planet{
-		vec3(0, -earthRadius, 0),//center
-		earthRadius,//start radius
-
-		atmosphereRadius,//end radius
-		precomputedMieScaterringCoefficient,
-		mieAssymetryFactor,
-		mieScaleHeight,
-		//These values are based on Nishita's measurements
-		//This means that atmospheric thickness of 60 Km covers troposphere, stratosphere and a bit of mezosphere
-		//I am usnure of the "completeness" of this model, but Nishita and Bruneton used this
-		precomputedRayleighScatteringCoefficients,
-		rayleighScaleHeight,
-
-		vec3(0,0,0),//Absorption extinction coefficients - will be assigned later
-		earthRadius + 5000, // Mountains radius
-
-		atmosphereRadius - earthRadius, // Atmosphere thickness
-		25000,//Ozone peak height - height at which the ozone has maximum relative density
-		(1.0 / 15000.0),//Ozone troposphere density coefficient - for heights below ozonePeakHeight
-		-(1.0 / 15000.0),//Ozone stratosphere density coefficient - for heights above peak
-
-		-(1.0),//Ozone troposphere density constant
-		(7.0 / 3.0),//Ozone stratosphere density constant
-		0,0,
-		CloudLayer{
-			{-23911, 0, 20000}, // position
-			0.09,//coverage
-
-			cloudsStart, // Clouds start radius
-			cloudsEnd, // Clouds end radius
-			cloudsEnd - cloudsStart, // Clouds layer thickness
-
-			3,
-			5000,//Thickness of clouds fade gradient above terrain
-			13000, //Thickness of clouds gradient below stratosphere
-			0.000855 * 0.999,// Scattering coefficient = ext. coef * single scat.albedo
-			0.000855,// Extinction coefficient
-
-			{1e-4,2e-4,1e-4},//size
-			5 // sharpness
-		},
-		0,
-		0,0,0
-	},
-};
+#define SCREENSHOT_NEVER UINT32_MAX
+#define SCREENSHOT_AFTER_RENDER 0
 
 namespace RealisticAtmosphere
 {
@@ -176,14 +44,20 @@ namespace RealisticAtmosphere
 			: entry::AppI(name, description, projectUrl) {}
 
 #pragma region Application_State
-		float* _readedTexture = nullptr;
+		uint16_t* _readedTexture = nullptr;//CPU buffer for converted texture
+		bgfx::TextureHandle _stagingBuffer = BGFX_INVALID_HANDLE;//Texture handle in which a screenshot will be copied
 		void* _syncObj = nullptr;
-		uint32_t _screenshotFrame = -1;
+		uint32_t _screenshotFrame = SCREENSHOT_NEVER;
 		Uint64 _performanceFrequency = 0;
 		uint32_t _frame = 0;
 		Uint64 _lastTicks = 0;
 		uint32_t _windowWidth = 1024;
 		uint32_t _windowHeight = 600;
+		bool _customScreenshotSize = false;
+		struct {
+			int width = 1024;
+			int height = 600;
+		} _screenshotSize;
 		uint32_t _debugFlags = 0;
 		uint32_t _resetFlags = 0;
 		entry::MouseState _mouseState;
@@ -352,12 +226,12 @@ namespace RealisticAtmosphere
 				textureFileNames, BGFX_TEXTURE_SRGB
 			);
 
-			_objectBufferHandle = bgfx_utils::createDynamicComputeReadBuffer(sizeof(_objectBuffer));
-			_atmosphereBufferHandle = bgfx_utils::createDynamicComputeReadBuffer(sizeof(_planetBuffer));
-			_materialBufferHandle = bgfx_utils::createDynamicComputeReadBuffer(sizeof(_materialBuffer));
-			_directionalLightBufferHandle = bgfx_utils::createDynamicComputeReadBuffer(sizeof(_directionalLightBuffer));
+			_objectBufferHandle = bgfx_utils::createDynamicComputeReadBuffer(sizeof(DefaultScene::objectBuffer));
+			_atmosphereBufferHandle = bgfx_utils::createDynamicComputeReadBuffer(sizeof(DefaultScene::planetBuffer));
+			_materialBufferHandle = bgfx_utils::createDynamicComputeReadBuffer(sizeof(DefaultScene::materialBuffer));
+			_directionalLightBufferHandle = bgfx_utils::createDynamicComputeReadBuffer(sizeof(DefaultScene::directionalLightBuffer));
 
-			resetBufferSize();
+			resetBufferSize(_windowWidth, _windowHeight);
 
 			// Render heighmap
 			heightMap();
@@ -366,7 +240,7 @@ namespace RealisticAtmosphere
 			cloudsMiePhaseFunction();
 
 			// Compute spectrum mapping functions
-			ColorMapping::FillSpectrum(SkyRadianceToLuminance, SunRadianceToLuminance, _planetBuffer[0], _directionalLightBuffer[0]);
+			ColorMapping::FillSpectrum(SkyRadianceToLuminance, SunRadianceToLuminance, DefaultScene::planetBuffer[0], DefaultScene::directionalLightBuffer[0]);
 
 			// Render optical depth, transmittance and direct irradiance textures
 			precompute();
@@ -466,13 +340,13 @@ namespace RealisticAtmosphere
 			bgfx::ProgramHandle irradianceProgram = bgfx::createProgram(precomputeIrradiance);
 			if (!bgfx::isValid(_irradianceTable))
 			{
-				_irradianceTable = bgfx::createTexture2D(64, 16, false, _directionalLightBuffer.size(), bgfx::TextureFormat::RGBA16F, BGFX_TEXTURE_COMPUTE_WRITE);
+				_irradianceTable = bgfx::createTexture2D(64, 16, false, DefaultScene::directionalLightBuffer.size(), bgfx::TextureFormat::RGBA16F, BGFX_TEXTURE_COMPUTE_WRITE);
 			}
 			bgfx::setImage(0, _irradianceTable, 0, bgfx::Access::Write, bgfx::TextureFormat::RGBA16F);
 			bgfx::setBuffer(1, _atmosphereBufferHandle, bgfx::Access::Read);
 			bgfx::setBuffer(2, _directionalLightBufferHandle, bgfx::Access::Read);
 			bgfx::setTexture(3, _singleScatteringSampler, _singleScatteringTable);
-			bgfx::dispatch(0, irradianceProgram, bx::ceil(64 / 16.0f), bx::ceil(16 / 16.0f), _directionalLightBuffer.size());
+			bgfx::dispatch(0, irradianceProgram, bx::ceil(64 / 16.0f), bx::ceil(16 / 16.0f), DefaultScene::directionalLightBuffer.size());
 
 			bgfx::touch(0);
 			bgfx::frame(); // Actually execute the compute shaders
@@ -488,47 +362,27 @@ namespace RealisticAtmosphere
 			bgfx::destroy(precomputeSettingsHandle);
 		}
 
-		void resetBufferSize()
+		void resetBufferSize(uint16_t width, uint16_t height)
 		{
-			_screenSpaceQuad = ScreenSpaceQuad((float)_windowWidth, (float)_windowHeight);//Init internal vertex layout
+			_screenSpaceQuad = ScreenSpaceQuad((float)width, (float)height);//Init internal vertex layout
 			if (bgfx::isValid(_raytracerColorOutput[0]))
 			{
 				bgfx::destroy(_raytracerColorOutput[0]);
 				bgfx::destroy(_raytracerColorOutput[1]);
 			}
-			_raytracerColorOutput[0] = bgfx::createTexture2D(
-				uint16_t(_windowWidth)
-				, uint16_t(_windowHeight)
-				, false
-				, 1
-				,
-				bgfx::TextureFormat::RGBA32F
-				, BGFX_TEXTURE_COMPUTE_WRITE | BGFX_TEXTURE_READ_BACK);
-			_raytracerColorOutput[1] = bgfx::createTexture2D(
-				uint16_t(_windowWidth)
-				, uint16_t(_windowHeight)
-				, false
-				, 1
-				,
-				bgfx::TextureFormat::RGBA32F
-				, BGFX_TEXTURE_COMPUTE_WRITE);
-			_raytracerNormalsOutput = bgfx::createTexture2D(
-				uint16_t(_windowWidth)
-				, uint16_t(_windowHeight)
-				, false
-				, 1
-				,
-				bgfx::TextureFormat::RGBA8
-				, BGFX_TEXTURE_COMPUTE_WRITE);
-			_raytracerDepthBuffer = bgfx::createTexture2D(
-				uint16_t(_windowWidth)
-				, uint16_t(_windowHeight)
-				, false
-				, 1
-				,
-				bgfx::TextureFormat::R32F
-				, BGFX_TEXTURE_COMPUTE_WRITE);
-			currentSample = 0;//Reset sample counter - otherwise the sampling would continue with wrong number of samples
+			_raytracerColorOutput[0] = bgfx::createTexture2D(width, height, false, 1, bgfx::TextureFormat::RGBA16F,
+				BGFX_TEXTURE_COMPUTE_WRITE);
+			_raytracerColorOutput[1] = bgfx::createTexture2D(width, height, false, 1, bgfx::TextureFormat::RGBA16F,
+				BGFX_TEXTURE_COMPUTE_WRITE);
+
+			_raytracerNormalsOutput = bgfx::createTexture2D(width, height, false, 1,
+				bgfx::TextureFormat::RGBA8,
+				BGFX_TEXTURE_COMPUTE_WRITE);
+			_raytracerDepthBuffer = bgfx::createTexture2D(width, height, false, 1,
+				bgfx::TextureFormat::R32F,
+				BGFX_TEXTURE_COMPUTE_WRITE);
+
+			currentSample = 0;//Reset sample counter - otherwise path tracing would continue with previous samples
 		}
 
 		virtual int shutdown() override
@@ -597,7 +451,7 @@ namespace RealisticAtmosphere
 				if (previousWidth != _windowWidth || previousHeight != _windowHeight)
 				{
 					_screenSpaceQuad.destroy();
-					resetBufferSize();
+					resetBufferSize(_windowWidth, _windowHeight);
 				}
 				updateLights();
 				//
@@ -625,7 +479,7 @@ namespace RealisticAtmosphere
 					_showGUI = !_showGUI;
 					break;
 				case 'r':
-					_objectBuffer[1].position = vec3(Camera[0].x, Camera[0].y, Camera[0].z);
+					DefaultScene::objectBuffer[1].position = vec3(Camera[0].x, Camera[0].y, Camera[0].z);
 					break;
 				case 't':
 					_person.Camera.SetPosition(glm::vec3(-18253, 1709, 16070));
@@ -668,7 +522,8 @@ namespace RealisticAtmosphere
 
 				viewportActions();
 				int maxSamples = *(int*)&HQSettings_directSamples * *(int*)&Multisampling_indirect;
-				if (currentSample >= maxSamples)
+				bool trancingComplete;
+				if (trancingComplete = currentSample >= maxSamples)
 				{
 					if (!_pathTracingMode)
 					{
@@ -685,22 +540,27 @@ namespace RealisticAtmosphere
 					renderScene();
 				}
 
+				auto bufferToDisplay = _syncObj != nullptr && bgfx::syncComplete(_syncObj) ? _outBufferIndex : 1 - _outBufferIndex;
 				if (_debugNormals)
 					bgfx::setTexture(0, _colorOutputSampler, _raytracerNormalsOutput);
 				else
-					bgfx::setTexture(0, _colorOutputSampler, _raytracerColorOutput[_syncObj != nullptr && bgfx::syncComplete(_syncObj) ? _outBufferIndex : 1 - _outBufferIndex]);
+					bgfx::setTexture(0, _colorOutputSampler, _raytracerColorOutput[bufferToDisplay]);
 				_screenSpaceQuad.draw();//Draw screen space quad with our shader program
 				bgfx::setState(BGFX_STATE_WRITE_RGB);
 				bgfx::submit(0, _displayingShaderProgram);
 				updateClouds();
 
-				// Advance to next frame. Rendering thread will be kicked to
-				// process submitted rendering primitives.
-				if (bgfx::frame() == _screenshotFrame)
+				// Advance to next frame
+				_frame = bgfx::frame();
+				if (_frame >= _screenshotFrame)
 				{
 					savePng();
 				}
-				_frame++;
+				else if (trancingComplete && _screenshotFrame == SCREENSHOT_AFTER_RENDER)
+				{
+					_screenshotFrame = SCREENSHOT_NEVER;
+					requestScreenshot();
+				}
 				return true;
 			}
 			// update() should return false when we want the application to exit
@@ -711,7 +571,7 @@ namespace RealisticAtmosphere
 		{
 			if (!_pathTracingMode)
 			{
-				_planetBuffer[0].clouds.position = bx::add(_planetBuffer[0].clouds.position, _cloudsWind);
+				DefaultScene::planetBuffer[0].clouds.position = bx::add(DefaultScene::planetBuffer[0].clouds.position, _cloudsWind);
 			}
 		}
 
@@ -732,9 +592,9 @@ namespace RealisticAtmosphere
 
 		void updateLights()
 		{
-			auto& planet = _planetBuffer[0];
-			updateLight(_objectBuffer[0], planet, _directionalLightBuffer[0], _sunAngle, _secondSunAngle);
-			updateLight(_objectBuffer[1], planet, _directionalLightBuffer[1], _moonAngle, _secondMoonAngle);
+			auto& planet = DefaultScene::planetBuffer[0];
+			updateLight(DefaultScene::objectBuffer[0], planet, DefaultScene::directionalLightBuffer[0], _sunAngle, _secondSunAngle);
+			updateLight(DefaultScene::objectBuffer[1], planet, DefaultScene::directionalLightBuffer[1], _moonAngle, _secondMoonAngle);
 		}
 		void updateLight(Sphere& lightObject, Planet& planet, DirectionalLight& light, float angle, float secondAngle)
 		{
@@ -764,10 +624,10 @@ namespace RealisticAtmosphere
 
 		void updateBuffers()
 		{
-			bgfx::update(_objectBufferHandle, 0, bgfx::makeRef((void*)_objectBuffer, sizeof(_objectBuffer)));
-			bgfx::update(_atmosphereBufferHandle, 0, bgfx::makeRef((void*)_planetBuffer.data(), sizeof(_planetBuffer)));
-			bgfx::update(_materialBufferHandle, 0, bgfx::makeRef((void*)_materialBuffer, sizeof(_materialBuffer)));
-			bgfx::update(_directionalLightBufferHandle, 0, bgfx::makeRef((void*)_directionalLightBuffer.data(), sizeof(_directionalLightBuffer)));
+			bgfx::update(_objectBufferHandle, 0, bgfx::makeRef((void*)DefaultScene::objectBuffer, sizeof(DefaultScene::objectBuffer)));
+			bgfx::update(_atmosphereBufferHandle, 0, bgfx::makeRef((void*)DefaultScene::planetBuffer.data(), sizeof(DefaultScene::planetBuffer)));
+			bgfx::update(_materialBufferHandle, 0, bgfx::makeRef((void*)DefaultScene::materialBuffer, sizeof(DefaultScene::materialBuffer)));
+			bgfx::update(_directionalLightBufferHandle, 0, bgfx::makeRef((void*)DefaultScene::directionalLightBuffer.data(), sizeof(DefaultScene::directionalLightBuffer)));
 		}
 
 		void setBuffers()
@@ -812,10 +672,17 @@ namespace RealisticAtmosphere
 
 			// Set view 0 default viewport.
 			bgfx::setViewTransform(0, NULL, proj);
-			bgfx::setViewRect(0, 0, 0, uint16_t(_windowWidth), uint16_t(_windowHeight));
-
 			_tanFovY = bx::tan(_fovY * bx::acos(-1) / 180.f / 2.0f);
+			/*if (_screenshotFrame != UINT32_MAX)
+			{
+				bgfx::setViewRect(0, 0, 0, _screenshotSize.width, _screenshotSize.height);
+				_tanFovX = (static_cast<float>(_screenshotSize.width) * _tanFovY) / static_cast<float>(_screenshotSize.height);
+			}
+			else
+			{*/
+			bgfx::setViewRect(0, 0, 0, uint16_t(_windowWidth), uint16_t(_windowHeight));
 			_tanFovX = (static_cast<float>(_windowWidth) * _tanFovY) / static_cast<float>(_windowHeight);
+			//}
 
 			glm::vec3 camPos = _person.Camera.GetPosition();
 			glm::vec3 camRot = _person.Camera.GetForward();
@@ -897,7 +764,7 @@ namespace RealisticAtmosphere
 
 		void drawSettingsDialogUI()
 		{
-			Planet& singlePlanet = _planetBuffer[0];
+			Planet& singlePlanet = DefaultScene::planetBuffer[0];
 			ImGui::SetNextWindowPos(
 				ImVec2(0, 200)
 				, ImGuiCond_FirstUseEver
@@ -962,7 +829,7 @@ namespace RealisticAtmosphere
 			ImGui::InputFloat("O.Trop Const", &singlePlanet.ozoneTroposphereConst);
 			ImGui::InputFloat("O.Strat Coef", &singlePlanet.ozoneStratosphereCoef, 0, 0, "%e");
 			ImGui::InputFloat("O.Strat Const", &singlePlanet.ozoneStratosphereConst);
-			ImGui::InputFloat("Sun Intensity", &_directionalLightBuffer[0].intensity);
+			ImGui::InputFloat("Sun Intensity", &DefaultScene::directionalLightBuffer[0].intensity);
 			ImGui::InputFloat3("SunRadToLum", &SunRadianceToLuminance.x);
 			ImGui::InputFloat3("SkyRadToLum", &SkyRadianceToLuminance.x);
 			ImGui::PopItemWidth();
@@ -999,7 +866,14 @@ namespace RealisticAtmosphere
 
 			if (ImGui::Button("Save Image"))
 			{
-				requestSavePng();
+				if (_customScreenshotSize)
+				{
+					requestRenderAndScreenshot();
+				}
+				else
+				{
+					requestScreenshot();
+				}
 			}
 			ImGui::InputFloat("Speed", &_person.WalkSpeed);
 			ImGui::InputFloat("RunSpeed", &_person.RunSpeed);
@@ -1119,7 +993,7 @@ namespace RealisticAtmosphere
 
 		void drawCloudsGUI()
 		{
-			auto& cloudsLayer = _planetBuffer[0].clouds;
+			auto& cloudsLayer = DefaultScene::planetBuffer[0].clouds;
 			ImGui::SetNextWindowPos(ImVec2(230, 80), ImGuiCond_FirstUseEver);
 			ImGui::SetNextWindowCollapsed(true, ImGuiCond_FirstUseEver);
 			ImGui::Begin("Clouds");
@@ -1190,8 +1064,15 @@ namespace RealisticAtmosphere
 			}
 			if (ImGui::Button("Save Image"))
 			{
-				requestSavePng();
+				requestScreenshot();
 			}
+			ImGui::SameLine();
+			ImGui::Checkbox("Custom size", &_customScreenshotSize);
+			if (_customScreenshotSize)
+			{
+				ImGui::InputInt2("W,H", &_screenshotSize.width);
+			}
+
 			if (currentSample >= *(int*)&HQSettings_directSamples * *(int*)&Multisampling_indirect)
 			{
 				ImGui::Text("Completed", currentSample);
@@ -1214,8 +1095,11 @@ namespace RealisticAtmosphere
 			drawFlagsGUI();
 		}
 
+		// Called when the picture is completely in CPU memory
 		void savePng()
 		{
+			_screenshotFrame = SCREENSHOT_NEVER;//To not take any screenshot at next frame
+
 			bx::FileWriter writer;
 			bx::Error err;
 			std::ostringstream fileName;
@@ -1223,17 +1107,25 @@ namespace RealisticAtmosphere
 			fileName << ".png";
 			if (bx::open(&writer, fileName.str().c_str(), false, &err))
 			{
-				char* converted = new char[_windowHeight * _windowWidth * 4];
-				for (int x = 0; x < _windowWidth * _windowHeight * 4; x += 4)
+				float* converted = new float[_screenshotSize.width * _screenshotSize.height];
+				for (int x = 0; x < _screenshotSize.width * _screenshotSize.height * sizeof(float); x += sizeof(float))
 				{
 					auto dirSamp = *(int*)&HQSettings_directSamples;
-					_readedTexture[x] = tmFunc(_readedTexture[x] / dirSamp);
-					_readedTexture[x + 1] = tmFunc(_readedTexture[x + 1] / dirSamp);
-					_readedTexture[x + 2] = tmFunc(_readedTexture[x + 2] / dirSamp);
-					_readedTexture[x + 3] = 1.0f;
+					//Tonemapping
+					float r, g, b;
+					r = tmFunc(bx::halfToFloat(_readedTexture[x]) / dirSamp);
+					g = tmFunc(bx::halfToFloat(_readedTexture[x + 1]) / dirSamp);
+					b = tmFunc(bx::halfToFloat(_readedTexture[x + 2]) / dirSamp);
+
+					_readedTexture[x] = bx::halfFromFloat(r);
+					_readedTexture[x + 1] = bx::halfFromFloat(g);
+					_readedTexture[x + 2] = bx::halfFromFloat(b);
+					_readedTexture[x + 3] = bx::halfFromFloat(1.0);
 				}
-				bimg::imageConvert(entry::getAllocator(), converted, bimg::TextureFormat::RGBA8, _readedTexture, bimg::TextureFormat::RGBA32F, _windowWidth, _windowHeight, 1);
-				bimg::imageWritePng(&writer, _windowWidth, _windowHeight, _windowWidth * 4, converted, bimg::TextureFormat::RGBA8, false, &err);
+				//Convert RGBA32F to RGBA8
+				bimg::imageConvert(entry::getAllocator(), converted, bimg::TextureFormat::RGBA8, _readedTexture, bimg::TextureFormat::RGBA16F, _screenshotSize.width, _screenshotSize.height, 1);
+				//Write to PNG file
+				bimg::imageWritePng(&writer, _screenshotSize.width, _screenshotSize.height, _screenshotSize.width * sizeof(float), converted, bimg::TextureFormat::RGBA8, false, &err);
 				bx::close(&writer);
 				if (err.isOk())
 				{
@@ -1245,17 +1137,35 @@ namespace RealisticAtmosphere
 				}
 				delete[] converted;
 				delete[] _readedTexture;
+				bgfx::destroy(_stagingBuffer);
 			}
 			else
 			{
 				bx::debugOutput("Screenshot failed.");
 			}
+			resetBufferSize(_windowWidth, _windowHeight);
 		}
 
-		void requestSavePng()
+		void requestScreenshot()
 		{
-			_readedTexture = new float[_windowHeight * _windowWidth * 4];
-			_screenshotFrame = bgfx::readTexture(_raytracerColorOutput[0], _readedTexture);
+			if (!_customScreenshotSize)
+			{
+				_screenshotSize.width = _windowWidth;
+				_screenshotSize.height = _windowHeight;
+			}
+			else
+			{
+				resetBufferSize(_screenshotSize.width, _screenshotSize.height);
+			}
+			_readedTexture = new uint16_t[_screenshotSize.width * _screenshotSize.height * 4/*RGBA channels*/];
+			_stagingBuffer = bgfx::createTexture2D(_screenshotSize.width, _screenshotSize.height, false, 1, bgfx::TextureFormat::Enum::RGBA16F, BGFX_TEXTURE_READ_BACK);
+			bgfx::blit(0, _stagingBuffer, 0, 0, _raytracerColorOutput[_outBufferIndex]);
+			_screenshotFrame = bgfx::readTexture(_stagingBuffer, _readedTexture);
+		}
+
+		void requestRenderAndScreenshot()
+		{
+			_screenshotFrame = SCREENSHOT_AFTER_RENDER;
 		}
 	};
 
