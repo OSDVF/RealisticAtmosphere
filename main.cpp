@@ -61,8 +61,8 @@ const float cloudsStart = earthRadius + 500;
 const float cloudsEnd = earthRadius + 20000;
 const float atmosphereRadius = 6420000;
 const double sunAngularRadius = 0.00935 / 2.0;
-const float moonAngularRadiusMin = 0.00855211333;
-const float moonAngularRadiusMax = 0.00973893723;
+const float moonAngularRadiusMin = 0.00855211333f;
+const float moonAngularRadiusMax = 0.00973893723f;
 const float sunObjectDistance = 148500000; // Real sun distance is 148 500 000 km which would introduce errors in 32bit float computations
 const float sunRadius = tan(sunAngularRadius) * sunObjectDistance;
 const float moonRadius = tan(moonAngularRadiusMax) * sunObjectDistance;
@@ -176,11 +176,12 @@ namespace RealisticAtmosphere
 			: entry::AppI(name, description, projectUrl) {}
 
 #pragma region Application_State
-		float* _readedTexture;
+		float* _readedTexture = nullptr;
+		void* _syncObj = nullptr;
 		uint32_t _screenshotFrame = -1;
-		Uint64 _freq;
+		Uint64 _performanceFrequency = 0;
 		uint32_t _frame = 0;
-		Uint64 _lastTicks;
+		Uint64 _lastTicks = 0;
 		uint32_t _windowWidth = 1024;
 		uint32_t _windowHeight = 600;
 		uint32_t _debugFlags = 0;
@@ -201,73 +202,73 @@ namespace RealisticAtmosphere
 		bool _showGUI = true;
 		bool _pathTracingMode = true;
 		bool _mouseLock = false;
-		float _tanFovY;
-		float _tanFovX;
+		float _tanFovY = 0;
+		float _tanFovX = 0;
 		float _fovY = 45;
 		FirstPersonController _person;
 		vec4 _settingsBackup[7];
-		int _outBufferIndex;
+		int _outBufferIndex = 0;
 
 		// Save these to be returned in place when the terrain rendering is re-enabled
-		float prevTerrainSteps;
-		float prevLightSteps;
+		float prevTerrainSteps = 0;
+		float prevLightSteps = 0;
 #pragma endregion
 
 #if _DEBUG
-		bgfx::UniformHandle _debugAttributesHandle;
+		bgfx::UniformHandle _debugAttributesHandle = BGFX_INVALID_HANDLE;
 		vec4 _debugAttributesResult = vec4(0, 0, 0, 0);
 #endif
 
 #pragma region Settings_Uniforms
-		bgfx::UniformHandle _timeHandle;
-		bgfx::UniformHandle _multisamplingSettingsHandle;
-		bgfx::UniformHandle _qualitySettingsHandle;
-		bgfx::TextureHandle _raytracerColorOutput;//For double buffering
-		bgfx::TextureHandle _raytracerNormalsOutput;
-		bgfx::TextureHandle _raytracerDepthBuffer;
-		bgfx::UniformHandle _colorOutputSampler;
-		bgfx::UniformHandle _hqSettingsHandle;
-		bgfx::UniformHandle _lightSettings;
-		bgfx::UniformHandle _lightSettings2;
-		bgfx::UniformHandle _cloudsSettings;
-		bgfx::UniformHandle _sunRadToLumHandle;
-		bgfx::UniformHandle _skyRadToLumHandle;
+		bgfx::UniformHandle _timeHandle = BGFX_INVALID_HANDLE;
+		bgfx::UniformHandle _multisamplingSettingsHandle = BGFX_INVALID_HANDLE;
+		bgfx::UniformHandle _qualitySettingsHandle = BGFX_INVALID_HANDLE;
+		bgfx::TextureHandle _raytracerColorOutput[2] = { BGFX_INVALID_HANDLE , BGFX_INVALID_HANDLE };//For double buffering
+		bgfx::TextureHandle _raytracerNormalsOutput = BGFX_INVALID_HANDLE;
+		bgfx::TextureHandle _raytracerDepthBuffer = BGFX_INVALID_HANDLE;
+		bgfx::UniformHandle _colorOutputSampler = BGFX_INVALID_HANDLE;
+		bgfx::UniformHandle _hqSettingsHandle = BGFX_INVALID_HANDLE;
+		bgfx::UniformHandle _lightSettings = BGFX_INVALID_HANDLE;
+		bgfx::UniformHandle _lightSettings2 = BGFX_INVALID_HANDLE;
+		bgfx::UniformHandle _cloudsSettings = BGFX_INVALID_HANDLE;
+		bgfx::UniformHandle _sunRadToLumHandle = BGFX_INVALID_HANDLE;
+		bgfx::UniformHandle _skyRadToLumHandle = BGFX_INVALID_HANDLE;
 
-		bgfx::UniformHandle _cameraHandle;
-		bgfx::UniformHandle _planetMaterialHandle;
-		bgfx::UniformHandle _raymarchingStepsHandle;
+		bgfx::UniformHandle _cameraHandle = BGFX_INVALID_HANDLE;
+		bgfx::UniformHandle _planetMaterialHandle = BGFX_INVALID_HANDLE;
+		bgfx::UniformHandle _raymarchingStepsHandle = BGFX_INVALID_HANDLE;
 #pragma endregion Settings_Uniforms
 #pragma region Shaders_And_Buffers
-		bgfx::ProgramHandle _computeShaderProgram;
-		bgfx::ProgramHandle _displayingShaderProgram; /**< This program displays output from compute-shader raytracer */
+		bgfx::ProgramHandle _computeShaderProgram = BGFX_INVALID_HANDLE;
+		bgfx::ProgramHandle _displayingShaderProgram = BGFX_INVALID_HANDLE; /**< This program displays output from compute-shader raytracer */
 
-		bgfx::ShaderHandle _computeShaderHandle;
-		bgfx::ShaderHandle _heightmapShaderHandle;
-		bgfx::ProgramHandle _heightmapShaderProgram;
+		bgfx::ShaderHandle _computeShaderHandle = BGFX_INVALID_HANDLE;
+		bgfx::ShaderHandle _heightmapShaderHandle = BGFX_INVALID_HANDLE;
+		bgfx::ProgramHandle _heightmapShaderProgram = BGFX_INVALID_HANDLE;
 
-		bgfx::DynamicIndexBufferHandle _objectBufferHandle;
-		bgfx::DynamicIndexBufferHandle _atmosphereBufferHandle;
-		bgfx::DynamicIndexBufferHandle _materialBufferHandle;
-		bgfx::DynamicIndexBufferHandle _directionalLightBufferHandle;
+		bgfx::DynamicIndexBufferHandle _objectBufferHandle = BGFX_INVALID_HANDLE;
+		bgfx::DynamicIndexBufferHandle _atmosphereBufferHandle = BGFX_INVALID_HANDLE;
+		bgfx::DynamicIndexBufferHandle _materialBufferHandle = BGFX_INVALID_HANDLE;
+		bgfx::DynamicIndexBufferHandle _directionalLightBufferHandle = BGFX_INVALID_HANDLE;
 #pragma endregion Shaders_And_Buffers
 #pragma region Textures_And_Samplers
-		bgfx::TextureHandle _heightmapTextureHandle;
+		bgfx::TextureHandle _heightmapTextureHandle = BGFX_INVALID_HANDLE;
 		bgfx::TextureHandle _cloudsPhaseTextureHandle = BGFX_INVALID_HANDLE;
-		bgfx::TextureHandle _textureArrayHandle;
-		bgfx::TextureHandle _texture2Handle;
-		bgfx::TextureHandle _texture3Handle;
-		bgfx::TextureHandle _texture4Handle;
-		bgfx::TextureHandle _opticalDepthTable;
-		bgfx::TextureHandle _irradianceTable;/**< used firstly for direct, then for indirect */
-		bgfx::TextureHandle _transmittanceTable;
-		bgfx::TextureHandle _singleScatteringTable;
-		bgfx::UniformHandle _terrainTexSampler;
-		bgfx::UniformHandle _opticalDepthSampler;
-		bgfx::UniformHandle _singleScatteringSampler;
-		bgfx::UniformHandle _irradianceSampler;
-		bgfx::UniformHandle _transmittanceSampler;
-		bgfx::UniformHandle _heightmapSampler;
-		bgfx::UniformHandle _cloudsPhaseSampler;
+		bgfx::TextureHandle _textureArrayHandle = BGFX_INVALID_HANDLE;
+		bgfx::TextureHandle _texture2Handle = BGFX_INVALID_HANDLE;
+		bgfx::TextureHandle _texture3Handle = BGFX_INVALID_HANDLE;
+		bgfx::TextureHandle _texture4Handle = BGFX_INVALID_HANDLE;
+		bgfx::TextureHandle _opticalDepthTable = BGFX_INVALID_HANDLE;
+		bgfx::TextureHandle _irradianceTable = BGFX_INVALID_HANDLE;
+		bgfx::TextureHandle _transmittanceTable = BGFX_INVALID_HANDLE;
+		bgfx::TextureHandle _singleScatteringTable = BGFX_INVALID_HANDLE;
+		bgfx::UniformHandle _terrainTexSampler = BGFX_INVALID_HANDLE;
+		bgfx::UniformHandle _opticalDepthSampler = BGFX_INVALID_HANDLE;
+		bgfx::UniformHandle _singleScatteringSampler = BGFX_INVALID_HANDLE;
+		bgfx::UniformHandle _irradianceSampler = BGFX_INVALID_HANDLE;
+		bgfx::UniformHandle _transmittanceSampler = BGFX_INVALID_HANDLE;
+		bgfx::UniformHandle _heightmapSampler = BGFX_INVALID_HANDLE;
+		bgfx::UniformHandle _cloudsPhaseSampler = BGFX_INVALID_HANDLE;
 #pragma endregion Textures_And_Samplers
 
 		// The Entry library will call this method after setting up window manager
@@ -309,7 +310,7 @@ namespace RealisticAtmosphere
 			bgfx::init(init);
 
 			// Set view 0 clear state.
-			bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH);
+			bgfx::setViewClear(0, BGFX_CLEAR_NONE);
 
 			//
 			// Setup Resources
@@ -381,7 +382,7 @@ namespace RealisticAtmosphere
 			// Create Immediate GUI graphics context
 			imguiCreate();
 			_lastTicks = SDL_GetPerformanceCounter();
-			_freq = SDL_GetPerformanceFrequency();
+			_performanceFrequency = SDL_GetPerformanceFrequency();
 		}
 
 		void heightMap()
@@ -408,7 +409,7 @@ namespace RealisticAtmosphere
 				green = PhaseFunctions::CloudsGreenDisperse;
 				blue = PhaseFunctions::CloudsBlueDisperse;
 			}
-			for (int i = 0; i < 1801 * 4; i += 4)
+			for (uint64_t i = 0; i < 1801 * 4; i += 4)
 			{
 				auto singlePhaseFuncIndex = i / 4;
 
@@ -486,7 +487,7 @@ namespace RealisticAtmosphere
 		void resetBufferSize()
 		{
 			_screenSpaceQuad = ScreenSpaceQuad((float)_windowWidth, (float)_windowHeight);//Init internal vertex layout
-			_raytracerColorOutput = bgfx::createTexture2D(
+			_raytracerColorOutput[0] = bgfx::createTexture2D(
 				uint16_t(_windowWidth)
 				, uint16_t(_windowHeight)
 				, false
@@ -494,14 +495,14 @@ namespace RealisticAtmosphere
 				,
 				bgfx::TextureFormat::RGBA32F
 				, BGFX_TEXTURE_COMPUTE_WRITE | BGFX_TEXTURE_READ_BACK);
-			/*_raytracerColorOutput[1] = bgfx::createTexture2D(
+			_raytracerColorOutput[1] = bgfx::createTexture2D(
 				uint16_t(_windowWidth)
 				, uint16_t(_windowHeight)
 				, false
 				, 1
 				,
 				bgfx::TextureFormat::RGBA32F
-				, BGFX_TEXTURE_COMPUTE_WRITE);*/
+				, BGFX_TEXTURE_COMPUTE_WRITE);
 			_raytracerNormalsOutput = bgfx::createTexture2D(
 				uint16_t(_windowWidth)
 				, uint16_t(_windowHeight)
@@ -535,8 +536,8 @@ namespace RealisticAtmosphere
 			bgfx::destroy(_qualitySettingsHandle);
 			bgfx::destroy(_heightmapTextureHandle);
 			bgfx::destroy(_raytracerDepthBuffer);
-			bgfx::destroy(_raytracerColorOutput);
-			//bgfx::destroy(_raytracerColorOutput[1]);
+			bgfx::destroy(_raytracerColorOutput[0]);
+			bgfx::destroy(_raytracerColorOutput[1]);
 			bgfx::destroy(_raytracerNormalsOutput);
 			bgfx::destroy(_colorOutputSampler);
 			bgfx::destroy(_terrainTexSampler);
@@ -576,7 +577,7 @@ namespace RealisticAtmosphere
 		// Called every frame
 		bool update() override
 		{
-			// Polling about mouse, keyboard and window events
+			// Polling about mouse, keyboard and window events from the "Input Thread"
 			// Returns true when the window is up to close itself
 			auto previousWidth = _windowWidth, previousHeight = _windowHeight;
 			_mouseState.xrel = _mouseState.yrel = 0;
@@ -624,7 +625,7 @@ namespace RealisticAtmosphere
 				if (_mouseLock)
 				{
 					auto nowTicks = SDL_GetPerformanceCounter();
-					auto deltaTime = (float)((nowTicks - _lastTicks) * 1000 / (float)_freq);
+					auto deltaTime = (float)((nowTicks - _lastTicks) * 1000 / (float)_performanceFrequency);
 					_person.Update(_mouseLock, deltaTime, _mouseState);
 
 					_lastTicks = nowTicks;
@@ -677,12 +678,10 @@ namespace RealisticAtmosphere
 				if (_debugNormals)
 					bgfx::setTexture(0, _colorOutputSampler, _raytracerNormalsOutput);
 				else
-					bgfx::setTexture(0, _colorOutputSampler, _raytracerColorOutput);
-				_outBufferIndex = _outBufferIndex == 0 ? 1 : 0;//Swap buffers
+					bgfx::setTexture(0, _colorOutputSampler,  _raytracerColorOutput[_syncObj != nullptr && bgfx::syncComplete(_syncObj) ? _outBufferIndex : 1 - _outBufferIndex]);
 				_screenSpaceQuad.draw();//Draw screen space quad with our shader program
 				bgfx::setState(BGFX_STATE_WRITE_RGB);
 				bgfx::submit(0, _displayingShaderProgram);
-				void* syncObj = bgfx::fenceSync();
 				updateClouds();
 
 				// Advance to next frame. Rendering thread will be kicked to
@@ -702,9 +701,7 @@ namespace RealisticAtmosphere
 		{
 			if (!_pathTracingMode)
 			{
-				CloudsSettings[4].y += _cloudsWind.x;
-				CloudsSettings[4].z += _cloudsWind.y;
-				CloudsSettings[4].w += _cloudsWind.z;
+				_planetBuffer[0].clouds.position = bx::add(_planetBuffer[0].clouds.position, _cloudsWind);
 			}
 		}
 
@@ -744,10 +741,16 @@ namespace RealisticAtmosphere
 #endif
 		void computeShaderRaytracer()
 		{
-			bgfx::setImage(0, _raytracerColorOutput, 0, bgfx::Access::ReadWrite);
-			bgfx::setImage(1, _raytracerNormalsOutput, 0, bgfx::Access::ReadWrite);
-			bgfx::setImage(2, _raytracerDepthBuffer, 0, bgfx::Access::ReadWrite);
-			bgfx::dispatch(0, _computeShaderProgram, bx::ceil(_windowWidth / 16.0f), bx::ceil(_windowHeight / 16.0f));
+			if (_syncObj == nullptr || bgfx::syncComplete(_syncObj))
+			{
+				_outBufferIndex = _outBufferIndex == 0 ? 1 : 0;//Swap buffers
+				bgfx::setImage(0, _raytracerColorOutput[_outBufferIndex], 0, bgfx::Access::ReadWrite);
+				bgfx::setImage(1, _raytracerNormalsOutput, 0, bgfx::Access::ReadWrite);
+				bgfx::setImage(2, _raytracerDepthBuffer, 0, bgfx::Access::ReadWrite);
+				bgfx::dispatch(0, _computeShaderProgram, bx::ceil(_windowWidth / 16.0f), bx::ceil(_windowHeight / 16.0f));
+				_syncObj = bgfx::fenceSync();
+			}
+			//else do nothing
 		}
 
 		void updateBuffers()
@@ -1232,7 +1235,7 @@ namespace RealisticAtmosphere
 		void requestSavePng()
 		{
 			_readedTexture = new float[_windowHeight * _windowWidth * 4];
-			_screenshotFrame = bgfx::readTexture(_raytracerColorOutput, _readedTexture);
+			_screenshotFrame = bgfx::readTexture(_raytracerColorOutput[0], _readedTexture);
 		}
 	};
 
