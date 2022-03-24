@@ -352,13 +352,6 @@ namespace RealisticAtmosphere
 				textureFileNames, BGFX_TEXTURE_SRGB
 			);
 
-			/*auto data = imageLoad("textures/grass.ktx", bgfx::TextureFormat::RGB8);
-			bgfx::updateTexture2D(_texturesHandle, 0, 0, 0, 0, 2048, 2048, bgfx::makeRef(data->m_data, data->m_size));
-			data = imageLoad("textures/dirt.ktx", bgfx::TextureFormat::RGB8);
-			bgfx::updateTexture2D(_texturesHandle, 1, 0, 0, 0, 2048, 2048, bgfx::makeRef(data->m_data, data->m_size));
-			data = imageLoad("textures/rock.ktx", bgfx::TextureFormat::RGB8);
-			bgfx::updateTexture2D(_texturesHandle, 2, 0, 0, 0, 2048, 2048, bgfx::makeRef(data->m_data, data->m_size));*/
-
 			_objectBufferHandle = bgfx_utils::createDynamicComputeReadBuffer(sizeof(_objectBuffer));
 			_atmosphereBufferHandle = bgfx_utils::createDynamicComputeReadBuffer(sizeof(_planetBuffer));
 			_materialBufferHandle = bgfx_utils::createDynamicComputeReadBuffer(sizeof(_materialBuffer));
@@ -372,12 +365,11 @@ namespace RealisticAtmosphere
 			// Render cloud particles Mie phase functions for all wavelengths
 			cloudsMiePhaseFunction();
 
+			// Compute spectrum mapping functions
+			ColorMapping::FillSpectrum(SkyRadianceToLuminance, SunRadianceToLuminance, _planetBuffer[0], _directionalLightBuffer[0]);
+
 			// Render optical depth, transmittance and direct irradiance textures
 			precompute();
-
-			// Compute spectrum mapping functions
-
-			ColorMapping::FillSpectrum(SkyRadianceToLuminance, SunRadianceToLuminance, _planetBuffer[0], _directionalLightBuffer[0]);
 
 			// Create Immediate GUI graphics context
 			imguiCreate();
@@ -434,7 +426,10 @@ namespace RealisticAtmosphere
 			bgfx::setUniform(precomputeSettingsHandle, PrecomputeSettings);
 			bgfx::ShaderHandle precomputeOptical = loadShader("OpticalDepth.comp");
 			bgfx::ProgramHandle opticalProgram = bgfx::createProgram(precomputeOptical);
-			_opticalDepthTable = bgfx::createTexture2D(512, 256, false, 1, bgfx::TextureFormat::RGBA16F, BGFX_TEXTURE_COMPUTE_WRITE | BGFX_SAMPLER_UVW_CLAMP);
+			if (!bgfx::isValid(_opticalDepthTable))
+			{
+				_opticalDepthTable = bgfx::createTexture2D(512, 256, false, 1, bgfx::TextureFormat::RGBA16F, BGFX_TEXTURE_COMPUTE_WRITE | BGFX_SAMPLER_UVW_CLAMP);
+			}
 			//steps are locked to 300
 			updateBuffers();
 			bgfx::setImage(0, _opticalDepthTable, 0, bgfx::Access::Write, bgfx::TextureFormat::RGBA16F);
@@ -444,7 +439,10 @@ namespace RealisticAtmosphere
 
 			bgfx::ShaderHandle precomputeTransmittance = loadShader("Transmittance.comp");
 			bgfx::ProgramHandle transmittanceProgram = bgfx::createProgram(precomputeTransmittance);
-			_transmittanceTable = bgfx::createTexture2D(256, 64, false, 1, bgfx::TextureFormat::RGBA32F, BGFX_TEXTURE_COMPUTE_WRITE | BGFX_SAMPLER_UVW_CLAMP);
+			if (!bgfx::isValid(_transmittanceTable))
+			{
+				_transmittanceTable = bgfx::createTexture2D(256, 64, false, 1, bgfx::TextureFormat::RGBA32F, BGFX_TEXTURE_COMPUTE_WRITE | BGFX_SAMPLER_UVW_CLAMP);
+			}
 			bgfx::setImage(0, _transmittanceTable, 0, bgfx::Access::Write, bgfx::TextureFormat::RGBA32F);
 			bgfx::setBuffer(1, _atmosphereBufferHandle, bgfx::Access::Read);
 			bgfx::setBuffer(2, _directionalLightBufferHandle, bgfx::Access::Read);
@@ -455,7 +453,10 @@ namespace RealisticAtmosphere
 			constexpr int SCATTERING_TEXTURE_WIDTH =
 				SCATTERING_TEXTURE_NU_SIZE * SCATTERING_TEXTURE_MU_S_SIZE;
 			constexpr int SCATTERING_TEXTURE_DEPTH = SCATTERING_TEXTURE_R_SIZE;
-			_singleScatteringTable = bgfx::createTexture3D(SCATTERING_TEXTURE_WIDTH, SCATTERING_TEXTURE_HEIGHT, SCATTERING_TEXTURE_DEPTH, false, bgfx::TextureFormat::RGBA16F, BGFX_TEXTURE_COMPUTE_WRITE | BGFX_SAMPLER_UVW_CLAMP);
+			if (!bgfx::isValid(_singleScatteringTable))
+			{
+				_singleScatteringTable = bgfx::createTexture3D(SCATTERING_TEXTURE_WIDTH, SCATTERING_TEXTURE_HEIGHT, SCATTERING_TEXTURE_DEPTH, false, bgfx::TextureFormat::RGBA16F, BGFX_TEXTURE_COMPUTE_WRITE | BGFX_SAMPLER_UVW_CLAMP);
+			}
 			bgfx::setImage(0, _singleScatteringTable, 0, bgfx::Access::Write, bgfx::TextureFormat::RGBA16F);
 			setBuffers();
 			bgfx::setTexture(7, _transmittanceSampler, _transmittanceTable);
@@ -463,7 +464,10 @@ namespace RealisticAtmosphere
 
 			bgfx::ShaderHandle precomputeIrradiance = loadShader("IndirectIrradiance.comp");
 			bgfx::ProgramHandle irradianceProgram = bgfx::createProgram(precomputeIrradiance);
-			_irradianceTable = bgfx::createTexture2D(64, 16, false, _directionalLightBuffer.size(), bgfx::TextureFormat::RGBA16F, BGFX_TEXTURE_COMPUTE_WRITE);
+			if (!bgfx::isValid(_irradianceTable))
+			{
+				_irradianceTable = bgfx::createTexture2D(64, 16, false, _directionalLightBuffer.size(), bgfx::TextureFormat::RGBA16F, BGFX_TEXTURE_COMPUTE_WRITE);
+			}
 			bgfx::setImage(0, _irradianceTable, 0, bgfx::Access::Write, bgfx::TextureFormat::RGBA16F);
 			bgfx::setBuffer(1, _atmosphereBufferHandle, bgfx::Access::Read);
 			bgfx::setBuffer(2, _directionalLightBufferHandle, bgfx::Access::Read);
@@ -487,6 +491,11 @@ namespace RealisticAtmosphere
 		void resetBufferSize()
 		{
 			_screenSpaceQuad = ScreenSpaceQuad((float)_windowWidth, (float)_windowHeight);//Init internal vertex layout
+			if (bgfx::isValid(_raytracerColorOutput[0]))
+			{
+				bgfx::destroy(_raytracerColorOutput[0]);
+				bgfx::destroy(_raytracerColorOutput[1]);
+			}
 			_raytracerColorOutput[0] = bgfx::createTexture2D(
 				uint16_t(_windowWidth)
 				, uint16_t(_windowHeight)
@@ -565,6 +574,7 @@ namespace RealisticAtmosphere
 			bgfx::destroy(_cloudsPhaseSampler);
 			bgfx::destroy(_heightmapSampler);
 			bgfx::destroy(_cloudsSettings);
+			bgfx::destroy(_textureArrayHandle);
 
 			_screenSpaceQuad.destroy();
 
@@ -678,7 +688,7 @@ namespace RealisticAtmosphere
 				if (_debugNormals)
 					bgfx::setTexture(0, _colorOutputSampler, _raytracerNormalsOutput);
 				else
-					bgfx::setTexture(0, _colorOutputSampler,  _raytracerColorOutput[_syncObj != nullptr && bgfx::syncComplete(_syncObj) ? _outBufferIndex : 1 - _outBufferIndex]);
+					bgfx::setTexture(0, _colorOutputSampler, _raytracerColorOutput[_syncObj != nullptr && bgfx::syncComplete(_syncObj) ? _outBufferIndex : 1 - _outBufferIndex]);
 				_screenSpaceQuad.draw();//Draw screen space quad with our shader program
 				bgfx::setState(BGFX_STATE_WRITE_RGB);
 				bgfx::submit(0, _displayingShaderProgram);
@@ -707,14 +717,17 @@ namespace RealisticAtmosphere
 
 		void renderScene()
 		{
-			updateBuffersAndSamplers();
+			if (_syncObj == nullptr || bgfx::syncComplete(_syncObj))
+			{
+				updateBuffersAndSamplers();
 
 #if _DEBUG
-			updateDebugUniforms();
+				updateDebugUniforms();
 #endif
 
-			computeShaderRaytracer();
-			currentSample++;
+				computeShaderRaytracer();
+				currentSample++;
+			}
 		}
 
 		void updateLights()
@@ -741,16 +754,12 @@ namespace RealisticAtmosphere
 #endif
 		void computeShaderRaytracer()
 		{
-			if (_syncObj == nullptr || bgfx::syncComplete(_syncObj))
-			{
-				_outBufferIndex = _outBufferIndex == 0 ? 1 : 0;//Swap buffers
-				bgfx::setImage(0, _raytracerColorOutput[_outBufferIndex], 0, bgfx::Access::ReadWrite);
-				bgfx::setImage(1, _raytracerNormalsOutput, 0, bgfx::Access::ReadWrite);
-				bgfx::setImage(2, _raytracerDepthBuffer, 0, bgfx::Access::ReadWrite);
-				bgfx::dispatch(0, _computeShaderProgram, bx::ceil(_windowWidth / 16.0f), bx::ceil(_windowHeight / 16.0f));
-				_syncObj = bgfx::fenceSync();
-			}
-			//else do nothing
+			_outBufferIndex = _outBufferIndex == 0 ? 1 : 0;//Swap buffers
+			bgfx::setImage(0, _raytracerColorOutput[_outBufferIndex], 0, bgfx::Access::ReadWrite);
+			bgfx::setImage(1, _raytracerNormalsOutput, 0, bgfx::Access::ReadWrite);
+			bgfx::setImage(2, _raytracerDepthBuffer, 0, bgfx::Access::ReadWrite);
+			bgfx::dispatch(0, _computeShaderProgram, bx::ceil(_windowWidth / 16.0f), bx::ceil(_windowHeight / 16.0f));
+			_syncObj = bgfx::fenceSync();
 		}
 
 		void updateBuffers()
@@ -838,20 +847,31 @@ namespace RealisticAtmosphere
 			);
 			ImGui::Begin("Flags");
 			flags = *(int*)&HQSettings_flags;
-			bool usePrecomputedAtmo = (flags & HQFlags_ATMO_COMPUTE) != 0;
+			bool usePrecomputed = (flags & HQFlags_ATMO_COMPUTE) == 0;
 			bool earthShadows = (flags & HQFlags_EARTH_SHADOWS) != 0;
 			bool lightShafts = (flags & HQFlags_LIGHT_SHAFTS) != 0;
-			ImGui::Checkbox("Compute exactly", &usePrecomputedAtmo);
-			ImGui::Checkbox("Terrain shadows", &earthShadows);
-			ImGui::Checkbox("Light shafts", &lightShafts);
-
-			if (usePrecomputedAtmo)
+			ImGui::Checkbox("Precompute atmo", &usePrecomputed);
+			if (usePrecomputed)
 			{
-				flags |= HQFlags_ATMO_COMPUTE;
+				if (ImGui::SmallButton("Recompute"))
+				{
+					precompute();
+				}
 			}
 			else
 			{
+				ImGui::InputInt("Samples", (int*)&Multisampling_perAtmospherePixel);
+			}
+			ImGui::Checkbox("Terrain shadows", &earthShadows);
+			ImGui::Checkbox("Light shafts", &lightShafts);
+
+			if (usePrecomputed)
+			{
 				flags &= ~HQFlags_ATMO_COMPUTE;
+			}
+			else
+			{
+				flags |= HQFlags_ATMO_COMPUTE;
 			}
 
 			if (earthShadows)
@@ -1163,6 +1183,7 @@ namespace RealisticAtmosphere
 				_pathTracingMode = false;
 				swapSettingsBackup();
 			}
+			ImGui::SameLine();
 			if (ImGui::Button("Re-render"))
 			{
 				currentSample = 0;
@@ -1184,7 +1205,6 @@ namespace RealisticAtmosphere
 			ImGui::InputInt("Secondary rays", (int*)&Multisampling_indirect);
 
 			ImGui::InputInt("Bounces", (int*)&Multisampling_maxBounces);
-			ImGui::InputInt("Atmosphere samples", (int*)&Multisampling_perAtmospherePixel);
 			ImGui::PopItemWidth();
 			ImGui::End();
 
