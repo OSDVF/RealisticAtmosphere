@@ -107,6 +107,7 @@
       <AdditionalDependencies>DelayImp.lib;gdi32.lib;psapi.lib;SDL2.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalOptions>/ignore:4221 /ignore:4199 /DELAYLOAD:"libEGL.dll" /DELAYLOAD:"libGLESv2.dll" %(AdditionalOptions)</AdditionalOptions>
       <EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
+      <Profile>true</Profile>
     </Link>
     <CustomBuildStep>
       <Command>
@@ -169,6 +170,7 @@
       <AdditionalDependencies>DelayImp.lib;gdi32.lib;psapi.lib;SDL2.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
       <AdditionalOptions>/ignore:4221 /ignore:4199 /DELAYLOAD:"libEGL.dll" /DELAYLOAD:"libGLESv2.dll" %(AdditionalOptions)</AdditionalOptions>
+      <Profile>true</Profile>
     </Link>
     <CustomBuildStep>
       <Command>

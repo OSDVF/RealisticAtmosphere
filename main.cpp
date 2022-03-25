@@ -213,7 +213,9 @@ namespace RealisticAtmosphere
 			_transmittanceSampler = bgfx::createUniform("transmittanceTable", bgfx::UniformType::Sampler);
 			_singleScatteringSampler = bgfx::createUniform("singleScatteringTable", bgfx::UniformType::Sampler);
 			_terrainTexSampler = bgfx::createUniform("terrainTextures", bgfx::UniformType::Sampler);
+#if _DEBUG
 			_debugAttributesHandle = bgfx::createUniform("debugAttributes", bgfx::UniformType::Vec4);
+#endif
 			_timeHandle = bgfx::createUniform("time", bgfx::UniformType::Vec4);
 			_multisamplingSettingsHandle = bgfx::createUniform("MultisamplingSettings", bgfx::UniformType::Vec4);
 			_qualitySettingsHandle = bgfx::createUniform("QualitySettings", bgfx::UniformType::Vec4);
@@ -446,7 +448,9 @@ namespace RealisticAtmosphere
 			bgfx::destroy(_atmosphereBufferHandle);
 			bgfx::destroy(_objectBufferHandle);
 			bgfx::destroy(_cameraHandle);
+#if _DEBUG
 			bgfx::destroy(_debugAttributesHandle);
+#endif
 			bgfx::destroy(_planetMaterialHandle);
 			bgfx::destroy(_raymarchingStepsHandle);
 			bgfx::destroy(_heightmapShaderHandle);
@@ -517,9 +521,10 @@ namespace RealisticAtmosphere
 				{
 					renderScene();
 				}
-				auto bufferToDisplay =
+
+				auto bufferToDisplay = bgfx::multithreadedRender ||
 					// If compute shader already completed its work, we can display its Output buffer. Otherwise we display the previous Output buffer.
-					(_syncObj != nullptr && bgfx::syncComplete(_syncObj)) ? _outBufferIndex : 1 - _outBufferIndex;
+					(_syncObj != nullptr || bgfx::syncComplete(_syncObj)) ? _outBufferIndex : 1 - _outBufferIndex;
 
 				if (bufferToDisplay != 1 || DO_DOUBLE_BUFFERING)//If we are not double buffering, display only buffer #0
 				{
@@ -650,9 +655,9 @@ namespace RealisticAtmosphere
 			}
 		}
 
-		bool renderScene()
+		void renderScene()
 		{
-			if (_syncObj == nullptr || bgfx::syncComplete(_syncObj))
+			if (bgfx::multithreadedRender || _syncObj == nullptr || bgfx::syncComplete(_syncObj))
 			{
 				updateBuffersAndSamplers();
 
@@ -662,9 +667,7 @@ namespace RealisticAtmosphere
 
 				computeShaderRaytracer();
 				currentSample++;
-				return true;
 			}
-			return false;
 		}
 
 		void updateLights()
@@ -691,7 +694,7 @@ namespace RealisticAtmosphere
 #endif
 		void computeShaderRaytracer()
 		{
-			if (DO_DOUBLE_BUFFERING)
+			if (DO_DOUBLE_BUFFERING && !bgfx::multithreadedRender)
 				_outBufferIndex = _outBufferIndex == 0 ? 1 : 0;
 
 			bgfx::setImage(0, _raytracerColorOutput[_outBufferIndex], 0, bgfx::Access::ReadWrite);
@@ -699,7 +702,10 @@ namespace RealisticAtmosphere
 			bgfx::setImage(2, _raytracerDepthAlbedoBuffer, 0, bgfx::Access::ReadWrite);
 			bgfx::dispatch(0, _computeShaderProgram, bx::ceil(_renderImageSize.width / 16.0f), bx::ceil(_renderImageSize.height / 16.0f));
 			// Create synchronization fence which we will ask if the compute shader has finished
-			_syncObj = bgfx::fenceSync();
+			if (!bgfx::multithreadedRender)
+			{
+				_syncObj = bgfx::fenceSync();
+			}
 		}
 
 		void updateBuffers()
