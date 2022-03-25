@@ -264,7 +264,7 @@ namespace RealisticAtmosphere
 			_performanceFrequency = SDL_GetPerformanceFrequency();
 
 			// Prepare scene for the first time
-			updateScene('\0');
+			updateScene();
 		}
 
 		void heightMap()
@@ -580,11 +580,11 @@ namespace RealisticAtmosphere
 			return false;
 		}
 
-		void updateScene(char asciiKey)
+		void updateScene(char pressedAsciiKey = 0)
 		{
 			//Check for user actions
 			uint8_t modifiers = inputGetModifiersState();
-			switch (asciiKey)
+			switch (pressedAsciiKey)
 			{
 			case 'l':
 				_mouseLock = !_mouseLock;
@@ -622,6 +622,8 @@ namespace RealisticAtmosphere
 			// Update scene objects
 			updateClouds();
 			updateLights();
+			// And save their values into buffers
+			updateBuffers();
 		}
 
 		void doNextScreenshotStep(bool tracingComplete)
@@ -718,8 +720,6 @@ namespace RealisticAtmosphere
 
 		void setBuffers()
 		{
-			updateBuffers();
-
 			bgfx::setBuffer(3, _objectBufferHandle, bgfx::Access::Read);
 			bgfx::setBuffer(4, _atmosphereBufferHandle, bgfx::Access::Read);
 			bgfx::setBuffer(5, _materialBufferHandle, bgfx::Access::Read);
@@ -1129,6 +1129,7 @@ namespace RealisticAtmosphere
 			ImGui::SameLine();
 			if (ImGui::Button("Re-render"))
 			{
+				updateScene();
 				cleanRenderedBuffers(_windowWidth, _windowHeight);
 			}
 			if (ImGui::Button("Save Image"))
