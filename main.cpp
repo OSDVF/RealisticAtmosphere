@@ -33,7 +33,8 @@
 
 #define HANDLE_OF_DEFALUT_WINDOW entry::WindowHandle{ 0 }
 #define SCREENSHOT_NEVER UINT32_MAX
-#define SCREENSHOT_AFTER_RENDER 0
+#define SCREENSHOT_AFTER_RENDER SCREENSHOT_NEVER - 1
+#define SCREENSHOT_AFTER_RENDER_PENDING SCREENSHOT_AFTER_RENDER - 1
 
 namespace RealisticAtmosphere
 {
@@ -47,6 +48,7 @@ namespace RealisticAtmosphere
 		uint16_t* _readedTexture = nullptr;//CPU buffer for converted texture
 		bgfx::TextureHandle _stagingBuffer = BGFX_INVALID_HANDLE;//Texture handle in which a screenshot will be copied
 		void* _syncObj = nullptr;
+		// Number of frame at which a screenshot will be taken
 		uint32_t _screenshotFrame = SCREENSHOT_NEVER;
 		Uint64 _performanceFrequency = 0;
 		uint32_t _frame = 0;
@@ -55,9 +57,9 @@ namespace RealisticAtmosphere
 		uint32_t _windowHeight = 600;
 		bool _customScreenshotSize = false;
 		struct {
-			int width = 1024;
-			int height = 600;
-		} _screenshotSize;
+			uint16_t width = 1024;
+			uint16_t height = 600;
+		} _renderImageSize;
 		uint32_t _debugFlags = 0;
 		uint32_t _resetFlags = 0;
 		entry::MouseState _mouseState;
@@ -365,11 +367,16 @@ namespace RealisticAtmosphere
 		void resetBufferSize(uint16_t width, uint16_t height)
 		{
 			_screenSpaceQuad = ScreenSpaceQuad((float)width, (float)height);//Init internal vertex layout
+			_renderImageSize = { width, height };
+			// Delete previous buffers
 			if (bgfx::isValid(_raytracerColorOutput[0]))
 			{
 				bgfx::destroy(_raytracerColorOutput[0]);
 				bgfx::destroy(_raytracerColorOutput[1]);
+				bgfx::destroy(_raytracerNormalsOutput);
+				bgfx::destroy(_raytracerDepthBuffer);
 			}
+			// Create new
 			_raytracerColorOutput[0] = bgfx::createTexture2D(width, height, false, 1, bgfx::TextureFormat::RGBA16F,
 				BGFX_TEXTURE_COMPUTE_WRITE);
 			_raytracerColorOutput[1] = bgfx::createTexture2D(width, height, false, 1, bgfx::TextureFormat::RGBA16F,
@@ -450,10 +457,11 @@ namespace RealisticAtmosphere
 				// Maybe reset window buffer size
 				if (previousWidth != _windowWidth || previousHeight != _windowHeight)
 				{
+					// When the window resizes, we must update our bufers.
+					// No need to call bgfx::reset() because entry::processEvents() does this automatically
 					_screenSpaceQuad.destroy();
 					resetBufferSize(_windowWidth, _windowHeight);
 				}
-				updateLights();
 				//
 				// GUI Actions
 				// 
@@ -495,9 +503,35 @@ namespace RealisticAtmosphere
 					_lastTicks = nowTicks;
 				}
 
-				// Supply mouse events to GUI library
+
+				//
+				// Graphics actions
+				// 
+
+				viewportActions();
+				int maxSamples = *(int*)&HQSettings_directSamples * *(int*)&Multisampling_indirect;
+				bool tracingComplete;
+				bool renderingRuns = false;
+				if (tracingComplete = (currentSample >= maxSamples))
+				{
+					if (!_pathTracingMode)
+					{
+						currentSample = 0;
+						renderScene();
+					}
+					else
+					{
+						currentSample = INT_MAX;
+					}
+				}
+				else
+				{
+					renderingRuns = renderScene();
+				}
+
 				if (_showGUI)
 				{
+					// Supply mouse events to GUI library
 					imguiBeginFrame(_mouseState.m_mx,
 						_mouseState.m_my,
 						(_mouseState.m_buttons[entry::MouseButton::Left] ? IMGUI_MBUT_LEFT : 0)
@@ -516,30 +550,7 @@ namespace RealisticAtmosphere
 					imguiEndFrame();
 				}
 
-				//
-				// Graphics actions
-				// 
-
-				viewportActions();
-				int maxSamples = *(int*)&HQSettings_directSamples * *(int*)&Multisampling_indirect;
-				bool trancingComplete;
-				if (trancingComplete = currentSample >= maxSamples)
-				{
-					if (!_pathTracingMode)
-					{
-						currentSample = 0;
-						renderScene();
-					}
-					else
-					{
-						currentSample = INT_MAX;
-					}
-				}
-				else
-				{
-					renderScene();
-				}
-
+				// If compute shader already completed its work, we can display its Output buffer. Otherwise we display the previous Output buffer.
 				auto bufferToDisplay = _syncObj != nullptr && bgfx::syncComplete(_syncObj) ? _outBufferIndex : 1 - _outBufferIndex;
 				if (_debugNormals)
 					bgfx::setTexture(0, _colorOutputSampler, _raytracerNormalsOutput);
@@ -549,22 +560,38 @@ namespace RealisticAtmosphere
 				bgfx::setState(BGFX_STATE_WRITE_RGB);
 				bgfx::submit(0, _displayingShaderProgram);
 				updateClouds();
+				updateLights();
 
 				// Advance to next frame
 				_frame = bgfx::frame();
-				if (_frame >= _screenshotFrame)
-				{
-					savePng();
-				}
-				else if (trancingComplete && _screenshotFrame == SCREENSHOT_AFTER_RENDER)
-				{
-					_screenshotFrame = SCREENSHOT_NEVER;
-					requestScreenshot();
-				}
+				doNextScreenshotStep(tracingComplete);
 				return true;
 			}
 			// update() should return false when we want the application to exit
 			return false;
+		}
+
+		void doNextScreenshotStep(bool tracingComplete)
+		{
+			if (_frame >= _screenshotFrame)
+			{
+				// Save the taken screenshot
+				savePng();
+				// Reset back to window dimensions
+				resetBufferSize(_windowWidth, _windowHeight);
+				bgfx::reset(_windowWidth, _windowHeight);
+				// Return to normal rendering
+				_screenshotFrame = SCREENSHOT_NEVER;//Do not take any screenshot at next frame
+			}
+			// Delayed screenshot request
+			else if (_screenshotFrame == SCREENSHOT_AFTER_RENDER)
+			{
+				_screenshotFrame = SCREENSHOT_AFTER_RENDER_PENDING;
+			}
+			else if (tracingComplete && _screenshotFrame == SCREENSHOT_AFTER_RENDER_PENDING)
+			{
+				takeScreenshot();
+			}
 		}
 
 		void updateClouds()
@@ -575,7 +602,7 @@ namespace RealisticAtmosphere
 			}
 		}
 
-		void renderScene()
+		bool renderScene()
 		{
 			if (_syncObj == nullptr || bgfx::syncComplete(_syncObj))
 			{
@@ -587,7 +614,9 @@ namespace RealisticAtmosphere
 
 				computeShaderRaytracer();
 				currentSample++;
+				return true;
 			}
+			return false;
 		}
 
 		void updateLights()
@@ -618,7 +647,8 @@ namespace RealisticAtmosphere
 			bgfx::setImage(0, _raytracerColorOutput[_outBufferIndex], 0, bgfx::Access::ReadWrite);
 			bgfx::setImage(1, _raytracerNormalsOutput, 0, bgfx::Access::ReadWrite);
 			bgfx::setImage(2, _raytracerDepthBuffer, 0, bgfx::Access::ReadWrite);
-			bgfx::dispatch(0, _computeShaderProgram, bx::ceil(_windowWidth / 16.0f), bx::ceil(_windowHeight / 16.0f));
+			bgfx::dispatch(0, _computeShaderProgram, bx::ceil(_renderImageSize.width / 16.0f), bx::ceil(_renderImageSize.height / 16.0f));
+			// Create synchronization fence which we will ask if the compute shader has finished
 			_syncObj = bgfx::fenceSync();
 		}
 
@@ -673,16 +703,9 @@ namespace RealisticAtmosphere
 			// Set view 0 default viewport.
 			bgfx::setViewTransform(0, NULL, proj);
 			_tanFovY = bx::tan(_fovY * bx::acos(-1) / 180.f / 2.0f);
-			/*if (_screenshotFrame != UINT32_MAX)
-			{
-				bgfx::setViewRect(0, 0, 0, _screenshotSize.width, _screenshotSize.height);
-				_tanFovX = (static_cast<float>(_screenshotSize.width) * _tanFovY) / static_cast<float>(_screenshotSize.height);
-			}
-			else
-			{*/
-			bgfx::setViewRect(0, 0, 0, uint16_t(_windowWidth), uint16_t(_windowHeight));
-			_tanFovX = (static_cast<float>(_windowWidth) * _tanFovY) / static_cast<float>(_windowHeight);
-			//}
+
+			bgfx::setViewRect(0, 0, 0, _renderImageSize.width, _renderImageSize.height);
+			_tanFovX = (static_cast<float>(_renderImageSize.width) * _tanFovY) / static_cast<float>(_renderImageSize.height);
 
 			glm::vec3 camPos = _person.Camera.GetPosition();
 			glm::vec3 camRot = _person.Camera.GetForward();
@@ -846,7 +869,6 @@ namespace RealisticAtmosphere
 				return;
 			}
 			ImGui::Begin("Realtime Preview");
-			ImGui::BeginGroup();
 			if (ImGui::Button("Go Path Tracing"))
 			{
 				_pathTracingMode = true;
@@ -862,19 +884,7 @@ namespace RealisticAtmosphere
 				//Disable atmosphere
 				_debugAtmoOff = true;
 			}
-			ImGui::EndGroup();
 
-			if (ImGui::Button("Save Image"))
-			{
-				if (_customScreenshotSize)
-				{
-					requestRenderAndScreenshot();
-				}
-				else
-				{
-					requestScreenshot();
-				}
-			}
 			ImGui::InputFloat("Speed", &_person.WalkSpeed);
 			ImGui::InputFloat("RunSpeed", &_person.RunSpeed);
 			ImGui::SliderFloat("Sensitivity", &_person.Camera.Sensitivity, 0, 5.0f);
@@ -1052,8 +1062,10 @@ namespace RealisticAtmosphere
 		void drawPathTracerGUI()
 		{
 			ImGui::Begin("Path Tracer");
-			if (ImGui::Button("Go RTRaytracing"))
+			if (ImGui::Button("Go RT Raytracing"))
 			{
+				_renderImageSize = { (uint16_t)_windowWidth, (uint16_t)_windowHeight };
+				_customScreenshotSize = false;
 				_pathTracingMode = false;
 				swapSettingsBackup();
 			}
@@ -1064,13 +1076,17 @@ namespace RealisticAtmosphere
 			}
 			if (ImGui::Button("Save Image"))
 			{
-				requestScreenshot();
+				requestRenderAndScreenshot();
 			}
 			ImGui::SameLine();
 			ImGui::Checkbox("Custom size", &_customScreenshotSize);
 			if (_customScreenshotSize)
 			{
-				ImGui::InputInt2("W,H", &_screenshotSize.width);
+				ImGui::InputScalarN("W,H", ImGuiDataType_U16, &_renderImageSize.width, 2);
+			}
+			else
+			{
+				_renderImageSize = { (uint16_t)_windowWidth, (uint16_t)_windowHeight };
 			}
 
 			if (currentSample >= *(int*)&HQSettings_directSamples * *(int*)&Multisampling_indirect)
@@ -1098,8 +1114,6 @@ namespace RealisticAtmosphere
 		// Called when the picture is completely in CPU memory
 		void savePng()
 		{
-			_screenshotFrame = SCREENSHOT_NEVER;//To not take any screenshot at next frame
-
 			bx::FileWriter writer;
 			bx::Error err;
 			std::ostringstream fileName;
@@ -1107,12 +1121,13 @@ namespace RealisticAtmosphere
 			fileName << ".png";
 			if (bx::open(&writer, fileName.str().c_str(), false, &err))
 			{
-				float* converted = new float[_screenshotSize.width * _screenshotSize.height];
-				for (int x = 0; x < _screenshotSize.width * _screenshotSize.height * sizeof(float); x += sizeof(float))
+				float* converted = new float[_renderImageSize.width * _renderImageSize.height];
+				for (int x = 0; x < _renderImageSize.width * _renderImageSize.height * sizeof(float); x += sizeof(float))
 				{
 					auto dirSamp = *(int*)&HQSettings_directSamples;
 					//Tonemapping
 					float r, g, b;
+					//Convert RGB16F to 32bit float
 					r = tmFunc(bx::halfToFloat(_readedTexture[x]) / dirSamp);
 					g = tmFunc(bx::halfToFloat(_readedTexture[x + 1]) / dirSamp);
 					b = tmFunc(bx::halfToFloat(_readedTexture[x + 2]) / dirSamp);
@@ -1122,10 +1137,10 @@ namespace RealisticAtmosphere
 					_readedTexture[x + 2] = bx::halfFromFloat(b);
 					_readedTexture[x + 3] = bx::halfFromFloat(1.0);
 				}
-				//Convert RGBA32F to RGBA8
-				bimg::imageConvert(entry::getAllocator(), converted, bimg::TextureFormat::RGBA8, _readedTexture, bimg::TextureFormat::RGBA16F, _screenshotSize.width, _screenshotSize.height, 1);
+				//Convert RGBA16F to RGBA8
+				bimg::imageConvert(entry::getAllocator(), converted, bimg::TextureFormat::RGBA8, _readedTexture, bimg::TextureFormat::RGBA16F, _renderImageSize.width, _renderImageSize.height, 1);
 				//Write to PNG file
-				bimg::imageWritePng(&writer, _screenshotSize.width, _screenshotSize.height, _screenshotSize.width * sizeof(float), converted, bimg::TextureFormat::RGBA8, false, &err);
+				bimg::imageWritePng(&writer, _renderImageSize.width, _renderImageSize.height, _renderImageSize.width * sizeof(float), converted, bimg::TextureFormat::RGBA8, false, &err);
 				bx::close(&writer);
 				if (err.isOk())
 				{
@@ -1143,28 +1158,26 @@ namespace RealisticAtmosphere
 			{
 				bx::debugOutput("Screenshot failed.");
 			}
-			resetBufferSize(_windowWidth, _windowHeight);
 		}
 
-		void requestScreenshot()
+		void takeScreenshot()
 		{
-			if (!_customScreenshotSize)
-			{
-				_screenshotSize.width = _windowWidth;
-				_screenshotSize.height = _windowHeight;
-			}
-			else
-			{
-				resetBufferSize(_screenshotSize.width, _screenshotSize.height);
-			}
-			_readedTexture = new uint16_t[_screenshotSize.width * _screenshotSize.height * 4/*RGBA channels*/];
-			_stagingBuffer = bgfx::createTexture2D(_screenshotSize.width, _screenshotSize.height, false, 1, bgfx::TextureFormat::Enum::RGBA16F, BGFX_TEXTURE_READ_BACK);
-			bgfx::blit(0, _stagingBuffer, 0, 0, _raytracerColorOutput[_outBufferIndex]);
+			_readedTexture = new uint16_t[_renderImageSize.width * _renderImageSize.height * 4/*RGBA channels*/];
+			//Create buffer for reading by the CPU
+			_stagingBuffer = bgfx::createTexture2D(_renderImageSize.width, _renderImageSize.height, false, 1, bgfx::TextureFormat::Enum::RGBA16F, BGFX_TEXTURE_READ_BACK);
+			//Copy raytracer output into the buffer
+			bgfx::blit(0, _stagingBuffer, 0, 0, _raytracerColorOutput[_outBufferIndex], 0, 0, _renderImageSize.width, _renderImageSize.height);
+			//Read from GPU to CPU memory
 			_screenshotFrame = bgfx::readTexture(_stagingBuffer, _readedTexture);
 		}
 
 		void requestRenderAndScreenshot()
 		{
+			if (_customScreenshotSize)
+			{
+				bgfx::reset(_renderImageSize.width, _renderImageSize.height);
+				resetBufferSize(_renderImageSize.width, _renderImageSize.height);
+			}
 			_screenshotFrame = SCREENSHOT_AFTER_RENDER;
 		}
 	};
