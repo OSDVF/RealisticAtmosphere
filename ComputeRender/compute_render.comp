@@ -2,9 +2,9 @@
 #define COMPUTE 1
 layout(local_size_x=16, local_size_y=16, local_size_z = 1) in;
 #include "../raytracer.glsl"
-layout(rgba32f, binding=0) uniform image2D colorOutput;
+layout(rgba16f, binding=0) uniform image2D colorOutput;
 layout(rgba8, binding=1) uniform image2D normalsBuffer;
-layout(r32f, binding=2) uniform image2D depthBuffer;
+layout(rg32f, binding=2) uniform image2D depthBuffer;
 
 void main()
 {
@@ -26,8 +26,8 @@ void main()
 			|
 			(uint(albedo.z*255) << 16)
 		);
-		imageStore(colorOutput, coord, vec4(color, packedAlbedo));
-		imageStore(depthBuffer, coord, vec4(depth));
+		imageStore(colorOutput, coord, vec4(color, 0));
+		imageStore(depthBuffer, coord, vec4(depth, packedAlbedo, 0, 0 ));
 		imageStore(normalsBuffer, coord, vec4(normal, 0));
 	}
 	else
@@ -35,22 +35,20 @@ void main()
 		vec2 subpixelCoord = getSubpixelCoords(gl_GlobalInvocationID.xy, directSampleNum);
 		int indirectSampleNum = sampleNum % indirectSamples;
 
-		vec4 img = imageLoad(colorOutput, coord);
-		vec3 color = img.xyz;
+		vec3 color = imageLoad(colorOutput, coord).xyz;
 		if(indirectSampleNum > 0)
 		{
-			vec4 depthAndDirect = imageLoad(depthBuffer, coord);
-			float depth = depthAndDirect.x;
+			vec2 depthAndAlbedo = imageLoad(depthBuffer, coord).xy;
+			float depth = depthAndAlbedo.r;
 			if(depth != 0)
 			{
-				vec4 normalAndDirect = imageLoad(normalsBuffer, coord);
-				vec3 normal = normalAndDirect.xyz;
+				vec3 normal = imageLoad(normalsBuffer, coord).xyz;
 
-				// We will sample only secondary rays and use stored/prepared values from [indirectSampleNum==0]
+				// We will sample only secondary rays and use stored/prepared values from sample where[indirectSampleNum==0]
 
 				// Unpack direct values
 				vec3 albedo;
-				uint packedAlbedo = floatBitsToUint(img.w);
+				uint packedAlbedo = floatBitsToUint(depthAndAlbedo.g);
 				albedo.x = float(packedAlbedo & 0xFF)/255;
 				albedo.y = float((packedAlbedo >> 8) & 0xFF)/255;
 				albedo.z = float((packedAlbedo >> 16) & 0xFF)/255;
@@ -58,7 +56,7 @@ void main()
 				Ray cam = createCameraRay(subpixelCoord);
 				vec3 origin = cam.origin + depth * cam.direction;
 				raytraceSecondary(/*inout*/ color, /*in*/ origin, /*in*/ normal, /*in*/ albedo, 1.0/float(indirectSamples));
-				imageStore(colorOutput, coord, vec4(color, img.w));
+				imageStore(colorOutput, coord, vec4(color, 0));
 			}
 		}
 		else
@@ -75,8 +73,8 @@ void main()
 				|
 				(uint(albedo.z*255) << 16)
 			);
-			imageStore(colorOutput, coord, vec4(color + newColor, packedAlbedo));
-			imageStore(depthBuffer, coord, vec4(depth));
+			imageStore(colorOutput, coord, vec4(color + newColor, 0));
+			imageStore(depthBuffer, coord, vec4(depth, packedAlbedo, 0, 0));
 			imageStore(normalsBuffer, coord, vec4(normal, 0));
 		}
 	}

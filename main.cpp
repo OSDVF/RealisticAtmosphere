@@ -1,6 +1,9 @@
 ﻿/*
  * Copyright 2021 Ondřej Sabela
  */
+ //Comment out to not render the "Rendering in progress" text
+#define DRAW_RENDERING_PROGRESS
+
 #include <bx/uint32_t.h>
 #include <bx/file.h>
 #define ENTRY_CONFIG_USE_SDL
@@ -35,6 +38,11 @@
 #define SCREENSHOT_NEVER UINT32_MAX
 #define SCREENSHOT_AFTER_RENDER SCREENSHOT_NEVER - 1
 #define SCREENSHOT_AFTER_RENDER_PENDING SCREENSHOT_AFTER_RENDER - 1
+
+#define DIRECT_SAMPLES_COUNT (*(int*)&HQSettings_directSamples)
+// We swap buffers only when the rendering is realtime - because one buffer is currently rendering and the other is displaying.
+// In non-realtime mode we just wait for the compute shader to complete
+#define DO_DOUBLE_BUFFERING (DIRECT_SAMPLES_COUNT <= 1)
 
 namespace RealisticAtmosphere
 {
@@ -101,7 +109,8 @@ namespace RealisticAtmosphere
 		bgfx::UniformHandle _qualitySettingsHandle = BGFX_INVALID_HANDLE;
 		bgfx::TextureHandle _raytracerColorOutput[2] = { BGFX_INVALID_HANDLE , BGFX_INVALID_HANDLE };//For double buffering
 		bgfx::TextureHandle _raytracerNormalsOutput = BGFX_INVALID_HANDLE;
-		bgfx::TextureHandle _raytracerDepthBuffer = BGFX_INVALID_HANDLE;
+		//Depth is in R channel and albedo is packed in the G channel
+		bgfx::TextureHandle _raytracerDepthAlbedoBuffer = BGFX_INVALID_HANDLE;
 		bgfx::UniformHandle _colorOutputSampler = BGFX_INVALID_HANDLE;
 		bgfx::UniformHandle _hqSettingsHandle = BGFX_INVALID_HANDLE;
 		bgfx::UniformHandle _lightSettings = BGFX_INVALID_HANDLE;
@@ -233,9 +242,9 @@ namespace RealisticAtmosphere
 			_materialBufferHandle = bgfx_utils::createDynamicComputeReadBuffer(sizeof(DefaultScene::materialBuffer));
 			_directionalLightBufferHandle = bgfx_utils::createDynamicComputeReadBuffer(sizeof(DefaultScene::directionalLightBuffer));
 
-			resetBufferSize(_windowWidth, _windowHeight);
+			cleanRenderedBuffers(_windowWidth, _windowHeight);
 
-			// Render heighmap
+			// Render terrain heighmap
 			heightMap();
 
 			// Render cloud particles Mie phase functions for all wavelengths
@@ -251,6 +260,9 @@ namespace RealisticAtmosphere
 			imguiCreate();
 			_lastTicks = SDL_GetPerformanceCounter();
 			_performanceFrequency = SDL_GetPerformanceFrequency();
+
+			// Prepare scene for the first time
+			updateScene('\0');
 		}
 
 		void heightMap()
@@ -364,31 +376,43 @@ namespace RealisticAtmosphere
 			bgfx::destroy(precomputeSettingsHandle);
 		}
 
-		void resetBufferSize(uint16_t width, uint16_t height)
+		void cleanRenderedBuffers(uint16_t newWidth, uint16_t newHeight)
 		{
-			_screenSpaceQuad = ScreenSpaceQuad((float)width, (float)height);//Init internal vertex layout
-			_renderImageSize = { width, height };
+			_screenSpaceQuad = ScreenSpaceQuad((float)newWidth, (float)newHeight);//Init internal vertex layout
+			_renderImageSize = { newWidth, newHeight };
 			// Delete previous buffers
 			if (bgfx::isValid(_raytracerColorOutput[0]))
 			{
 				bgfx::destroy(_raytracerColorOutput[0]);
-				bgfx::destroy(_raytracerColorOutput[1]);
+				if (bgfx::isValid(_raytracerColorOutput[1]))
+				{
+					bgfx::destroy(_raytracerColorOutput[1]);
+				}
 				bgfx::destroy(_raytracerNormalsOutput);
-				bgfx::destroy(_raytracerDepthBuffer);
+				bgfx::destroy(_raytracerDepthAlbedoBuffer);
 			}
 			// Create new
-			_raytracerColorOutput[0] = bgfx::createTexture2D(width, height, false, 1, bgfx::TextureFormat::RGBA16F,
+			_raytracerColorOutput[0] = bgfx::createTexture2D(newWidth, newHeight, false, 1, bgfx::TextureFormat::RGBA16F,
 				BGFX_TEXTURE_COMPUTE_WRITE);
-			_raytracerColorOutput[1] = bgfx::createTexture2D(width, height, false, 1, bgfx::TextureFormat::RGBA16F,
-				BGFX_TEXTURE_COMPUTE_WRITE);
+			if (DO_DOUBLE_BUFFERING)
+			{
+				// The double buffering is necessary only when we are rendering in realtime (which we are only if DIRECT_SAMPLES_COUNT == 1)
+				_raytracerColorOutput[1] = bgfx::createTexture2D(newWidth, newHeight, false, 1, bgfx::TextureFormat::RGBA16F,
+					BGFX_TEXTURE_COMPUTE_WRITE);
+			}
+			else
+			{
+				_raytracerColorOutput[1] = BGFX_INVALID_HANDLE;
+			}
 
-			_raytracerNormalsOutput = bgfx::createTexture2D(width, height, false, 1,
+			_raytracerNormalsOutput = bgfx::createTexture2D(newWidth, newHeight, false, 1,
 				bgfx::TextureFormat::RGBA8,
 				BGFX_TEXTURE_COMPUTE_WRITE);
-			_raytracerDepthBuffer = bgfx::createTexture2D(width, height, false, 1,
-				bgfx::TextureFormat::R32F,
+			_raytracerDepthAlbedoBuffer = bgfx::createTexture2D(newWidth, newHeight, false, 1,
+				bgfx::TextureFormat::RG32F,
 				BGFX_TEXTURE_COMPUTE_WRITE);
 
+			_outBufferIndex = 0;
 			currentSample = 0;//Reset sample counter - otherwise path tracing would continue with previous samples
 		}
 
@@ -405,9 +429,12 @@ namespace RealisticAtmosphere
 			bgfx::destroy(_lightSettings2);
 			bgfx::destroy(_qualitySettingsHandle);
 			bgfx::destroy(_heightmapTextureHandle);
-			bgfx::destroy(_raytracerDepthBuffer);
+			bgfx::destroy(_raytracerDepthAlbedoBuffer);
 			bgfx::destroy(_raytracerColorOutput[0]);
-			bgfx::destroy(_raytracerColorOutput[1]);
+			if (bgfx::isValid(_raytracerColorOutput[1]))
+			{
+				bgfx::destroy(_raytracerColorOutput[1]);
+			}
 			bgfx::destroy(_raytracerNormalsOutput);
 			bgfx::destroy(_colorOutputSampler);
 			bgfx::destroy(_terrainTexSampler);
@@ -460,63 +487,25 @@ namespace RealisticAtmosphere
 					// When the window resizes, we must update our bufers.
 					// No need to call bgfx::reset() because entry::processEvents() does this automatically
 					_screenSpaceQuad.destroy();
-					resetBufferSize(_windowWidth, _windowHeight);
+					cleanRenderedBuffers(_windowWidth, _windowHeight);
 				}
-				//
-				// GUI Actions
-				// 
+
 				const uint8_t* utf8 = inputGetChar();
 				char asciiKey = (nullptr != utf8) ? utf8[0] : 0;
-				uint8_t modifiers = inputGetModifiersState();
-				switch (asciiKey)
-				{
-				case 'l':
-					_mouseLock = !_mouseLock;
-					if (_mouseLock)
-					{
-						SDL_CaptureMouse(SDL_TRUE);
-						SDL_SetRelativeMouseMode(SDL_TRUE);
-					}
-					else
-					{
-						SDL_CaptureMouse(SDL_FALSE);
-						SDL_SetRelativeMouseMode(SDL_FALSE);
-					}
-					break;
-				case 'g':
-					_showGUI = !_showGUI;
-					break;
-				case 'r':
-					DefaultScene::objectBuffer[1].position = vec3(Camera[0].x, Camera[0].y, Camera[0].z);
-					break;
-				case 't':
-					_person.Camera.SetPosition(glm::vec3(-18253, 1709, 16070));
-					_person.Camera.SetRotation(glm::vec3(-5, 113, 0));
-					break;
-				}
-				if (_mouseLock)
-				{
-					auto nowTicks = SDL_GetPerformanceCounter();
-					auto deltaTime = (float)((nowTicks - _lastTicks) * 1000 / (float)_performanceFrequency);
-					_person.Update(_mouseLock, deltaTime, _mouseState);
-
-					_lastTicks = nowTicks;
-				}
-
 
 				//
 				// Graphics actions
 				// 
 
 				viewportActions();
-				int maxSamples = *(int*)&HQSettings_directSamples * *(int*)&Multisampling_indirect;
+				int maxSamples = DIRECT_SAMPLES_COUNT * *(int*)&Multisampling_indirect;
 				bool tracingComplete;
-				bool renderingRuns = false;
 				if (tracingComplete = (currentSample >= maxSamples))
 				{
 					if (!_pathTracingMode)
 					{
 						currentSample = 0;
+						updateScene(asciiKey);
 						renderScene();
 					}
 					else
@@ -526,9 +515,26 @@ namespace RealisticAtmosphere
 				}
 				else
 				{
-					renderingRuns = renderScene();
+					renderScene();
+				}
+				auto bufferToDisplay =
+					// If compute shader already completed its work, we can display its Output buffer. Otherwise we display the previous Output buffer.
+					(_syncObj != nullptr && bgfx::syncComplete(_syncObj)) ? _outBufferIndex : 1 - _outBufferIndex;
+
+				if (bufferToDisplay != 1 || DO_DOUBLE_BUFFERING)//If we are not double buffering, display only buffer #0
+				{
+					if (_debugNormals)
+						bgfx::setTexture(0, _colorOutputSampler, _raytracerNormalsOutput);
+					else
+						bgfx::setTexture(0, _colorOutputSampler, _raytracerColorOutput[bufferToDisplay]);
+					_screenSpaceQuad.draw();//Draw screen space quad with our shader program
+					bgfx::setState(BGFX_STATE_WRITE_RGB);
+					bgfx::submit(0, _displayingShaderProgram);
 				}
 
+				//
+				// GUI Actions
+				// 
 				if (_showGUI)
 				{
 					// Supply mouse events to GUI library
@@ -542,25 +548,23 @@ namespace RealisticAtmosphere
 						uint16_t(_windowHeight),
 						asciiKey
 					);
+#ifdef DRAW_RENDERING_PROGRESS
+					if (_pathTracingMode && currentSample < maxSamples)
+					{
+						ImDrawList* list = ImGui::GetBackgroundDrawList();
+						ImVec2 center = { (float)_windowWidth / 2, (float)_windowHeight / 2 };
+						list->AddRectFilled(center, { center.x + 135, center.y + 20 }, 0xFF000000, 0);
+						list->AddText(center, 0xFFFFFFFF, "Rendering in progress");
+					}
+#endif
 					// Displays/Updates an innner dialog with debug and profiler information
 					showDebugDialog(this);
 
 					drawSettingsDialogUI();
 
+
 					imguiEndFrame();
 				}
-
-				// If compute shader already completed its work, we can display its Output buffer. Otherwise we display the previous Output buffer.
-				auto bufferToDisplay = _syncObj != nullptr && bgfx::syncComplete(_syncObj) ? _outBufferIndex : 1 - _outBufferIndex;
-				if (_debugNormals)
-					bgfx::setTexture(0, _colorOutputSampler, _raytracerNormalsOutput);
-				else
-					bgfx::setTexture(0, _colorOutputSampler, _raytracerColorOutput[bufferToDisplay]);
-				_screenSpaceQuad.draw();//Draw screen space quad with our shader program
-				bgfx::setState(BGFX_STATE_WRITE_RGB);
-				bgfx::submit(0, _displayingShaderProgram);
-				updateClouds();
-				updateLights();
 
 				// Advance to next frame
 				_frame = bgfx::frame();
@@ -571,6 +575,50 @@ namespace RealisticAtmosphere
 			return false;
 		}
 
+		void updateScene(char asciiKey)
+		{
+			//Check for user actions
+			uint8_t modifiers = inputGetModifiersState();
+			switch (asciiKey)
+			{
+			case 'l':
+				_mouseLock = !_mouseLock;
+				if (_mouseLock)
+				{
+					SDL_CaptureMouse(SDL_TRUE);
+					SDL_SetRelativeMouseMode(SDL_TRUE);
+				}
+				else
+				{
+					SDL_CaptureMouse(SDL_FALSE);
+					SDL_SetRelativeMouseMode(SDL_FALSE);
+				}
+				break;
+			case 'g':
+				_showGUI = !_showGUI;
+				break;
+			case 'r':
+				DefaultScene::objectBuffer[1].position = vec3(Camera[0].x, Camera[0].y, Camera[0].z);
+				break;
+			case 't':
+				_person.Camera.SetPosition(glm::vec3(-18253, 1709, 16070));
+				_person.Camera.SetRotation(glm::vec3(-5, 113, 0));
+				break;
+			}
+			if (_mouseLock)
+			{
+				auto nowTicks = SDL_GetPerformanceCounter();
+				auto deltaTime = (float)((nowTicks - _lastTicks) * 1000 / (float)_performanceFrequency);
+				_person.Update(_mouseLock, deltaTime, _mouseState);
+
+				_lastTicks = nowTicks;
+			}
+
+			// Update scene objects
+			updateClouds();
+			updateLights();
+		}
+
 		void doNextScreenshotStep(bool tracingComplete)
 		{
 			if (_frame >= _screenshotFrame)
@@ -578,7 +626,7 @@ namespace RealisticAtmosphere
 				// Save the taken screenshot
 				savePng();
 				// Reset back to window dimensions
-				resetBufferSize(_windowWidth, _windowHeight);
+				cleanRenderedBuffers(_windowWidth, _windowHeight);
 				bgfx::reset(_windowWidth, _windowHeight);
 				// Return to normal rendering
 				_screenshotFrame = SCREENSHOT_NEVER;//Do not take any screenshot at next frame
@@ -643,10 +691,12 @@ namespace RealisticAtmosphere
 #endif
 		void computeShaderRaytracer()
 		{
-			_outBufferIndex = _outBufferIndex == 0 ? 1 : 0;//Swap buffers
+			if (DO_DOUBLE_BUFFERING)
+				_outBufferIndex = _outBufferIndex == 0 ? 1 : 0;
+
 			bgfx::setImage(0, _raytracerColorOutput[_outBufferIndex], 0, bgfx::Access::ReadWrite);
 			bgfx::setImage(1, _raytracerNormalsOutput, 0, bgfx::Access::ReadWrite);
-			bgfx::setImage(2, _raytracerDepthBuffer, 0, bgfx::Access::ReadWrite);
+			bgfx::setImage(2, _raytracerDepthAlbedoBuffer, 0, bgfx::Access::ReadWrite);
 			bgfx::dispatch(0, _computeShaderProgram, bx::ceil(_renderImageSize.width / 16.0f), bx::ceil(_renderImageSize.height / 16.0f));
 			// Create synchronization fence which we will ask if the compute shader has finished
 			_syncObj = bgfx::fenceSync();
@@ -872,7 +922,8 @@ namespace RealisticAtmosphere
 			if (ImGui::Button("Go Path Tracing"))
 			{
 				_pathTracingMode = true;
-				swapSettingsBackup();
+				swapSettingsBackup(); // This could set DIRECT_SAMPLES_COUNT to something different than 1
+				cleanRenderedBuffers(_windowWidth, _windowHeight);
 			}
 			if (ImGui::Button("CheapQ"))
 			{
@@ -1064,15 +1115,15 @@ namespace RealisticAtmosphere
 			ImGui::Begin("Path Tracer");
 			if (ImGui::Button("Go RT Raytracing"))
 			{
-				_renderImageSize = { (uint16_t)_windowWidth, (uint16_t)_windowHeight };
+				swapSettingsBackup();
+				cleanRenderedBuffers(_windowWidth, _windowHeight);
 				_customScreenshotSize = false;
 				_pathTracingMode = false;
-				swapSettingsBackup();
 			}
 			ImGui::SameLine();
 			if (ImGui::Button("Re-render"))
 			{
-				currentSample = 0;
+				cleanRenderedBuffers(_windowWidth, _windowHeight);
 			}
 			if (ImGui::Button("Save Image"))
 			{
@@ -1089,7 +1140,7 @@ namespace RealisticAtmosphere
 				_renderImageSize = { (uint16_t)_windowWidth, (uint16_t)_windowHeight };
 			}
 
-			if (currentSample >= *(int*)&HQSettings_directSamples * *(int*)&Multisampling_indirect)
+			if (currentSample >= DIRECT_SAMPLES_COUNT * *(int*)&Multisampling_indirect)
 			{
 				ImGui::Text("Completed", currentSample);
 			}
@@ -1124,7 +1175,7 @@ namespace RealisticAtmosphere
 				float* converted = new float[_renderImageSize.width * _renderImageSize.height];
 				for (int x = 0; x < _renderImageSize.width * _renderImageSize.height * sizeof(float); x += sizeof(float))
 				{
-					auto dirSamp = *(int*)&HQSettings_directSamples;
+					auto dirSamp = DIRECT_SAMPLES_COUNT;
 					//Tonemapping
 					float r, g, b;
 					//Convert RGB16F to 32bit float
@@ -1176,7 +1227,7 @@ namespace RealisticAtmosphere
 			if (_customScreenshotSize)
 			{
 				bgfx::reset(_renderImageSize.width, _renderImageSize.height);
-				resetBufferSize(_renderImageSize.width, _renderImageSize.height);
+				cleanRenderedBuffers(_renderImageSize.width, _renderImageSize.height);
 			}
 			_screenshotFrame = SCREENSHOT_AFTER_RENDER;
 		}
