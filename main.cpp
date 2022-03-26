@@ -40,9 +40,6 @@
 #define SCREENSHOT_AFTER_RENDER_PENDING SCREENSHOT_AFTER_RENDER - 1
 
 #define DIRECT_SAMPLES_COUNT (*(int*)&HQSettings_directSamples)
-// We swap buffers only when the rendering is realtime - because one buffer is currently rendering and the other is displaying.
-// In non-realtime mode we just wait for the compute shader to complete
-#define DO_DOUBLE_BUFFERING (DIRECT_SAMPLES_COUNT <= 1)
 
 namespace RealisticAtmosphere
 {
@@ -60,6 +57,8 @@ namespace RealisticAtmosphere
 		uint32_t _screenshotFrame = SCREENSHOT_NEVER;
 		Uint64 _performanceFrequency = 0;
 		uint32_t _frame = 0;
+		int _slicesCount = 3;
+		int _currentChunk = 0;
 		Uint64 _lastTicks = 0;
 		uint32_t _windowWidth = 1024;
 		uint32_t _windowHeight = 600;
@@ -91,7 +90,6 @@ namespace RealisticAtmosphere
 		float _fovY = 45;
 		FirstPersonController _person;
 		vec4 _settingsBackup[7];
-		int _outBufferIndex = 0;
 
 		// Save these to be returned in place when the terrain rendering is re-enabled
 		float prevTerrainSteps = 0;
@@ -107,7 +105,7 @@ namespace RealisticAtmosphere
 		bgfx::UniformHandle _timeHandle = BGFX_INVALID_HANDLE;
 		bgfx::UniformHandle _multisamplingSettingsHandle = BGFX_INVALID_HANDLE;
 		bgfx::UniformHandle _qualitySettingsHandle = BGFX_INVALID_HANDLE;
-		bgfx::TextureHandle _raytracerColorOutput[2] = { BGFX_INVALID_HANDLE , BGFX_INVALID_HANDLE };//For double buffering
+		bgfx::TextureHandle _raytracerColorOutput = BGFX_INVALID_HANDLE;
 		bgfx::TextureHandle _raytracerNormalsOutput = BGFX_INVALID_HANDLE;
 		//Depth is in R channel and albedo is packed in the G channel
 		bgfx::TextureHandle _raytracerDepthAlbedoBuffer = BGFX_INVALID_HANDLE;
@@ -140,9 +138,6 @@ namespace RealisticAtmosphere
 		bgfx::TextureHandle _heightmapTextureHandle = BGFX_INVALID_HANDLE;
 		bgfx::TextureHandle _cloudsPhaseTextureHandle = BGFX_INVALID_HANDLE;
 		bgfx::TextureHandle _textureArrayHandle = BGFX_INVALID_HANDLE;
-		bgfx::TextureHandle _texture2Handle = BGFX_INVALID_HANDLE;
-		bgfx::TextureHandle _texture3Handle = BGFX_INVALID_HANDLE;
-		bgfx::TextureHandle _texture4Handle = BGFX_INVALID_HANDLE;
 		bgfx::TextureHandle _opticalDepthTable = BGFX_INVALID_HANDLE;
 		bgfx::TextureHandle _irradianceTable = BGFX_INVALID_HANDLE;
 		bgfx::TextureHandle _transmittanceTable = BGFX_INVALID_HANDLE;
@@ -348,7 +343,7 @@ namespace RealisticAtmosphere
 				_singleScatteringTable = bgfx::createTexture3D(SCATTERING_TEXTURE_WIDTH, SCATTERING_TEXTURE_HEIGHT, SCATTERING_TEXTURE_DEPTH, false, bgfx::TextureFormat::RGBA16F, BGFX_TEXTURE_COMPUTE_WRITE | BGFX_SAMPLER_UVW_CLAMP);
 			}
 			bgfx::setImage(0, _singleScatteringTable, 0, bgfx::Access::Write, bgfx::TextureFormat::RGBA16F);
-			setBuffers();
+			setBuffersAndUniforms();
 			bgfx::setTexture(7, _transmittanceSampler, _transmittanceTable);
 			bgfx::dispatch(0, scatteringProgram, bx::ceil(SCATTERING_TEXTURE_WIDTH / 16.0f), bx::ceil(SCATTERING_TEXTURE_HEIGHT / 16.0f), bx::ceil(SCATTERING_TEXTURE_DEPTH / 4.0f));
 
@@ -383,29 +378,15 @@ namespace RealisticAtmosphere
 			_screenSpaceQuad = ScreenSpaceQuad((float)newWidth, (float)newHeight);//Init internal vertex layout
 			_renderImageSize = { newWidth, newHeight };
 			// Delete previous buffers
-			if (bgfx::isValid(_raytracerColorOutput[0]))
+			if (bgfx::isValid(_raytracerColorOutput))
 			{
-				bgfx::destroy(_raytracerColorOutput[0]);
-				if (bgfx::isValid(_raytracerColorOutput[1]))
-				{
-					bgfx::destroy(_raytracerColorOutput[1]);
-				}
+				bgfx::destroy(_raytracerColorOutput);
 				bgfx::destroy(_raytracerNormalsOutput);
 				bgfx::destroy(_raytracerDepthAlbedoBuffer);
 			}
 			// Create new
-			_raytracerColorOutput[0] = bgfx::createTexture2D(newWidth, newHeight, false, 1, bgfx::TextureFormat::RGBA16F,
+			_raytracerColorOutput = bgfx::createTexture2D(newWidth, newHeight, false, 1, bgfx::TextureFormat::RGBA16F,
 				BGFX_TEXTURE_COMPUTE_WRITE);
-			if (DO_DOUBLE_BUFFERING)
-			{
-				// The double buffering is necessary only when we are rendering in realtime (which we are only if DIRECT_SAMPLES_COUNT == 1)
-				_raytracerColorOutput[1] = bgfx::createTexture2D(newWidth, newHeight, false, 1, bgfx::TextureFormat::RGBA16F,
-					BGFX_TEXTURE_COMPUTE_WRITE);
-			}
-			else
-			{
-				_raytracerColorOutput[1] = BGFX_INVALID_HANDLE;
-			}
 
 			_raytracerNormalsOutput = bgfx::createTexture2D(newWidth, newHeight, false, 1,
 				bgfx::TextureFormat::RGBA8,
@@ -414,7 +395,6 @@ namespace RealisticAtmosphere
 				bgfx::TextureFormat::RG32F,
 				BGFX_TEXTURE_COMPUTE_WRITE);
 
-			_outBufferIndex = 0;
 			currentSample = 0;//Reset sample counter - otherwise path tracing would continue with previous samples
 		}
 
@@ -432,11 +412,7 @@ namespace RealisticAtmosphere
 			bgfx::destroy(_qualitySettingsHandle);
 			bgfx::destroy(_heightmapTextureHandle);
 			bgfx::destroy(_raytracerDepthAlbedoBuffer);
-			bgfx::destroy(_raytracerColorOutput[0]);
-			if (bgfx::isValid(_raytracerColorOutput[1]))
-			{
-				bgfx::destroy(_raytracerColorOutput[1]);
-			}
+			bgfx::destroy(_raytracerColorOutput);
 			bgfx::destroy(_raytracerNormalsOutput);
 			bgfx::destroy(_colorOutputSampler);
 			bgfx::destroy(_terrainTexSampler);
@@ -496,46 +472,47 @@ namespace RealisticAtmosphere
 
 				const uint8_t* utf8 = inputGetChar();
 				char asciiKey = (nullptr != utf8) ? utf8[0] : 0;
-
+				//Check for user actions
+				uint8_t modifiers = inputGetModifiersState();
+				switch (asciiKey)
+				{
+				case 'l':
+					_mouseLock = !_mouseLock;
+					if (_mouseLock)
+					{
+						SDL_CaptureMouse(SDL_TRUE);
+						SDL_SetRelativeMouseMode(SDL_TRUE);
+					}
+					else
+					{
+						SDL_CaptureMouse(SDL_FALSE);
+						SDL_SetRelativeMouseMode(SDL_FALSE);
+					}
+					break;
+				case 'g':
+					_showGUI = !_showGUI;
+					break;
+				case 'r':
+					DefaultScene::objectBuffer[1].position = vec3(Camera[0].x, Camera[0].y, Camera[0].z);
+					break;
+				case 't':
+					_person.Camera.SetPosition(glm::vec3(-18253, 1709, 16070));
+					_person.Camera.SetRotation(glm::vec3(-5, 113, 0));
+					break;
+				}
 				//
-				// Graphics actions
-				// 
-
+				// Displaying actions
+				//
 				viewportActions();
-				int maxSamples = DIRECT_SAMPLES_COUNT * *(int*)&Multisampling_indirect;
-				bool tracingComplete;
-				if (tracingComplete = (currentSample >= maxSamples))
-				{
-					if (!_pathTracingMode)
-					{
-						currentSample = 0;
-						updateScene(asciiKey);
-						renderScene();
-					}
-					else
-					{
-						currentSample = INT_MAX;
-					}
-				}
+				if (_debugNormals)
+					bgfx::setTexture(0, _colorOutputSampler, _raytracerNormalsOutput);
 				else
-				{
-					renderScene();
-				}
+					bgfx::setTexture(0, _colorOutputSampler, _raytracerColorOutput);
+				_screenSpaceQuad.draw();//Draw screen space quad with our shader program
+				bgfx::setState(BGFX_STATE_WRITE_RGB);
+				bgfx::submit(0, _displayingShaderProgram);
 
-				auto bufferToDisplay = bgfx::multithreadedRender ||
-					// If compute shader already completed its work, we can display its Output buffer. Otherwise we display the previous Output buffer.
-					(_syncObj != nullptr || bgfx::syncComplete(_syncObj)) ? _outBufferIndex : 1 - _outBufferIndex;
-
-				if (bufferToDisplay != 1 || DO_DOUBLE_BUFFERING)//If we are not double buffering, display only buffer #0
-				{
-					if (_debugNormals)
-						bgfx::setTexture(0, _colorOutputSampler, _raytracerNormalsOutput);
-					else
-						bgfx::setTexture(0, _colorOutputSampler, _raytracerColorOutput[bufferToDisplay]);
-					_screenSpaceQuad.draw();//Draw screen space quad with our shader program
-					bgfx::setState(BGFX_STATE_WRITE_RGB);
-					bgfx::submit(0, _displayingShaderProgram);
-				}
+				int maxSamples = DIRECT_SAMPLES_COUNT * *(int*)&Multisampling_indirect;
 
 				//
 				// GUI Actions
@@ -567,12 +544,34 @@ namespace RealisticAtmosphere
 
 					drawSettingsDialogUI();
 
-
 					imguiEndFrame();
 				}
 
+
 				// Advance to next frame
 				_frame = bgfx::frame();
+				//
+				// Rendering actions
+				// 
+
+				bool tracingComplete;
+				if (tracingComplete = (currentSample >= maxSamples))
+				{
+					if (!_pathTracingMode)
+					{
+						currentSample = 0;
+						renderScene();
+						updateScene();
+					}
+					else
+					{
+						currentSample = INT_MAX;
+					}
+				}
+				else
+				{
+					renderScene();
+				}
 				doNextScreenshotStep(tracingComplete);
 				return true;
 			}
@@ -580,36 +579,8 @@ namespace RealisticAtmosphere
 			return false;
 		}
 
-		void updateScene(char pressedAsciiKey = 0)
+		void updateScene()
 		{
-			//Check for user actions
-			uint8_t modifiers = inputGetModifiersState();
-			switch (pressedAsciiKey)
-			{
-			case 'l':
-				_mouseLock = !_mouseLock;
-				if (_mouseLock)
-				{
-					SDL_CaptureMouse(SDL_TRUE);
-					SDL_SetRelativeMouseMode(SDL_TRUE);
-				}
-				else
-				{
-					SDL_CaptureMouse(SDL_FALSE);
-					SDL_SetRelativeMouseMode(SDL_FALSE);
-				}
-				break;
-			case 'g':
-				_showGUI = !_showGUI;
-				break;
-			case 'r':
-				DefaultScene::objectBuffer[1].position = vec3(Camera[0].x, Camera[0].y, Camera[0].z);
-				break;
-			case 't':
-				_person.Camera.SetPosition(glm::vec3(-18253, 1709, 16070));
-				_person.Camera.SetRotation(glm::vec3(-5, 113, 0));
-				break;
-			}
 			if (_mouseLock)
 			{
 				auto nowTicks = SDL_GetPerformanceCounter();
@@ -661,14 +632,24 @@ namespace RealisticAtmosphere
 		{
 			if (bgfx::multithreadedRender || _syncObj == nullptr || bgfx::syncComplete(_syncObj))
 			{
-				updateBuffersAndSamplers();
+				int chunkXstart = (_renderImageSize.width / _slicesCount) * (_currentChunk % _slicesCount);
+				int chunkYstart = (_renderImageSize.height / _slicesCount) * (_currentChunk / _slicesCount);
+				SunRadianceToLuminance.w = *(float*)&chunkXstart;
+				SkyRadianceToLuminance.w = *(float*)&chunkYstart;
+
+				setBuffersAndSamplers();
 
 #if _DEBUG
 				updateDebugUniforms();
 #endif
 
 				computeShaderRaytracer();
-				currentSample++;
+				_currentChunk++;
+				if (_currentChunk >= _slicesCount * _slicesCount)
+				{
+					_currentChunk = 0;
+					currentSample++;
+				}
 			}
 		}
 
@@ -696,14 +677,11 @@ namespace RealisticAtmosphere
 #endif
 		void computeShaderRaytracer()
 		{
-			if (DO_DOUBLE_BUFFERING && !bgfx::multithreadedRender)
-				_outBufferIndex = _outBufferIndex == 0 ? 1 : 0;
-
-			bgfx::setImage(0, _raytracerColorOutput[_outBufferIndex], 0, bgfx::Access::ReadWrite);
+			bgfx::setImage(0, _raytracerColorOutput, 0, bgfx::Access::ReadWrite);
 			bgfx::setImage(1, _raytracerNormalsOutput, 0, bgfx::Access::ReadWrite);
 			bgfx::setImage(2, _raytracerDepthAlbedoBuffer, 0, bgfx::Access::ReadWrite);
-			bgfx::dispatch(0, _computeShaderProgram, bx::ceil(_renderImageSize.width / 16.0f), bx::ceil(_renderImageSize.height / 16.0f));
-			// Create synchronization fence which we will ask if the compute shader has finished
+			bgfx::dispatch(0, _computeShaderProgram, bx::ceil((_renderImageSize.width / _slicesCount) / 16.0f), bx::ceil((_renderImageSize.height / _slicesCount) / 16.0f));
+			// Create synchronization fence which we will ask if the compute shader dispatch has finished
 			if (!bgfx::multithreadedRender)
 			{
 				_syncObj = bgfx::fenceSync();
@@ -718,7 +696,7 @@ namespace RealisticAtmosphere
 			bgfx::update(_directionalLightBufferHandle, 0, bgfx::makeRef((void*)DefaultScene::directionalLightBuffer.data(), sizeof(DefaultScene::directionalLightBuffer)));
 		}
 
-		void setBuffers()
+		void setBuffersAndUniforms()
 		{
 			bgfx::setBuffer(3, _objectBufferHandle, bgfx::Access::Read);
 			bgfx::setBuffer(4, _atmosphereBufferHandle, bgfx::Access::Read);
@@ -739,9 +717,9 @@ namespace RealisticAtmosphere
 			bgfx::setUniform(_cloudsSettings, CloudsSettings, sizeof(CloudsSettings) / sizeof(vec4));
 		}
 
-		void updateBuffersAndSamplers()
+		void setBuffersAndSamplers()
 		{
-			setBuffers();
+			setBuffersAndUniforms();
 			bgfx::setTexture(7, _terrainTexSampler, _textureArrayHandle);
 			bgfx::setTexture(8, _heightmapSampler, _heightmapTextureHandle);
 			bgfx::setTexture(9, _opticalDepthSampler, _opticalDepthTable, BGFX_SAMPLER_UVW_CLAMP);
@@ -931,16 +909,7 @@ namespace RealisticAtmosphere
 				swapSettingsBackup(); // This could set DIRECT_SAMPLES_COUNT to something different than 1
 				cleanRenderedBuffers(_windowWidth, _windowHeight);
 			}
-			if (ImGui::Button("CheapQ"))
-			{
-				//Disable terrain
-				prevLightSteps = LightSettings_shadowSteps;
-				prevTerrainSteps = RaymarchingSteps.x;
-				RaymarchingSteps.x = 0;
-				LightSettings_shadowSteps = 0;
-				//Disable atmosphere
-				_debugAtmoOff = true;
-			}
+			inputSlicesCount();
 
 			ImGui::InputFloat("Speed", &_person.WalkSpeed);
 			ImGui::InputFloat("RunSpeed", &_person.RunSpeed);
@@ -1122,15 +1091,17 @@ namespace RealisticAtmosphere
 			if (ImGui::Button("Go RT Raytracing"))
 			{
 				swapSettingsBackup();
-				cleanRenderedBuffers(_windowWidth, _windowHeight);
+				_renderImageSize = { (uint16_t)_windowWidth, (uint16_t)_windowHeight };
+				currentSample = 0;
 				_customScreenshotSize = false;
 				_pathTracingMode = false;
 			}
 			ImGui::SameLine();
 			if (ImGui::Button("Re-render"))
 			{
+				_renderImageSize = { (uint16_t)_windowWidth, (uint16_t)_windowHeight };
+				currentSample = 0;
 				updateScene();
-				cleanRenderedBuffers(_windowWidth, _windowHeight);
 			}
 			if (ImGui::Button("Save Image"))
 			{
@@ -1156,10 +1127,17 @@ namespace RealisticAtmosphere
 				ImGui::Text("%d sampled", currentSample);
 			}
 			ImGui::PushItemWidth(90);
-			ImGui::InputInt("Direct rays", (int*)&HQSettings_directSamples);
+			ImGui::InputInt("Primary rays", (int*)&HQSettings_directSamples);
+			if (ImGui::IsItemHovered())
+				ImGui::SetTooltip("Number of rays cast from one pixel");
 			ImGui::InputInt("Secondary rays", (int*)&Multisampling_indirect);
-
+			if (ImGui::IsItemHovered())
+				ImGui::SetTooltip("Number of rays cast per one surface hit point\nTotal rays per pixel = primary * secondary");
 			ImGui::InputInt("Bounces", (int*)&Multisampling_maxBounces);
+			if (ImGui::IsItemHovered())
+				ImGui::SetTooltip("How many times can a secondary ray bounce from surface");
+
+			inputSlicesCount();
 			ImGui::PopItemWidth();
 			ImGui::End();
 
@@ -1167,6 +1145,18 @@ namespace RealisticAtmosphere
 			drawTerrainGUI();
 			drawCloudsGUI();
 			drawFlagsGUI();
+		}
+
+		void inputSlicesCount()
+		{
+			if (ImGui::InputInt("Render Slices", &_slicesCount))
+			{
+				_currentChunk = 0; // When changing slices count, we must start rendering again from the first slice
+			}
+			if (ImGui::IsItemHovered())
+				ImGui::SetTooltip("Slices image rendering into X chunks on both directions.\nUse when application is crashing because of too long frame rendering time");
+			if (_slicesCount < 1)//Minimum is one chunk
+				_slicesCount = 1;
 		}
 
 		// Called when the picture is completely in CPU memory
@@ -1224,7 +1214,7 @@ namespace RealisticAtmosphere
 			//Create buffer for reading by the CPU
 			_stagingBuffer = bgfx::createTexture2D(_renderImageSize.width, _renderImageSize.height, false, 1, bgfx::TextureFormat::Enum::RGBA16F, BGFX_TEXTURE_READ_BACK);
 			//Copy raytracer output into the buffer
-			bgfx::blit(0, _stagingBuffer, 0, 0, _raytracerColorOutput[_outBufferIndex], 0, 0, _renderImageSize.width, _renderImageSize.height);
+			bgfx::blit(0, _stagingBuffer, 0, 0, _raytracerColorOutput, 0, 0, _renderImageSize.width, _renderImageSize.height);
 			//Read from GPU to CPU memory
 			_screenshotFrame = bgfx::readTexture(_stagingBuffer, _readedTexture);
 		}

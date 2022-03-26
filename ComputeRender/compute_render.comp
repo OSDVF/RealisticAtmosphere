@@ -8,7 +8,7 @@ layout(rg32f, binding=2) uniform image2D depthBuffer;
 
 void main()
 {
-	ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
+	ivec2 coord = ivec2(gl_GlobalInvocationID.xy) + ivec2(Tiles_x, Tiles_y);
 	int sampleNum = floatBitsToInt(HQSettings_sampleNum);
 	int indirectSamples /*per every direct*/ = floatBitsToInt(Multisampling_indirect);
 	int directSampleNum = sampleNum / indirectSamples;
@@ -18,7 +18,7 @@ void main()
 		vec3 normal;
 		vec3 albedo;
 		float depth;
-		raytracePrimSec(gl_GlobalInvocationID.xy, /*out*/ color,/*out*/ normal, /*out*/ albedo, /*out*/ depth, 1.0/float(indirectSamples));
+		raytracePrimSec(coord, /*out*/ color,/*out*/ normal, /*out*/ albedo, /*out*/ depth, 1.0/float(indirectSamples));
 		float packedAlbedo = uintBitsToFloat(//unlit
 			uint(albedo.x*255)
 			|
@@ -32,7 +32,7 @@ void main()
 	}
 	else
 	{
-		vec2 subpixelCoord = getSubpixelCoords(gl_GlobalInvocationID.xy, directSampleNum);
+		vec2 subpixelCoord = getSubpixelCoords(coord, directSampleNum);
 		int indirectSampleNum = sampleNum % indirectSamples;
 
 		vec3 color = imageLoad(colorOutput, coord).xyz;

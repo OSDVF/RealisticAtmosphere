@@ -61,11 +61,10 @@ int planetSteps = 164;
 vec4 RaymarchingSteps = {*(float*)&planetSteps, 0.01, 0.005, 0.5};
 vec4 SunRadianceToLuminance;
 vec4 SkyRadianceToLuminance;
-int cloudsOrders = 1;
 vec4 CloudsSettings[] = {
                             vec4(128, 4, 200000, 1000),//samples, light samples, far plane, light far plane
-                            vec4(20, 5, 0.01, 0),//Terrain steps, cheap downsamle, cheap thres, max powder
-                            vec4(1e-4,0.5,0.3, 4),//sampling thres, aerosol amount, powder density, fade power
+                            vec4(20,  5, 0.01,   0),//Terrain steps, cheap downsamle, cheap thres, max powder
+                            vec4(1e-4,0.5,0.3,   4),//sampling thres, aerosol amount, powder density, fade power
                         };
 #endif
 
@@ -114,6 +113,8 @@ vec4 CloudsSettings[] = {
 #define Clouds_aerosols CloudsSettings[2].y
 #define Clouds_powderDensity CloudsSettings[2].z
 #define Clouds_fadePower CloudsSettings[2].w
+#define Tiles_x floatBitsToInt(SunRadianceToLuminance.w)
+#define Tiles_y floatBitsToInt(SkyRadianceToLuminance.w)
 
 #ifdef BGFX_SHADER_LANGUAGE_GLSL
 bool HQSettings_atmoCompute = (floatBitsToUint(HQSettings_flags) & HQFlags_ATMO_COMPUTE) != 0u;

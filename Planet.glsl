@@ -87,7 +87,7 @@ float raymarchOcclusion(Planet planet, Ray ray, float fromT, float toT, bool vie
 		float nu = dot(ray.direction, l.direction);
 		bool noSureIfEclipse = true;
 		float lightFromT = 0, lightToT, _;
-		if(viewTerrainHit)
+		/*if(viewTerrainHit)
 		{
 			if(mu_s < LightSettings_viewThres)
 			{
@@ -111,12 +111,12 @@ float raymarchOcclusion(Planet planet, Ray ray, float fromT, float toT, bool vie
 		{
 			noSureIfEclipse = false;
 		}
-
+		*/
 		// Intersect light ray with outer shell of the atmosphere
 		Ray shadowRay = Ray(worldPos, l.direction);
 		raySphereIntersection(planet.center, planet.atmosphereRadius,
 							shadowRay, _, lightToT);
-
+							/*
 		//Firstly check for opaque object hits
 		Hit hit = findObjectHit(shadowRay, false);
 		lightToT = min(hit.t, lightToT);
@@ -142,10 +142,10 @@ float raymarchOcclusion(Planet planet, Ray ray, float fromT, float toT, bool vie
 		{
 			shadowLength += dx;
 			continue;//Light is occluded by a object
-		}
+		}*/
 
 		float cloudsDensity = raymarchCloudsL(planet, shadowRay, 0, Clouds_lightFarPlane, Clouds_terrainSteps);
-		shadowLength += dx * cloudsDensity;
+		shadowLength += dx * exp(cloudsDensity);
 	}
 	return shadowLength;
 }
