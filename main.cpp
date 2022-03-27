@@ -22,6 +22,7 @@
 #include <array>
 #include <tinystl/vector.h>
 #include <sstream>
+#include <algorithm>
 #include "Tonemapping.h"
 #include "PhaseFunctions.h"
 #include "ColorMapping.h"
@@ -60,6 +61,7 @@ namespace RealisticAtmosphere
 		int _slicesCount = 3;
 		int _currentChunk = 0;
 		Uint64 _lastTicks = 0;
+
 		uint32_t _windowWidth = 1024;
 		uint32_t _windowHeight = 600;
 		bool _customScreenshotSize = false;
@@ -67,15 +69,22 @@ namespace RealisticAtmosphere
 			uint16_t width = 1024;
 			uint16_t height = 600;
 		} _renderImageSize;
+
 		uint32_t _debugFlags = 0;
 		uint32_t _resetFlags = 0;
+		int _tonemappingType = 0;
+		bool _showFlare = false;
+		float _flareVisibility = 1.0f;
 		entry::MouseState _mouseState;
-		float _sunAngle = 1.518;//87 deg
+
+		float _sunAngle = 1.5;//86 deg
 		float _moonAngle = 0;
-		float _secondSunAngle = -1.55;
+		float _secondSunAngle = -1.5;
 		float _secondMoonAngle = 1;
+		// Droplet size distribution
 		bool _cloudsDSDUniformNotDisperse = true;
 		vec3 _cloudsWind = vec3(-50, 0, 0);
+		bool _moveClouds = false;
 
 		ScreenSpaceQuad _screenSpaceQuad;/**< Output of raytracer (both the compute-shader variant and fragment-shader variant) */
 
@@ -103,6 +112,7 @@ namespace RealisticAtmosphere
 
 #pragma region Settings_Uniforms
 		bgfx::UniformHandle _timeHandle = BGFX_INVALID_HANDLE;
+		bgfx::UniformHandle _displaySettingsHandle = BGFX_INVALID_HANDLE;
 		bgfx::UniformHandle _multisamplingSettingsHandle = BGFX_INVALID_HANDLE;
 		bgfx::UniformHandle _qualitySettingsHandle = BGFX_INVALID_HANDLE;
 		bgfx::TextureHandle _raytracerColorOutput = BGFX_INVALID_HANDLE;
@@ -110,6 +120,8 @@ namespace RealisticAtmosphere
 		//Depth is in R channel and albedo is packed in the G channel
 		bgfx::TextureHandle _raytracerDepthAlbedoBuffer = BGFX_INVALID_HANDLE;
 		bgfx::UniformHandle _colorOutputSampler = BGFX_INVALID_HANDLE;
+		bgfx::UniformHandle _depthBufferSampler = BGFX_INVALID_HANDLE;
+		bgfx::UniformHandle _normalBufferSampler = BGFX_INVALID_HANDLE;
 		bgfx::UniformHandle _hqSettingsHandle = BGFX_INVALID_HANDLE;
 		bgfx::UniformHandle _lightSettings = BGFX_INVALID_HANDLE;
 		bgfx::UniformHandle _lightSettings2 = BGFX_INVALID_HANDLE;
@@ -195,12 +207,15 @@ namespace RealisticAtmosphere
 			//
 			// Setup Resources
 			//
+			_displaySettingsHandle = bgfx::createUniform("DisplaySettings", bgfx::UniformType::Vec4);
 			_cameraHandle = bgfx::createUniform("Camera", bgfx::UniformType::Vec4, 4);//It is an array of 4 vec4
 			_sunRadToLumHandle = bgfx::createUniform("SunRadianceToLuminance", bgfx::UniformType::Vec4);
 			_skyRadToLumHandle = bgfx::createUniform("SkyRadianceToLuminance", bgfx::UniformType::Vec4);
 			_planetMaterialHandle = bgfx::createUniform("PlanetMaterial", bgfx::UniformType::Vec4);
 			_raymarchingStepsHandle = bgfx::createUniform("RaymarchingSteps", bgfx::UniformType::Vec4);
 			_colorOutputSampler = bgfx::createUniform("colorOutput", bgfx::UniformType::Sampler);
+			_normalBufferSampler = bgfx::createUniform("normalsBuffer", bgfx::UniformType::Sampler);
+			_depthBufferSampler = bgfx::createUniform("depthBuffer", bgfx::UniformType::Sampler);
 			_heightmapSampler = bgfx::createUniform("heightmapTexture", bgfx::UniformType::Sampler);
 			_cloudsPhaseSampler = bgfx::createUniform("cloudsMieLUT", bgfx::UniformType::Sampler);
 			_opticalDepthSampler = bgfx::createUniform("opticalDepthTable", bgfx::UniformType::Sampler);
@@ -249,6 +264,11 @@ namespace RealisticAtmosphere
 
 			// Compute spectrum mapping functions
 			ColorMapping::FillSpectrum(SkyRadianceToLuminance, SunRadianceToLuminance, DefaultScene::planetBuffer[0], DefaultScene::directionalLightBuffer[0]);
+			DefaultScene::materialBuffer[0].emission =
+				bx::div(
+					DefaultScene::directionalLightBuffer[0].irradiance,
+					M_PI * DefaultScene::sunAngularRadius * DefaultScene::sunAngularRadius
+				);
 
 			// Render optical depth, transmittance and direct irradiance textures
 			precompute();
@@ -313,14 +333,14 @@ namespace RealisticAtmosphere
 			bgfx::ProgramHandle opticalProgram = bgfx::createProgram(precomputeOptical);
 			if (!bgfx::isValid(_opticalDepthTable))
 			{
-				_opticalDepthTable = bgfx::createTexture2D(512, 256, false, 1, bgfx::TextureFormat::RGBA16F, BGFX_TEXTURE_COMPUTE_WRITE | BGFX_SAMPLER_UVW_CLAMP);
+				_opticalDepthTable = bgfx::createTexture2D(128, 64, false, 1, bgfx::TextureFormat::RGBA32F, BGFX_TEXTURE_COMPUTE_WRITE | BGFX_SAMPLER_UVW_CLAMP);
 			}
 			//steps are locked to 300
 			updateBuffers();
-			bgfx::setImage(0, _opticalDepthTable, 0, bgfx::Access::Write, bgfx::TextureFormat::RGBA16F);
+			bgfx::setImage(0, _opticalDepthTable, 0, bgfx::Access::Write, bgfx::TextureFormat::RGBA32F);
 			bgfx::setBuffer(1, _atmosphereBufferHandle, bgfx::Access::Read);
 			bgfx::setBuffer(2, _directionalLightBufferHandle, bgfx::Access::Read);
-			bgfx::dispatch(0, opticalProgram, bx::ceil(512 / 16.0f), bx::ceil(256 / 16.0f));
+			bgfx::dispatch(0, opticalProgram, bx::ceil(128 / 16.0f), bx::ceil(64 / 16.0f));
 
 			bgfx::ShaderHandle precomputeTransmittance = loadShader("Transmittance.comp");
 			bgfx::ProgramHandle transmittanceProgram = bgfx::createProgram(precomputeTransmittance);
@@ -377,6 +397,7 @@ namespace RealisticAtmosphere
 		{
 			_screenSpaceQuad = ScreenSpaceQuad((float)newWidth, (float)newHeight);//Init internal vertex layout
 			_renderImageSize = { newWidth, newHeight };
+			updateCameraPerspective();
 			// Delete previous buffers
 			if (bgfx::isValid(_raytracerColorOutput))
 			{
@@ -389,13 +410,18 @@ namespace RealisticAtmosphere
 				BGFX_TEXTURE_COMPUTE_WRITE);
 
 			_raytracerNormalsOutput = bgfx::createTexture2D(newWidth, newHeight, false, 1,
-				bgfx::TextureFormat::RGBA8,
+				bgfx::TextureFormat::RGBA16F,
 				BGFX_TEXTURE_COMPUTE_WRITE);
 			_raytracerDepthAlbedoBuffer = bgfx::createTexture2D(newWidth, newHeight, false, 1,
 				bgfx::TextureFormat::RG32F,
 				BGFX_TEXTURE_COMPUTE_WRITE);
 
 			currentSample = 0;//Reset sample counter - otherwise path tracing would continue with previous samples
+		}
+
+		void updateCameraPerspective()
+		{
+			_person.Camera.SetProjectionMatrixPerspective(_fovY, (float)_renderImageSize.width / (float)_renderImageSize.height, 1.f, DefaultScene::sunObjectDistance);
 		}
 
 		virtual int shutdown() override
@@ -415,6 +441,8 @@ namespace RealisticAtmosphere
 			bgfx::destroy(_raytracerColorOutput);
 			bgfx::destroy(_raytracerNormalsOutput);
 			bgfx::destroy(_colorOutputSampler);
+			bgfx::destroy(_depthBufferSampler);
+			bgfx::destroy(_normalBufferSampler);
 			bgfx::destroy(_terrainTexSampler);
 			bgfx::destroy(_computeShaderHandle);
 			bgfx::destroy(_computeShaderProgram);
@@ -504,12 +532,13 @@ namespace RealisticAtmosphere
 				// Displaying actions
 				//
 				viewportActions();
-				if (_debugNormals)
-					bgfx::setTexture(0, _colorOutputSampler, _raytracerNormalsOutput);
-				else
-					bgfx::setTexture(0, _colorOutputSampler, _raytracerColorOutput);
+				bgfx::setTexture(0, _colorOutputSampler, _raytracerColorOutput);
+				bgfx::setTexture(1, _normalBufferSampler, _raytracerNormalsOutput);
+				bgfx::setTexture(2, _depthBufferSampler, _raytracerDepthAlbedoBuffer);
 				_screenSpaceQuad.draw();//Draw screen space quad with our shader program
 				bgfx::setState(BGFX_STATE_WRITE_RGB);
+
+				setDisplaySettings();
 				bgfx::submit(0, _displayingShaderProgram);
 
 				int maxSamples = DIRECT_SAMPLES_COUNT * *(int*)&Multisampling_indirect;
@@ -579,6 +608,30 @@ namespace RealisticAtmosphere
 			return false;
 		}
 
+		void setDisplaySettings()
+		{
+			auto sunPos = DefaultScene::objectBuffer[0].position;
+			glm::vec3 screenSpaceSun;
+			_person.Camera.ProjectWorldToScreen(glm::vec3(sunPos.x, sunPos.y, sunPos.z), glm::vec4(0, 0, _renderImageSize.width, _renderImageSize.height),/*out*/ screenSpaceSun);
+			auto aspectRatio = (float(_renderImageSize.width) / (float)_renderImageSize.height);
+			screenSpaceSun.x = (- screenSpaceSun.x / (screenSpaceSun.z * _renderImageSize.width) + 0.5) * aspectRatio;
+			screenSpaceSun.y = screenSpaceSun.y / (screenSpaceSun.z * _renderImageSize.height) - 0.5;
+
+			float flareBrightness = 0;
+			if (screenSpaceSun.z > 0 && _showFlare)
+			{
+				// If the sun is not behind the camera
+				flareBrightness = bx::dot(Camera[1].toVec3(), DefaultScene::directionalLightBuffer[0].direction) * _flareVisibility;
+			}
+
+			vec4 displaySettValue(
+				*(float*)&_tonemappingType, flareBrightness,
+				screenSpaceSun.x, screenSpaceSun.y
+			);
+			bgfx::setUniform(_displaySettingsHandle, &displaySettValue);
+			bgfx::setUniform(_hqSettingsHandle, &HQSettings);
+		}
+
 		void updateScene()
 		{
 			if (_mouseLock)
@@ -622,7 +675,7 @@ namespace RealisticAtmosphere
 
 		void updateClouds()
 		{
-			if (!_pathTracingMode)
+			if (!_pathTracingMode && _moveClouds)
 			{
 				DefaultScene::planetBuffer[0].clouds.position = bx::add(DefaultScene::planetBuffer[0].clouds.position, _cloudsWind);
 			}
@@ -662,11 +715,11 @@ namespace RealisticAtmosphere
 		void updateLight(Sphere& lightObject, Planet& planet, DirectionalLight& light, float angle, float secondAngle)
 		{
 			glm::quat rotQua(glm::vec3(angle, secondAngle, 0));
-			glm::vec3 pos(0, bx::length(lightObject.position), 0);
+			glm::vec3 pos(0, bx::length(bx::sub(lightObject.position, planet.center)), 0);
 			pos = rotQua * pos;
-			lightObject.position = vec3(pos.x, pos.y, pos.z);
+			lightObject.position = bx::add(vec3(pos.x, pos.y, pos.z), planet.center);
 
-			light.direction = bx::normalize(bx::sub(lightObject.position, planet.center /* light direction is reverse */));
+			light.direction = bx::normalize(lightObject.position);
 		}
 #if _DEBUG
 		void updateDebugUniforms()
@@ -906,7 +959,8 @@ namespace RealisticAtmosphere
 			if (ImGui::Button("Go Path Tracing"))
 			{
 				_pathTracingMode = true;
-				swapSettingsBackup(); // This could set DIRECT_SAMPLES_COUNT to something different than 1
+				_currentChunk = 0;
+				swapSettingsBackup(); // This may set DIRECT_SAMPLES_COUNT to something different than 1
 				cleanRenderedBuffers(_windowWidth, _windowHeight);
 			}
 			inputSlicesCount();
@@ -914,7 +968,10 @@ namespace RealisticAtmosphere
 			ImGui::InputFloat("Speed", &_person.WalkSpeed);
 			ImGui::InputFloat("RunSpeed", &_person.RunSpeed);
 			ImGui::SliderFloat("Sensitivity", &_person.Camera.Sensitivity, 0, 5.0f);
-			ImGui::InputFloat("FOV", &_fovY);
+			if (ImGui::InputFloat("FOV", &_fovY))
+			{
+				updateCameraPerspective();
+			}
 			ImGui::PushItemWidth(180);
 			auto glmRot = _person.Camera.GetRotation();
 			auto glmPos = _person.Camera.GetPosition();
@@ -965,11 +1022,21 @@ namespace RealisticAtmosphere
 			ImGui::SetNextWindowPos(ImVec2(230, 40), ImGuiCond_FirstUseEver);
 			ImGui::SetNextWindowCollapsed(true, ImGuiCond_FirstUseEver);
 			ImGui::Begin("Light");
-			ImGui::InputFloat("Exposure", &HQSettings_exposure);
+			const char* const tmTypes[] = {"Exposure","GammaExposure", "Reinhard", "Modified Reinhard", "ACES", "Uneral", "Uchimura", "Lottes" };
+			ImGui::Combo("Tonemapping", &_tonemappingType, tmTypes, sizeof(tmTypes) / sizeof(const char*));
+			if(_tonemappingType <= 1)
+				ImGui::InputFloat("Exposure", &HQSettings_exposure);
+
+			ImGui::Checkbox("Lens Flare", &_showFlare);
+			if (_showFlare)
+			{
+				ImGui::SliderFloat("Visibility", &_flareVisibility, 0, 2);
+			}
+
 			bool lum = SkyRadianceToLuminance.x != 10;
 			static vec4 skyRLbackup;
 			static vec4 sunRLbackup;
-			if (ImGui::Checkbox("Render Luminance", &lum))
+			if (ImGui::Checkbox("Photometric Units", &lum))
 			{
 				if (lum)
 				{
@@ -1037,16 +1104,22 @@ namespace RealisticAtmosphere
 			ImGui::InputFloat("LightSteps", &Clouds_lightSteps, 1, 1);
 			ImGui::InputFloat("TerrainSteps", &Clouds_terrainSteps, 1, 1);
 			ImGui::InputFloat("LightFarPlane", &Clouds_lightFarPlane);
+			ImGui::InputFloat("Render Distance", &Clouds_farPlane);
 
 			ImGui::InputFloat("Coverage", &cloudsLayer.coverage);
-			ImGui::InputFloat("SizeX", &cloudsLayer.sizeMultiplier.x, 0, 0, "%e");
-			ImGui::InputFloat("SizeY", &cloudsLayer.sizeMultiplier.y, 0, 0, "%e");
-			ImGui::InputFloat("SizeZ", &cloudsLayer.sizeMultiplier.z, 0, 0, "%e");
-			ImGui::InputFloat("Render Distance", &Clouds_farPlane);
-			ImGui::InputFloat("Downsampling", &Clouds_cheapDownsample);
-			ImGui::InputFloat("Sample thres", &Clouds_sampleThres, 0, 0, "%e");
+
+			ImGui::BeginChild("Downsampling");
+			ImGui::InputFloat("Divider", &Clouds_cheapDownsample);
 			ImGui::InputFloat("Threshold", &Clouds_cheapThreshold);
-			ImGui::InputFloat3("Wind", &_cloudsWind.x, "%e");
+			ImGui::EndChild();
+
+			ImGui::InputFloat("Sample thres", &Clouds_sampleThres, 0, 0, "%e");
+			ImGui::Checkbox("Wind", &_moveClouds);
+			if (_moveClouds)
+			{
+				ImGui::InputFloat3("Speed", &_cloudsWind.x, "%e");
+			}
+			ImGui::InputFloat3("Size", &cloudsLayer.sizeMultiplier.x, "%e");
 			ImGui::InputFloat3("Pos", &cloudsLayer.position.x);
 			ImGui::InputFloat("From height", &cloudsLayer.startRadius);
 			ImGui::InputFloat("To height", &cloudsLayer.endRadius);
@@ -1176,9 +1249,9 @@ namespace RealisticAtmosphere
 					//Tonemapping
 					float r, g, b;
 					//Convert RGB16F to 32bit float
-					r = tmFunc(bx::halfToFloat(_readedTexture[x]) / dirSamp);
-					g = tmFunc(bx::halfToFloat(_readedTexture[x + 1]) / dirSamp);
-					b = tmFunc(bx::halfToFloat(_readedTexture[x + 2]) / dirSamp);
+					r = Tonemapping::tmFunc(bx::halfToFloat(_readedTexture[x]) / dirSamp, _tonemappingType);
+					g = Tonemapping::tmFunc(bx::halfToFloat(_readedTexture[x + 1]) / dirSamp, _tonemappingType);
+					b = Tonemapping::tmFunc(bx::halfToFloat(_readedTexture[x + 2]) / dirSamp, _tonemappingType);
 
 					_readedTexture[x] = bx::halfFromFloat(r);
 					_readedTexture[x + 1] = bx::halfFromFloat(g);

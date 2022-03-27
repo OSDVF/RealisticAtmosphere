@@ -120,14 +120,14 @@ void raytraceSecondary(inout vec3 colorOut, in vec3 origin, in vec3 normal, in v
         Hit objectHit = findObjectHit(secondaryRay);
         Hit planetHit;
         vec3 atmColor;
-        bool planetWasHit = planetsWithAtmospheres(secondaryRay, objectHit.t, /*out*/ atmColor, /*inout*/ throughput, /*out*/ planetHit);
+        bool terrainWasHit = planetsWithAtmospheres(secondaryRay, objectHit.t, /*out*/ atmColor, /*inout*/ throughput, /*out*/ planetHit);
         colorOut += atmColor * invIndirectCount;
-        if(planetWasHit)
+        if(terrainWasHit)
         {
             origin = planetHit.position;
             normal = planetHit.normalAtHit;
         }
-        else if (objectHit.hitObjectIndex != -1)
+        if (objectHit.hitObjectIndex != -1 && objectHit.t <= planetHit.t)
         {
             Material objMaterial = materials[objects[objectHit.hitObjectIndex].materialIndex];
             vec3 totalLightColor = computeLightColor(objectHit);
@@ -145,42 +145,42 @@ void raytraceSecondary(inout vec3 colorOut, in vec3 origin, in vec3 normal, in v
     }
 }
 
-void raytracePrimSec(vec2 subpixelCoord, out vec3 colorOut, out vec3 normal, out vec3 albedo, out float depth, in float invIndirectCount)
+void raytracePrimSec(vec2 subpixelCoord, out vec3 colorOut, out vec3 normal, out vec3 throughput, out float depth, in float invIndirectCount)
 {
     // Traces both primary and secondary ray
     colorOut = vec3(0);
+    depth = 0;//No hit
+    normal = vec3(0);
+
     Ray primaryRay = createCameraRay(subpixelCoord);
 
     // Cast the ray into the scene and check for the intersection points with analytical objects
     Hit objectHit = findObjectHit(primaryRay);
     Hit planetHit;
     // Add the atmosphere and planet color
-    albedo = vec3(1);// save initial throughput to albedo
+    throughput = vec3(1);// save initial throughput to albedo
     vec3 atmColor;
-    bool planetWasHit = planetsWithAtmospheres(primaryRay, objectHit.t, /*out*/ atmColor, /*inout*/ albedo, /*out*/ planetHit);
+    bool terrainWasHit = planetsWithAtmospheres(primaryRay, objectHit.t, /*out*/ atmColor, /*inout*/ throughput, /*out*/ planetHit);
     colorOut += atmColor;
-    if(planetWasHit)
+    if(terrainWasHit)
     {
         normal = planetHit.normalAtHit;
         depth = planetHit.t;
 
-        raytraceSecondary(colorOut, planetHit.position, normal, albedo, invIndirectCount);
+        raytraceSecondary(colorOut, planetHit.position, normal, throughput, invIndirectCount);
     }
-    else if (objectHit.hitObjectIndex != -1)
+    if (objectHit.hitObjectIndex != -1 && objectHit.t <= planetHit.t)
     {
         // Add color of the object at the hit
         Material objMaterial = materials[objects[objectHit.hitObjectIndex].materialIndex];
         vec3 totalLightColor = computeLightColor(objectHit);
 
-        colorOut += objMaterial.albedo.xyz * totalLightColor + objMaterial.emission.xyz;
-        albedo *= objMaterial.albedo.xyz;
+        colorOut += (objMaterial.albedo.xyz * totalLightColor + objMaterial.emission.xyz) * throughput;
+        throughput *= objMaterial.albedo.xyz;
         normal = objectHit.normalAtHit;
-        depth = objectHit.t;
+        if(objMaterial.albedo.a != 0) // Do not put transparent objects into depth buffer
+            depth = objectHit.t;
 
-        raytraceSecondary(colorOut, objectHit.position, normal, albedo, invIndirectCount);
-    }
-    else
-    {
-        depth = 0;//No hit
+        raytraceSecondary(colorOut, objectHit.position, normal, throughput, invIndirectCount);
     }
 }

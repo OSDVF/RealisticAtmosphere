@@ -7,12 +7,13 @@
 */
 namespace DefaultScene
 {
-	const Material materialBuffer[] = {
+	Material materialBuffer[] = {
 	{
+		//Sun material
 		{1,1,1,0},// White transparent
 		{0,0,0},// No Specular part
 		{0},// No Roughness
-		{20,20,20}, // Max emission
+		{1,1,1}, // Emission will be assigned
 		0
 	},
 	{
@@ -93,7 +94,7 @@ namespace DefaultScene
 
 			atmosphereRadius,//end radius
 			0,//βˢₘ Will be assigned later
-			0.8,//Mie asymmetry factor
+			0.9,//Mie asymmetry factor
 			1200,//Mie scale height
 			vec3(0,0,0),//βˢᵣ Will be assigned later
 			7994,//Rayleigh scale height

@@ -144,8 +144,8 @@ float raymarchOcclusion(Planet planet, Ray ray, float fromT, float toT, bool vie
 			continue;//Light is occluded by a object
 		}*/
 
-		float cloudsDensity = raymarchCloudsL(planet, shadowRay, 0, Clouds_lightFarPlane, Clouds_terrainSteps);
-		shadowLength += dx * exp(cloudsDensity);
+		float cloudsDensity = raymarchCloudsL(planet, shadowRay, 0, Clouds_occlusionFarPlane, Clouds_occlusionSteps);
+		shadowLength += dx * clamp(1 - exp(-cloudsDensity * Clouds_occlusionPower), 0, 1);
 	}
 	return shadowLength;
 }
@@ -189,11 +189,11 @@ bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out vec
 			return false;
 		}
 		float atmoDistance = toDistance;
-        float t0, t1; 
+        float surfaceDistance, t1; 
 		bool surfaceIntersection;
-        if (surfaceIntersection = raySphereIntersection(p.center, p.surfaceRadius, ray, t0, t1) && t1 > 0) 
+        if (surfaceIntersection = raySphereIntersection(p.center, p.surfaceRadius, ray, surfaceDistance, t1) && t1 > 0) 
         {
-			tMax = min(tMax, max(0, t0));//Limit by planet surface or "some object" distance
+			tMax = min(tMax, max(0, surfaceDistance));//Limit by planet surface or "some object" distance
         }
 		//Limit the computation bounds according to the Hit
 		toDistance = min(tMax, toDistance);
@@ -246,6 +246,8 @@ bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out vec
 				}
 			}
 		}
+		vec3 worldHitPos = ray.origin + ray.direction * toDistance;
+		planetHit = Hit(worldHitPos, normalize(worldHitPos - p.center), -1, surfaceIntersection ? surfaceDistance : POSITIVE_INFINITY);
 		return false;
 	}
 }
@@ -255,8 +257,8 @@ float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDis
 {
 	float t0, t1;
 
-	float segmentLength = (maxDistance - minDistance) / M_perAtmospherePixel;
-	segmentLength = max(segmentLength, QualitySettings_minStepSize);// Otherwise too close object would evaluate too much steps
+	float pathFraction = (maxDistance - minDistance) / M_perAtmospherePixel;
+	float segmentLength = max(pathFraction, QualitySettings_minStepSize);// Otherwise too close object would evaluate too much steps
 
 	vec3 rayleighColor = vec3(0);
 	vec3 mieColor = vec3(0);
@@ -264,8 +266,8 @@ float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDis
 	float opticalDepthR = 0, opticalDepthM = 0, opticalDepthO = 0; 
 
 	float currentDistance;
-	float i = 0;//float iterator
-	int iter = 0;//integer iterator
+	float i = QualitySettings_minStepSize / pathFraction;//float iterator
+	int iter = int(i);//integer iterator
 	for(currentDistance = minDistance; iter < M_perAtmospherePixel; currentDistance += segmentLength, iter++, i++)
 	{
 		// Always sample at the center of sample

@@ -22,6 +22,21 @@ float cloudsMediumPrec(CloudLayer c, vec3 x) {
 	return level1 - v;
 }
 
+float cloudsMediumPrec(CloudLayer c, vec3 x, out float level1) {
+	level1 = 0.0;
+    float v = 0.0;
+	float a = 0.5;
+	vec3 shift = vec3(100);
+    level1 = noise(x) * noise(x * c.coverage);
+	x = x * 2.0 + shift;
+	for (int i = 0; i < 2; ++i) {
+		v += a * noise(x);
+		x = x * 2.0 + shift;
+		a *= 0.5;
+	}
+	return level1 - v;
+}
+
 float cloudsHighPrec(CloudLayer c, vec3 x, out float level1) {
 	level1 = 0.0;
     float v = 0.0;
@@ -97,6 +112,11 @@ float heightFade(float cloudDensity, CloudLayer c, float height)
 float sampleCloudM(CloudLayer c, vec3 cloudSpacePos, float height)
 {
     float cloudDensity = clamp(pow(cloudsMediumPrec(c, cloudSpacePos * c.sizeMultiplier) * c.density, c.sharpness), 0, 1);
+    return heightFade(cloudDensity, c, height);
+}
+float sampleCloudL(CloudLayer c, vec3 cloudSpacePos, float height, out float cheapDensity)
+{
+    float cloudDensity = clamp(pow(cloudsMediumPrec(c, cloudSpacePos * c.sizeMultiplier, cheapDensity) * c.density, c.sharpness), 0, 1);
     return heightFade(cloudDensity, c, height);
 }
 float sampleCloudH(CloudLayer c, vec3 cloudSpacePos, float height, out float cheapDensity)
@@ -223,18 +243,18 @@ float raymarchCloudsL(Planet planet, Ray ray, float fromT, float toT, float step
             
         if(cheapDensity > Clouds_cheapThreshold)
         {
-            t -= segmentLength * Clouds_cheapDownsample; //Return to the previo  us sample because we could lose some cloud material
+            t -= segmentLength * Clouds_cheapDownsample; //Return to the previous sample because we could lose some cloud material
             worldSpacePos = ray.origin + ray.direction * t;
             cloudSpacePos = worldSpacePos + c.position;
             float height = distance(worldSpacePos, planet.center);
-            float density = min(sampleCloud(c, cloudSpacePos, height, cheapDensity), 1);
+            float density = min(sampleCloudL(c, cloudSpacePos, height, cheapDensity), 1);
             do
             {
                 if(density > Clouds_sampleThres)
                 {
                     accumulatedDensity+=density;
                 }
-                else if(accumulatedDensity >= 1)
+                if(accumulatedDensity >= 1)
                 {
                     return 1;
                 }
@@ -242,7 +262,7 @@ float raymarchCloudsL(Planet planet, Ray ray, float fromT, float toT, float step
                 worldSpacePos = ray.origin + ray.direction * t;
                 cloudSpacePos = worldSpacePos + c.position;
                 height = distance(worldSpacePos, planet.center);
-                density = min(sampleCloudH(c, cloudSpacePos, height, /*out*/ cheapDensity), 1);
+                density = min(sampleCloudL(c, cloudSpacePos, height, /*out*/ cheapDensity), 1);
                 t += segmentLength;
                 i++;
             }

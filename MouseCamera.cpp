@@ -4,6 +4,7 @@
 #include <bx/bx.h>
 #include <sstream>
 #include <bx/debug.h>
+#include <SDL2/SDL_events.h>
 /*****************************************************************************
  * Copyright (c) 2018-2021 openblack developers
  *
@@ -117,27 +118,30 @@ bool MouseCamera::ProjectWorldToScreen(const glm::vec3 worldPosition, const glm:
 
 void MouseCamera::handleMouseInput(bool mouseLocked, float deltaTime, entry::MouseState mouseState)
 {
-
+	SDL_Event sdlEvent;
+	SDL_PollEvent(&sdlEvent);
 	glm::vec3 rot = GetRotation();
 	float relY = 0;
 	float relX = 0;
-	if (mouseLocked)
-	{
 
-		relX = (float)mouseState.xrel;
-		relY = (float)mouseState.yrel;
-
-	}
-	else
+	if (sdlEvent.type == SDL_MOUSEMOTION)
 	{
-		relY = mouseState.m_my - mouseState.m_my;
-		relX = mouseState.m_my - mouseState.m_my;
+		if (mouseLocked)
+		{
+
+			relX = (float)sdlEvent.motion.xrel;
+			relY = (float)sdlEvent.motion.yrel;
+
+		}
+		else
+		{
+			relY = sdlEvent.motion.y - _previousMouseState.m_my;
+			relX = sdlEvent.motion.x - _previousMouseState.m_mx;
+		}
 	}
 	_previousMouseState = mouseState;
 	rot.x -= relY * Sensitivity * deltaTime;
 	rot.y -= relX * Sensitivity * deltaTime;
 	std::ostringstream d;
-	d << relX << " " << relY << std::endl;
 	SetRotation(rot);
-
 }
