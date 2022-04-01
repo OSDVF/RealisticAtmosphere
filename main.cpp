@@ -56,7 +56,9 @@ namespace RealisticAtmosphere
 		void* _syncObj = nullptr;
 		// Number of frame at which a screenshot will be taken
 		uint32_t _screenshotFrame = SCREENSHOT_NEVER;
-		Uint64 _performanceFrequency = 0;
+		float _performanceFrequency = 0;
+		float _renderTime = 0;
+		uint64_t _renderStartedAt = 0;
 		uint32_t _frame = 0;
 		int _slicesCount = 3;
 		int _currentChunk = 0;
@@ -83,7 +85,7 @@ namespace RealisticAtmosphere
 		float _secondSunAngle = -1.5;
 		float _secondMoonAngle = 1;
 		// Droplet size distribution
-		bool _cloudsDSDUniformNotDisperse = true;
+		bool _cloudsDSDUniformNotDisperse = false;
 		vec3 _cloudsWind = vec3(-50, 0, 0);
 		bool _moveClouds = false;
 
@@ -94,6 +96,7 @@ namespace RealisticAtmosphere
 		bool _debugRm = false;
 		bool _showGUI = true;
 		bool _pathTracingMode = true;
+		// TO "unlock" camera movement we must lock the mouse
 		bool _mouseLock = false;
 		float _tanFovY = 0;
 		float _tanFovX = 0;
@@ -178,8 +181,7 @@ namespace RealisticAtmosphere
 			_settingsBackup[7] = CloudsSettings[1];
 			_settingsBackup[8] = CloudsSettings[2];*/
 
-			_person.Camera.SetPosition(glm::vec3(-15654, 1661, 15875));
-			_person.Camera.SetRotation(glm::vec3(-4, -273, 0));
+			applyPreset(0);//Set default player and sun positions
 
 			entry::setWindowFlags(HANDLE_OF_DEFALUT_WINDOW, ENTRY_WINDOW_FLAG_ASPECT_RATIO, false);
 			entry::setWindowSize(HANDLE_OF_DEFALUT_WINDOW, 1024, 600);
@@ -277,7 +279,7 @@ namespace RealisticAtmosphere
 			// Create Immediate GUI graphics context
 			imguiCreate();
 			_lastTicks = SDL_GetPerformanceCounter();
-			_performanceFrequency = SDL_GetPerformanceFrequency();
+			_performanceFrequency = (float)SDL_GetPerformanceFrequency();
 
 			// Prepare scene for the first time
 			updateScene();
@@ -508,27 +510,27 @@ namespace RealisticAtmosphere
 				switch (asciiKey)
 				{
 				case 'l':
-					_mouseLock = !_mouseLock;
-					if (_mouseLock)
-					{
-						SDL_CaptureMouse(SDL_TRUE);
-						SDL_SetRelativeMouseMode(SDL_TRUE);
-					}
-					else
-					{
-						SDL_CaptureMouse(SDL_FALSE);
-						SDL_SetRelativeMouseMode(SDL_FALSE);
-					}
+					_mouseLock = false;
+					SDL_CaptureMouse(SDL_FALSE);
+					SDL_SetRelativeMouseMode(SDL_FALSE);
+					break;
+				case 'k':
+					_mouseLock = true;
+					SDL_CaptureMouse(SDL_TRUE);
+					SDL_SetRelativeMouseMode(SDL_TRUE);
 					break;
 				case 'g':
-					_showGUI = !_showGUI;
+					_showGUI = true;
+					break;
+				case 'f':
+					_showGUI = false;
 					break;
 				case 'r':
-					DefaultScene::objectBuffer[1].position = vec3(Camera[0].x, Camera[0].y, Camera[0].z);
+					DefaultScene::objectBuffer[4].position = vec3(Camera[0].x, Camera[0].y, Camera[0].z);
 					break;
-				case 't':
-					_person.Camera.SetPosition(glm::vec3(-18253, 1709, 16070));
-					_person.Camera.SetRotation(glm::vec3(-5, 113, 0));
+				default:
+					if (asciiKey >= '1' && asciiKey <= '5' && modifiers & entry::Modifier::LeftShift)
+						applyPreset(asciiKey - '1');//Convert char to preset number
 					break;
 				}
 				//
@@ -572,6 +574,7 @@ namespace RealisticAtmosphere
 					}
 #endif
 					// Displays/Updates an innner dialog with debug and profiler information
+					ImGui::SetNextWindowCollapsed(true, ImGuiCond_FirstUseEver);
 					showDebugDialog(this);
 
 					drawSettingsDialogUI();
@@ -587,16 +590,24 @@ namespace RealisticAtmosphere
 				// 
 
 				bool tracingComplete;
+				auto stats = bgfx::getStats();
+				if (currentSample == 0 || !_pathTracingMode && _currentChunk == 0)
+				{
+					_renderStartedAt = stats->gpuTimeBegin;
+				}
 				if (tracingComplete = (currentSample >= maxSamples))
 				{
 					if (!_pathTracingMode)
 					{
 						currentSample = 0;
 						renderScene();
+						_renderTime = (stats->gpuTimeEnd - _renderStartedAt) * 1000 / (float)stats->gpuTimerFreq;
 						updateScene();
 					}
-					else
+					else if (currentSample == maxSamples)/*add last frame latency*/
 					{
+						// Rendering complete
+						_renderTime = (stats->gpuTimeEnd - _renderStartedAt) * 1000 / (float)stats->gpuTimerFreq;
 						currentSample = INT_MAX;
 					}
 				}
@@ -643,7 +654,7 @@ namespace RealisticAtmosphere
 			if (_mouseLock)
 			{
 				auto nowTicks = SDL_GetPerformanceCounter();
-				auto deltaTime = (float)((nowTicks - _lastTicks) * 1000 / (float)_performanceFrequency);
+				auto deltaTime = (nowTicks - _lastTicks) * 1000 / _performanceFrequency;
 				_person.Update(_mouseLock, deltaTime, _mouseState);
 
 				_lastTicks = nowTicks;
@@ -890,7 +901,8 @@ namespace RealisticAtmosphere
 		void drawSettingsDialogUI()
 		{
 			ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_FirstUseEver);
-			ImGui::SetNextWindowSize(ImVec2(_windowWidth/4, _windowHeight) ,ImGuiCond_FirstUseEver);
+			ImGui::SetNextWindowSize(ImVec2(_windowWidth / 4, _windowHeight), ImGuiCond_FirstUseEver);
+			ImGui::SetNextWindowBgAlpha(.7f);
 			if (_pathTracingMode)
 			{
 				drawPathTracerGUI();
@@ -904,8 +916,21 @@ namespace RealisticAtmosphere
 				swapSettingsBackup(); // This may set DIRECT_SAMPLES_COUNT to something different than 1
 				cleanRenderedBuffers(_windowWidth, _windowHeight);
 			}
+			ImGui::Text("Latency %f ms", _renderTime);
 			ImGui::SetNextItemWidth(90);
 			inputSlicesCount();
+			if (ImGui::TreeNodeEx("Controls", ImGuiTreeNodeFlags_DefaultOpen))
+			{
+				ImGui::Text(
+					"Camera: K-Unlock, L-Lock\n"
+					"Move: WASD\n"
+					"Sprint: Shift\n"
+					"GUI: F-Hide, G-Show\n"
+					"Presets: Shift + 1-5\n"
+					"Place sphere: R"
+				);
+				ImGui::TreePop();
+			}
 			drawPlanetGUI();
 			drawTerrainGUI();
 			drawLightGUI();
@@ -916,6 +941,38 @@ namespace RealisticAtmosphere
 
 		void drawPlanetGUI()
 		{
+			if (ImGui::TreeNodeEx("Camera", _pathTracingMode ? ImGuiTreeNodeFlags_None : ImGuiTreeNodeFlags_DefaultOpen))
+			{
+				ImGui::SetNextItemWidth(100);
+				if (ImGui::InputFloat("FOV", &_fovY))
+				{
+					updateVirtualCameraPerspective();
+				}
+				ImGui::BeginGroup();
+				ImGui::PushItemWidth(90);
+				ImGui::InputFloat("Speed", &_person.WalkSpeed, 1);
+				ImGui::InputFloat("RunSpeed", &_person.RunSpeed, 10);
+				ImGui::PopItemWidth();
+				ImGui::SetNextItemWidth(120);
+				ImGui::SliderFloat("Sensitivity", &_person.Camera.Sensitivity, 0, 5.0f);
+				ImGui::PushItemWidth(180);
+				auto glmRot = _person.Camera.GetRotation();
+				auto glmPos = _person.Camera.GetPosition();
+				float pos[3] = { glmPos.x,glmPos.y,glmPos.z };
+				float rot[3] = { glmRot.x,glmRot.y,glmRot.z };
+				ImGui::InputFloat3("Pos", pos);
+				_person.Camera.SetPosition({ pos[0],pos[1],pos[2] });
+				ImGui::InputFloat3("Rot", rot);
+				_person.Camera.SetRotation({ rot[0],rot[1],rot[2] });
+				ImGui::PopItemWidth();
+				ImGui::EndGroup();
+				if (ImGui::IsItemHovered() && _pathTracingMode)
+				{
+					ImGui::SetTooltip("Changing these values makes sense only in Realtime Raytracing mode");
+				}
+				ImGui::TreePop();
+			}
+
 			if (ImGui::TreeNode("Planet"))
 			{
 				Planet& singlePlanet = DefaultScene::planetBuffer[0];
@@ -999,37 +1056,6 @@ namespace RealisticAtmosphere
 
 				singlePlanet.atmosphereThickness = singlePlanet.atmosphereRadius - singlePlanet.surfaceRadius;
 			}
-			ImGui::BeginGroup();
-			if (ImGui::TreeNodeEx("Camera", _pathTracingMode ? ImGuiTreeNodeFlags_None : ImGuiTreeNodeFlags_DefaultOpen))
-			{
-				ImGui::PushItemWidth(90);
-				ImGui::InputFloat("Speed", &_person.WalkSpeed, 1);
-				ImGui::InputFloat("RunSpeed", &_person.RunSpeed, 10);
-				ImGui::PopItemWidth();
-				ImGui::SetNextItemWidth(120);
-				ImGui::SliderFloat("Sensitivity", &_person.Camera.Sensitivity, 0, 5.0f);
-				ImGui::SetNextItemWidth(100);
-				if (ImGui::InputFloat("FOV", &_fovY))
-				{
-					updateVirtualCameraPerspective();
-				}
-				ImGui::PushItemWidth(180);
-				auto glmRot = _person.Camera.GetRotation();
-				auto glmPos = _person.Camera.GetPosition();
-				float pos[3] = { glmPos.x,glmPos.y,glmPos.z };
-				float rot[3] = { glmRot.x,glmRot.y,glmRot.z };
-				ImGui::InputFloat3("Pos", pos);
-				_person.Camera.SetPosition({ pos[0],pos[1],pos[2] });
-				ImGui::InputFloat3("Rot", rot);
-				_person.Camera.SetRotation({ rot[0],rot[1],rot[2] });
-				ImGui::PopItemWidth();
-				ImGui::TreePop();
-			}
-			ImGui::EndGroup();
-			if (ImGui::IsItemHovered() && _pathTracingMode)
-			{
-				ImGui::SetTooltip("Changing these values makes sense only in Realtime Raytracing mode");
-			}
 		}
 
 		void drawLightGUI()
@@ -1037,10 +1063,23 @@ namespace RealisticAtmosphere
 			if (ImGui::TreeNode("Light"))
 			{
 				ImGui::PushItemWidth(100);
-				const char* const tmTypes[] = { "Exposure","GammaExposure", "Reinhard", "Modified Reinhard", "ACES", "Uneral", "Uchimura", "Lottes" };
+				const char* const tmTypes[] = { "Exposure", "Reinhard", "Custom Reinhard", "ACES", "Uneral", "Uchimura", "Lottes", "No Tonemapping" };
 				ImGui::Combo("Tonemapping", &_tonemappingType, tmTypes, sizeof(tmTypes) / sizeof(const char*));
-				if (_tonemappingType <= 1)
+				switch (_tonemappingType)
+				{
+				case 0:
 					ImGui::InputFloat("Exposure", &HQSettings_exposure);
+					break;
+				case 2: /*fallthrough*/
+				case 5: /*fallthrough*/
+				case 6:
+					ImGui::InputFloat("White point", &HQSettings_exposure);
+					if (ImGui::IsItemHovered())
+					{
+						ImGui::SetTooltip("Defines luminance value at which the image will be completely white");
+					}
+					break;
+				}
 
 				ImGui::Checkbox("Lens Flare", &_showFlare);
 				if (_showFlare)
@@ -1049,7 +1088,10 @@ namespace RealisticAtmosphere
 					ImGui::PushItemWidth(90);
 					ImGui::InputInt("Occlusion samples", &_flareOcclusionSamples);
 					if (ImGui::IsItemHovered())
-						ImGui::SetTooltip("Creates screen-space light shafts.\n1 = only test for sun visibility.\n0 = always show flare");
+						ImGui::SetTooltip("Creates screen-space light shafts."
+							"\n1 = only test for sun visibility."
+							"\n0 = always show flare"
+							"\nMultisampling is not applied to them because they are rendered after the whole image");
 					ImGui::PopItemWidth();
 					if (_flareOcclusionSamples < 0) _flareOcclusionSamples = 0;
 				}
@@ -1177,11 +1219,11 @@ namespace RealisticAtmosphere
 						_cloudsDSDUniformNotDisperse = !_cloudsDSDUniformNotDisperse;
 						if (_cloudsDSDUniformNotDisperse)
 						{
-							Clouds_aerosols *= 10;//Because uniform is too much uniform and we must add some aerosols to preserver realism
+							Clouds_aerosols *= 5;//Because uniform is too much uniform and we must add some aerosols to preserver realism
 						}
 						else
 						{
-							Clouds_aerosols *= 0.1;
+							Clouds_aerosols *= (1.0/5.0);
 						}
 						cloudsMiePhaseFunction();
 					}
@@ -1199,6 +1241,19 @@ namespace RealisticAtmosphere
 					ImGui::InputFloat("Scattering", &cloudsLayer.scatteringCoef, 0, 0, "%e");
 					ImGui::InputFloat("Extinction", &cloudsLayer.extinctionCoef, 0, 0, "%e");
 					ImGui::InputFloat("Aerosols", &Clouds_aerosols, 0.05, .1);
+					if (Clouds_aerosols < 0)
+					{
+						Clouds_aerosols = 0;
+					}
+					else if (Clouds_aerosols > 1)
+					{
+						Clouds_aerosols = 1;
+					}
+					if (ImGui::IsItemHovered())
+					{
+						ImGui::SetTooltip("Fractional amount of aerosols which differ from overall DSD. Increasing it makes the atomospheric phenomena appear less noticeable."
+							"\nNote: When switching between Uniform and Disperse DSD, this number gets divided by 5 automatically to reflect the way how aerosols are actually present in clouds");
+					}
 					ImGui::PopItemWidth();
 					ImGui::TreePop();
 				}
@@ -1242,7 +1297,7 @@ namespace RealisticAtmosphere
 
 			if (currentSample >= DIRECT_SAMPLES_COUNT * *(int*)&Multisampling_indirect)
 			{
-				ImGui::Text("Completed", currentSample);
+				ImGui::Text("Rendered in %f ms", _renderTime);
 			}
 			else
 			{
@@ -1270,6 +1325,14 @@ namespace RealisticAtmosphere
 			ImGui::End();
 		}
 
+		void applyPreset(uint8_t preset)
+		{
+			_person.Camera.SetPosition(DefaultScene::presets[preset].camera);
+			_person.Camera.SetRotation(DefaultScene::presets[preset].rotation);
+			_sunAngle = DefaultScene::presets[preset].sun.y;
+			_secondSunAngle = DefaultScene::presets[preset].sun.x;
+		}
+
 		void inputSlicesCount()
 		{
 			if (ImGui::InputInt("Render Slices", &_slicesCount, 1, 0))
@@ -1277,7 +1340,7 @@ namespace RealisticAtmosphere
 				_currentChunk = 0; // When changing slices count, we must start rendering again from the first slice
 			}
 			if (ImGui::IsItemHovered())
-				ImGui::SetTooltip("Slices image rendering into X chunks on both directions.\nUse when application is crashing because of too long frame rendering time");
+				ImGui::SetTooltip("Slices image rendering into X chunks on both directions.\nUse when application is crashing because of too long frame rendering time\nIntroduces tearing in realtime mode");
 			if (_slicesCount < 1)//Minimum is one chunk
 				_slicesCount = 1;
 		}
@@ -1297,15 +1360,17 @@ namespace RealisticAtmosphere
 				{
 					auto dirSamp = DIRECT_SAMPLES_COUNT;
 					//Tonemapping
-					float r, g, b;
+					glm::vec3 tonemapped;
 					//Convert RGB16F to 32bit float
-					r = Tonemapping::tmFunc(bx::halfToFloat(_readedTexture[x]) / dirSamp, _tonemappingType);
-					g = Tonemapping::tmFunc(bx::halfToFloat(_readedTexture[x + 1]) / dirSamp, _tonemappingType);
-					b = Tonemapping::tmFunc(bx::halfToFloat(_readedTexture[x + 2]) / dirSamp, _tonemappingType);
+					glm::vec3 rgb(
+						bx::halfToFloat(_readedTexture[x]) / dirSamp,
+						bx::halfToFloat(_readedTexture[x + 1]) / dirSamp,
+						bx::halfToFloat(_readedTexture[x + 2]) / dirSamp);
+					tonemapped = Tonemapping::tmFunc(rgb, _tonemappingType);
 
-					_readedTexture[x] = bx::halfFromFloat(r);
-					_readedTexture[x + 1] = bx::halfFromFloat(g);
-					_readedTexture[x + 2] = bx::halfFromFloat(b);
+					_readedTexture[x] = bx::halfFromFloat(tonemapped.r);
+					_readedTexture[x + 1] = bx::halfFromFloat(tonemapped.g);
+					_readedTexture[x + 2] = bx::halfFromFloat(tonemapped.b);
 					_readedTexture[x + 3] = bx::halfFromFloat(1.0);
 				}
 				//Convert RGBA16F to RGBA8

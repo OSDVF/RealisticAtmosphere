@@ -75,11 +75,7 @@ vec3 tonemapping(vec3 hdrColor)
     if(DEBUG_NORMALS || DEBUG_RM)
         return hdrColor;
 
-    return vec3(
-		tmFunc(hdrColor.x, TonemappingType),
-		tmFunc(hdrColor.y, TonemappingType),
-		tmFunc(hdrColor.z, TonemappingType)
-		);
+    return tmFunc(hdrColor, TonemappingType);
 }
 
 

@@ -64,7 +64,7 @@ vec4 SkyRadianceToLuminance;
 vec4 CloudsSettings[] = {
                             vec4(128, 4, 200000, 1000),//samples, light samples, far plane, light far plane
                             vec4(20,  5, 0.01, 0),//Terrain steps, cheap downsamle, cheap thres, max powder
-                            vec4(1e-4,0.5,0.3, 4),//sampling thres, aerosol amount, powder density, fade power
+                            vec4(1e-4,0.1,0.3, 4),//sampling thres, aerosol amount, powder density, fade power
                             vec4(128, 200000, 8)// light shafts steps, light shafts far plane, occlusion power
                         };
 #endif
@@ -91,6 +91,7 @@ vec4 CloudsSettings[] = {
 #define HQSettings_flags HQSettings.x
 #define HQSettings_sampleNum HQSettings.y
 #define HQSettings_directSamples HQSettings.z
+// Used for defining exposure in Exposure tonemapping and the white point in Reinhard2 tonemapping
 #define HQSettings_exposure HQSettings.w
 
 #define Camera_position (Camera[0].xyz)

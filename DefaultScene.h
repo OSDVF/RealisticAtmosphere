@@ -9,27 +9,34 @@ namespace DefaultScene
 {
 	Material materialBuffer[] = {
 	{
-		//Sun material
-		{1,1,1,0},// White transparent
-		{0,0,0},// No Specular part
-		{0},// No Roughness
-		{1,1,1}, // Emission will be assigned
-		0
-	},
-	{
-		{1, 1, 1, 1},// White albedo
-		{0.5,0.5,0.5},// Half specular
-		{0.5},// Half Roughness
-		{0,0,0}, // No emission
-		0
-	},
-	{
-		{0, 0, 1, 1},// Blue albedo
-		{0.5,0.5,0.5},// Half specular
-		{0.5},// Half Roughness
-		{0,0,0}, // No emission
-		0
-	}
+			//Sun material
+			{1,1,1,0},// White transparent
+			{0,0,0},// No Specular part
+			{0},// No Roughness
+			{1,1,1}, // Emission will be assigned
+			0
+		},
+		{
+			{1, 1, 1, 1},// White albedo
+			{0.5,0.5,0.5},// Half specular
+			{0.5},// Half Roughness
+			{0,0,0}, // No emission
+			0
+		},
+		{
+			{0, 0, 1, 1},// Blue albedo
+			{0.5,0.5,0.5},// Half specular
+			{0.5},// Half Roughness
+			{0,0,0}, // No emission
+			0
+		},
+		{
+			{1, 0.5, 0.15, 1},//Orange albedo
+			{0,0,0},
+			{0},
+			{0,0,0},
+			{0}
+		}
 	};
 
 	const float earthRadius = 6360000; // cit. E. Bruneton page 3
@@ -53,15 +60,20 @@ namespace DefaultScene
 			{moonRadius}, //Radius
 			0 //Material index
 		},
-		{
+		{//Blue sphere
 			{-18260, 1706, 16065}, //Position
 			{1}, //Radius
 			1, //Material index
 		},
-		{
+		{//White sphere
 			{-18260, 1706, 16065.7}, //Position
 			{1}, //Radius
 			2, //Material index
+		},
+		{//Orange sphere - to be placed by user
+			{0, 0, 0},
+			{1},
+			3
 		}
 	};
 
@@ -132,5 +144,33 @@ namespace DefaultScene
 			0,//First light index in precomputed textures
 			0,0,0//Padding
 		},
+	};
+
+	struct Preset {
+		glm::vec3 camera;
+		glm::vec3 rotation;
+		struct {
+			float x = 0;
+			float y = 0;
+		} sun;
+		struct {
+			float x = 0;
+			float y = 0;
+		} moon;
+	};
+
+	const Preset presets[] = {
+		Preset
+		{
+			{-15654, 1661, 15875},
+			{-4, -273, 0},
+			{-1.5, 1.5}
+		},
+		Preset
+		{
+			{-18253, 1709, 16070},
+			{-5, 113, 0},
+			{-1.5, 1.5}
+		}
 	};
 };
