@@ -1067,11 +1067,11 @@ namespace RealisticAtmosphere
 				ImGui::Combo("Tonemapping", &_tonemappingType, tmTypes, sizeof(tmTypes) / sizeof(const char*));
 				switch (_tonemappingType)
 				{
-				case 0:
+				case 0:	/*fallthrough*/
+				case 5:
 					ImGui::InputFloat("Exposure", &HQSettings_exposure);
 					break;
 				case 2: /*fallthrough*/
-				case 5: /*fallthrough*/
 				case 6:
 					ImGui::InputFloat("White point", &HQSettings_exposure);
 					if (ImGui::IsItemHovered())

@@ -7,7 +7,7 @@
 #include "Common.glsl"
 #include "Terrain.glsl"
 
-vec3 PlanetIlluminance(Planet planet, vec3 point)
+vec3 PlanetIlluminance(Planet planet, vec3 point, vec3 phaseFunctionValue)
 {
     vec3 toPlanetSpace = point - planet.center;
     float r = length(toPlanetSpace);
@@ -17,13 +17,18 @@ vec3 PlanetIlluminance(Planet planet, vec3 point)
     {
         DirectionalLight light = directionalLights[l];
         float mu_l = dot(toPlanetSpace, light.direction) / r;
-        irradiance += light.irradiance * GetTransmittanceToLight(planet, light.angularRadius, transmittanceTable, r, mu_l) * SunRadianceToLuminance.xyz
+        irradiance += light.irradiance * GetTransmittanceToLight(planet, light.angularRadius, transmittanceTable, r, mu_l) * SunRadianceToLuminance.xyz * phaseFunctionValue
         + /*sky*/
         GetIrradiance(planet, irradianceTable, r, mu_l, lightTextureIndex) * SkyRadianceToLuminance.xyz;
 
         lightTextureIndex++;
     }
     return irradiance;
+}
+
+vec3 PlanetIlluminance(Planet planet, vec3 point)
+{
+    return PlanetIlluminance(planet, point, vec3(1));
 }
 
 vec3 lightPoint(Planet planet, vec3 p, vec3 normal)

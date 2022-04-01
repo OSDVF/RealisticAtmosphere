@@ -199,7 +199,7 @@ void raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps,
                         float opticalDepth = density * segmentLength;
                         transmittance *= exp(-opticalDepth * c.extinctionCoef);
                        
-                        scatteringSum += beer * density * PlanetIlluminance(planet, worldSpacePos) * transmittance;
+                        scatteringSum += beer * density * PlanetIlluminance(planet, worldSpacePos, phase) * transmittance;
                         if(transmittance.x < 0.001 && transmittance.y < 0.001 && transmittance.z < 0.001)
                             break;
                     }
@@ -213,7 +213,7 @@ void raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps,
                 }
                 while(i < iter && cheapDensity > Clouds_cheapThreshold);
             
-                luminance += scatteringSum * segmentLength * c.scatteringCoef * phase;
+                luminance += scatteringSum * segmentLength * c.scatteringCoef;
             }
             else
             {

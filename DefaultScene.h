@@ -106,7 +106,7 @@ namespace DefaultScene
 
 			atmosphereRadius,//end radius
 			0,//βˢₘ Will be assigned later
-			0.9,//Mie asymmetry factor
+			0.8,//Mie asymmetry factor
 			1200,//Mie scale height
 			vec3(0,0,0),//βˢᵣ Will be assigned later
 			7994,//Rayleigh scale height
