@@ -20,6 +20,7 @@
 #include <entry/input.h>
 #include <SDL2/SDL.h>
 #include <array>
+#include <numeric>
 #include <tinystl/vector.h>
 #include <sstream>
 #include <algorithm>
@@ -41,6 +42,7 @@
 #define SCREENSHOT_AFTER_RENDER_PENDING SCREENSHOT_AFTER_RENDER - 1
 
 #define DIRECT_SAMPLES_COUNT (*(int*)&HQSettings_directSamples)
+#define SHADER_LOCAL_GROUP_COUNT 16
 
 namespace RealisticAtmosphere
 {
@@ -289,7 +291,7 @@ namespace RealisticAtmosphere
 		{
 			_heightmapTextureHandle = bgfx::createTexture2D(8192, 8192, false, 1, bgfx::TextureFormat::RGBA32F, BGFX_TEXTURE_COMPUTE_WRITE);
 			bgfx::setImage(0, _heightmapTextureHandle, 0, bgfx::Access::Write);
-			bgfx::dispatch(0, _heightmapShaderProgram, bx::ceil(8192 / 16.0f), bx::ceil(8192 / 16.0f));
+			bgfx::dispatch(0, _heightmapShaderProgram, bx::ceil(8192 / float(SHADER_LOCAL_GROUP_COUNT)), bx::ceil(8192 / float(SHADER_LOCAL_GROUP_COUNT)));
 		}
 		void cloudsMiePhaseFunction()
 		{
@@ -343,7 +345,7 @@ namespace RealisticAtmosphere
 			bgfx::setImage(0, _opticalDepthTable, 0, bgfx::Access::Write, bgfx::TextureFormat::RGBA32F);
 			bgfx::setBuffer(1, _atmosphereBufferHandle, bgfx::Access::Read);
 			bgfx::setBuffer(2, _directionalLightBufferHandle, bgfx::Access::Read);
-			bgfx::dispatch(0, opticalProgram, bx::ceil(128 / 16.0f), bx::ceil(64 / 16.0f));
+			bgfx::dispatch(0, opticalProgram, bx::ceil(128 / float(SHADER_LOCAL_GROUP_COUNT)), bx::ceil(64 / float(SHADER_LOCAL_GROUP_COUNT)));
 
 			bgfx::ShaderHandle precomputeTransmittance = loadShader("Transmittance.comp");
 			bgfx::ProgramHandle transmittanceProgram = bgfx::createProgram(precomputeTransmittance);
@@ -354,7 +356,7 @@ namespace RealisticAtmosphere
 			bgfx::setImage(0, _transmittanceTable, 0, bgfx::Access::Write, bgfx::TextureFormat::RGBA32F);
 			bgfx::setBuffer(1, _atmosphereBufferHandle, bgfx::Access::Read);
 			bgfx::setBuffer(2, _directionalLightBufferHandle, bgfx::Access::Read);
-			bgfx::dispatch(0, transmittanceProgram, bx::ceil(256 / 16.0f), bx::ceil(64 / 16.0f));
+			bgfx::dispatch(0, transmittanceProgram, bx::ceil(256 / float(SHADER_LOCAL_GROUP_COUNT)), bx::ceil(64 / float(SHADER_LOCAL_GROUP_COUNT)));
 
 			bgfx::ShaderHandle precomputeSingleScattering = loadShader("SingleScattering.comp");
 			bgfx::ProgramHandle scatteringProgram = bgfx::createProgram(precomputeSingleScattering);
@@ -368,7 +370,7 @@ namespace RealisticAtmosphere
 			bgfx::setImage(0, _singleScatteringTable, 0, bgfx::Access::Write, bgfx::TextureFormat::RGBA16F);
 			setBuffersAndUniforms();
 			bgfx::setTexture(7, _transmittanceSampler, _transmittanceTable);
-			bgfx::dispatch(0, scatteringProgram, bx::ceil(SCATTERING_TEXTURE_WIDTH / 16.0f), bx::ceil(SCATTERING_TEXTURE_HEIGHT / 16.0f), bx::ceil(SCATTERING_TEXTURE_DEPTH / 4.0f));
+			bgfx::dispatch(0, scatteringProgram, bx::ceil(SCATTERING_TEXTURE_WIDTH / float(SHADER_LOCAL_GROUP_COUNT)), bx::ceil(SCATTERING_TEXTURE_HEIGHT / float(SHADER_LOCAL_GROUP_COUNT)), bx::ceil(SCATTERING_TEXTURE_DEPTH / 4.0f));
 
 			bgfx::ShaderHandle precomputeIrradiance = loadShader("IndirectIrradiance.comp");
 			bgfx::ProgramHandle irradianceProgram = bgfx::createProgram(precomputeIrradiance);
@@ -380,7 +382,7 @@ namespace RealisticAtmosphere
 			bgfx::setBuffer(1, _atmosphereBufferHandle, bgfx::Access::Read);
 			bgfx::setBuffer(2, _directionalLightBufferHandle, bgfx::Access::Read);
 			bgfx::setTexture(3, _singleScatteringSampler, _singleScatteringTable);
-			bgfx::dispatch(0, irradianceProgram, bx::ceil(64 / 16.0f), bx::ceil(16 / 16.0f), DefaultScene::directionalLightBuffer.size());
+			bgfx::dispatch(0, irradianceProgram, bx::ceil(64 / float(SHADER_LOCAL_GROUP_COUNT)), bx::ceil(16 / float(SHADER_LOCAL_GROUP_COUNT)), DefaultScene::directionalLightBuffer.size());
 
 			bgfx::touch(0);
 			bgfx::frame(); // Actually execute the compute shaders
@@ -698,12 +700,21 @@ namespace RealisticAtmosphere
 			}
 		}
 
+		float firstMultipleOfXGreaterThanY(float x, float y)
+		{
+			return (bx::floor(y / x) + 1) * x;
+		}
+
 		void renderScene()
 		{
 			if (bgfx::multithreadedRender || _syncObj == nullptr || bgfx::syncComplete(_syncObj))
 			{
-				int chunkXstart = (_renderImageSize.width / _slicesCount) * (_currentChunk % _slicesCount);
-				int chunkYstart = (_renderImageSize.height / _slicesCount) * (_currentChunk / _slicesCount);
+				int chunkSizeX = bx::ceil(_renderImageSize.width / (float)_slicesCount);
+				chunkSizeX = firstMultipleOfXGreaterThanY(SHADER_LOCAL_GROUP_COUNT, chunkSizeX);
+				int chunkSizeY = bx::ceil(_renderImageSize.height / (float)_slicesCount);
+				chunkSizeY = firstMultipleOfXGreaterThanY(SHADER_LOCAL_GROUP_COUNT, chunkSizeY);
+				int chunkXstart = chunkSizeX * (_currentChunk % _slicesCount);
+				int chunkYstart = chunkSizeY * (_currentChunk / _slicesCount);
 				SunRadianceToLuminance.w = *(float*)&chunkXstart;
 				SkyRadianceToLuminance.w = *(float*)&chunkYstart;
 
@@ -713,7 +724,7 @@ namespace RealisticAtmosphere
 				updateDebugUniforms();
 #endif
 
-				computeShaderRaytracer();
+				computeShaderRaytracer(chunkSizeX / SHADER_LOCAL_GROUP_COUNT, chunkSizeY / SHADER_LOCAL_GROUP_COUNT);
 				_currentChunk++;
 				if (_currentChunk >= _slicesCount * _slicesCount)
 				{
@@ -745,12 +756,12 @@ namespace RealisticAtmosphere
 			bgfx::setUniform(_debugAttributesHandle, &_debugAttributesResult);
 		}
 #endif
-		void computeShaderRaytracer()
+		void computeShaderRaytracer(uint32_t numX, uint32_t numY)
 		{
 			bgfx::setImage(0, _raytracerColorOutput, 0, bgfx::Access::ReadWrite);
 			bgfx::setImage(1, _raytracerNormalsOutput, 0, bgfx::Access::ReadWrite);
 			bgfx::setImage(2, _raytracerDepthAlbedoBuffer, 0, bgfx::Access::ReadWrite);
-			bgfx::dispatch(0, _computeShaderProgram, bx::ceil((_renderImageSize.width / _slicesCount) / 16.0f), bx::ceil((_renderImageSize.height / _slicesCount) / 16.0f));
+			bgfx::dispatch(0, _computeShaderProgram, numX, numY);
 			// Create synchronization fence which we will ask if the compute shader dispatch has finished
 			if (!bgfx::multithreadedRender)
 			{
@@ -1223,7 +1234,7 @@ namespace RealisticAtmosphere
 						}
 						else
 						{
-							Clouds_aerosols *= (1.0/5.0);
+							Clouds_aerosols *= (1.0 / 5.0);
 						}
 						cloudsMiePhaseFunction();
 					}
