@@ -79,7 +79,7 @@ namespace RealisticAtmosphere
 		int _tonemappingType = 0;
 		bool _showFlare = false;
 		float _flareVisibility = 1.0f;
-		int _flareOcclusionSamples = 15;
+		int _flareOcclusionSamples = 40;
 		entry::MouseState _mouseState;
 
 		float _sunAngle = 1.5;//86 deg
@@ -531,8 +531,25 @@ namespace RealisticAtmosphere
 					DefaultScene::objectBuffer[4].position = vec3(Camera[0].x, Camera[0].y, Camera[0].z);
 					break;
 				default:
-					if (asciiKey >= '1' && asciiKey <= '5' && modifiers & entry::Modifier::LeftShift)
-						applyPreset(asciiKey - '1');//Convert char to preset number
+					if (modifiers & entry::Modifier::LeftCtrl)
+					{
+						if (inputGetKeyState(entry::Key::Key1))
+						{
+							applyPreset(0);
+						}
+						else if (inputGetKeyState(entry::Key::Key2))
+						{
+							applyPreset(1);
+						}
+						else if (inputGetKeyState(entry::Key::Key3))
+						{
+							applyPreset(2);
+						}
+						else if (inputGetKeyState(entry::Key::Key4))
+						{
+							applyPreset(3);
+						}
+					}
 					break;
 				}
 				//
@@ -852,6 +869,7 @@ namespace RealisticAtmosphere
 				bool usePrecomputed = (flags & HQFlags_ATMO_COMPUTE) == 0;
 				bool earthShadows = (flags & HQFlags_EARTH_SHADOWS) != 0;
 				bool lightShafts = (flags & HQFlags_LIGHT_SHAFTS) != 0;
+				bool indirectApprox = (flags & HQFlags_INDIRECT_APPROX) != 0;
 				ImGui::Checkbox("Precompute atmo", &usePrecomputed);
 				if (usePrecomputed)
 				{
@@ -866,6 +884,7 @@ namespace RealisticAtmosphere
 				}
 				ImGui::Checkbox("Terrain shadows", &earthShadows);
 				ImGui::Checkbox("Light shafts", &lightShafts);
+				ImGui::Checkbox("Approximate skylight", &indirectApprox);
 
 				if (usePrecomputed)
 				{
@@ -892,6 +911,15 @@ namespace RealisticAtmosphere
 				else
 				{
 					flags &= ~HQFlags_LIGHT_SHAFTS;
+				}
+
+				if (indirectApprox)
+				{
+					flags |= HQFlags_INDIRECT_APPROX;
+				}
+				else
+				{
+					flags &= ~HQFlags_INDIRECT_APPROX;
 				}
 				HQSettings_flags = *(float*)&flags;
 				ImGui::TreePop();
@@ -937,7 +965,7 @@ namespace RealisticAtmosphere
 					"Move: WASD\n"
 					"Sprint: Shift\n"
 					"GUI: F-Hide, G-Show\n"
-					"Presets: Shift + 1-5\n"
+					"Presets: Ctrl + 1-5\n"
 					"Place sphere: R"
 				);
 				ImGui::TreePop();

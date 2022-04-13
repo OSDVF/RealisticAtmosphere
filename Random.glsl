@@ -47,229 +47,123 @@ float random( vec3  v ) { return floatConstruct(hash(floatBitsToUint(v))); }
 float random( vec4  v ) { return floatConstruct(hash(floatBitsToUint(v))); }
 
 
-// https://www.shadertoy.com/view/4dXBRH
-float hash( in vec2 p )  // replace this by something better
+// https://github.com/BrianSharpe/GPU-Noise-Lib/blob/master/gpu_noise_lib.glsl
+vec4 Interpolation_C2_InterpAndDeriv( vec2 x ) { return x.xyxy * x.xyxy * ( x.xyxy * ( x.xyxy * ( x.xyxy * vec2( 6.0, 0.0 ).xxyy + vec2( -15.0, 30.0 ).xxyy ) + vec2( 10.0, -60.0 ).xxyy ) + vec2( 0.0, 30.0 ).xxyy ); }
+vec2 Interpolation_C2( vec2 x ) { return x * x * x * (x * (x * 6.0 - 15.0) + 10.0); }
+vec3 Interpolation_C2( vec3 x ) { return x * x * x * (x * (x * 6.0 - 15.0) + 10.0); }   //  6x^5-15x^4+10x^3	( Quintic Curve.  As used by Perlin in Improved Noise.  http://mrl.nyu.edu/~perlin/paper445.pdf )
+//
+//	FAST32_hash
+//	A very fast hashing function.  Requires 32bit support.
+//	http://briansharpe.wordpress.com/2011/11/15/a-fast-and-simple-32bit-floating-point-hash-function/
+//
+//	The 2D hash formula takes the form....
+//	hash = mod( coord.x * coord.x * coord.y * coord.y, SOMELARGEFLOAT ) / SOMELARGEFLOAT
+//	We truncate and offset the domain to the most interesting part of the noise.
+//	SOMELARGEFLOAT should be in the range of 400.0->1000.0 and needs to be hand picked.  Only some give good results.
+//	A 3D hash is achieved by offsetting the SOMELARGEFLOAT value by the Z coordinate
+//
+vec4 FAST32_hash_2D( vec2 gridcell )	//	generates a random number for each of the 4 cell corners
 {
-    p  = 50.0*fract( p*0.3183099 + vec2(0.71,0.113));
-    return -1.0+2.0*fract( p.x*p.y*(p.x+p.y) );
+    //	gridcell is assumed to be an integer coordinate
+    const vec2 OFFSET = vec2( 26.0, 161.0 );
+    const float DOMAIN = 71.0;
+    const float SOMELARGEFLOAT = 951.135664;
+    vec4 P = vec4( gridcell.xy, gridcell.xy + 1.0 );
+    P = P - floor(P * ( 1.0 / DOMAIN )) * DOMAIN;	//	truncate the domain
+    P += OFFSET.xyxy;								//	offset to interesting part of the noise
+    P *= P;											//	calculate and return the hash
+    return fract( P.xzxz * P.yyww * ( 1.0 / SOMELARGEFLOAT ) );
 }
 
-// return value noise (in x) and its derivatives (in yz)
-vec3 noised( in vec2 p )
+//	Value2D noise with derivatives
+//	returns vec3( value, xderiv, yderiv )
+//
+vec3 Value2D_Deriv( vec2 P )
 {
-    vec2 i = floor( p );
-    vec2 f = fract( p );
-	
-#if 1
-    // quintic interpolation
-    vec2 u = f*f*f*(f*(f*6.0-15.0)+10.0);
-    vec2 du = 30.0*f*f*(f*(f-2.0)+1.0);
-#else
-    // cubic interpolation
-    vec2 u = f*f*(3.0-2.0*f);
-    vec2 du = 6.0*f*(1.0-f);
-#endif    
-    
-    float va = hash( i + vec2(0.0,0.0) );
-    float vb = hash( i + vec2(1.0,0.0) );
-    float vc = hash( i + vec2(0.0,1.0) );
-    float vd = hash( i + vec2(1.0,1.0) );
-    
-    float k0 = va;
-    float k1 = vb - va;
-    float k2 = vc - va;
-    float k4 = va - vb - vc + vd;
+    //	establish our grid cell and unit position
+    vec2 Pi = floor(P);
+    vec2 Pf = P - Pi;
 
-    return vec3( va+(vb-va)*u.x+(vc-va)*u.y+(va-vb-vc+vd)*u.x*u.y, // value
-                du*(u.yx*(va-vb-vc+vd) + vec2(vb,vc) - va) );     // derivative                
+    //	calculate the hash.
+    vec4 hash = FAST32_hash_2D( Pi );
+
+    //	blend result and return
+    vec4 blend = Interpolation_C2_InterpAndDeriv( Pf );
+    vec4 res0 = mix( hash.xyxz, hash.zwyw, blend.yyxx );
+    return vec3( res0.x, 0.0, 0.0 ) + ( res0.yyw - res0.xxz ) * blend.xzw;
 }
 
-
-float hash(vec3 p)  // replace this by something better
+//
+//	Value Noise 2D
+//	Return value range of 0.0->1.0
+//	http://briansharpe.files.wordpress.com/2011/11/valuesample1.jpg
+//
+float Value2D( vec2 P )
 {
-    p  = fract( p*0.3183099+.1 );
-	p *= 17.0;
-    return fract( p.x*p.y*p.z*(p.x+p.y+p.z) );
+    //	establish our grid cell and unit position
+    vec2 Pi = floor(P);
+    vec2 Pf = P - Pi;
+
+    //	calculate the hash.
+    //	( various hashing methods listed in order of speed )
+    vec4 hash = FAST32_hash_2D( Pi );
+    //vec4 hash = FAST32_2_hash_2D( Pi );
+    //vec4 hash = BBS_hash_2D( Pi );
+    //vec4 hash = SGPP_hash_2D( Pi );
+    //vec4 hash = BBS_hash_hq_2D( Pi );
+
+    //	blend the results and return
+    vec2 blend = Interpolation_C2( Pf );
+    vec4 blend2 = vec4( blend, vec2( 1.0 - blend ) );
+    return dot( hash, blend2.zxzx * blend2.wwyy );
 }
 
-float noise( in vec3 x )
+void FAST32_hash_3D( vec3 gridcell, out vec4 lowz_hash, out vec4 highz_hash )	//	generates a random number for each of the 8 cell corners
 {
-    vec3 i = floor(x);
-    vec3 f = fract(x);
-    f = f*f*(3.0-2.0*f);
-	
-    return mix(mix(mix( hash(i+vec3(0,0,0)), 
-                        hash(i+vec3(1,0,0)),f.x),
-                   mix( hash(i+vec3(0,1,0)), 
-                        hash(i+vec3(1,1,0)),f.x),f.y),
-               mix(mix( hash(i+vec3(0,0,1)), 
-                        hash(i+vec3(1,0,1)),f.x),
-                   mix( hash(i+vec3(0,1,1)), 
-                        hash(i+vec3(1,1,1)),f.x),f.y),f.z);
-}
+    //    gridcell is assumed to be an integer coordinate
 
-// Fractal Brownian Motion
-float fbm6(vec3 x) {
-    const int noise_octaves_count = 6;
-	float v = 0.0;
-	float a = 0.5;
-	vec3 shift = vec3(100);
-	for (int i = 0; i < noise_octaves_count; ++i) {
-		v += a * noise(x);
-		x = x * 2.0 + shift;
-		a *= 0.5;
-	}
-	return v;
-}
+    //	TODO: 	these constants need tweaked to find the best possible noise.
+    //			probably requires some kind of brute force computational searching or something....
+    const vec2 OFFSET = vec2( 50.0, 161.0 );
+    const float DOMAIN = 69.0;
+    const float SOMELARGEFLOAT = 635.298681;
+    const float ZINC = 48.500388;
 
-float hash1( vec2 p )
+    //	truncate the domain
+    gridcell.xyz = gridcell.xyz - floor(gridcell.xyz * ( 1.0 / DOMAIN )) * DOMAIN;
+    vec3 gridcell_inc1 = step( gridcell, vec3( DOMAIN - 1.5 ) ) * ( gridcell + 1.0 );
+
+    //	calculate the noise
+    vec4 P = vec4( gridcell.xy, gridcell_inc1.xy ) + OFFSET.xyxy;
+    P *= P;
+    P = P.xzxz * P.yyww;
+    highz_hash.xy = vec2( 1.0 / ( SOMELARGEFLOAT + vec2( gridcell.z, gridcell_inc1.z ) * ZINC ) );
+    lowz_hash = fract( P * highz_hash.xxxx );
+    highz_hash = fract( P * highz_hash.yyyy );
+}
+//	Value Noise 3D
+//	Return value range of 0.0->1.0
+//	http://briansharpe.files.wordpress.com/2011/11/valuesample1.jpg
+//
+float Value3D( vec3 P )
 {
-    p  = 50.0*fract( p*0.3183099 );
-    return fract( p.x*p.y*(p.x+p.y) );
-}
-float noise( in vec2 x )
-{
-    vec2 p = floor(x);
-    vec2 w = fract(x);
-    #if 1
-    vec2 u = w*w*w*(w*(w*6.0-15.0)+10.0);
-    #else
-    vec2 u = w*w*(3.0-2.0*w);
-    #endif
+    //	establish our grid cell and unit position
+    vec3 Pi = floor(P);
+    vec3 Pf = P - Pi;
 
-    float a = hash1(p+vec2(0,0));
-    float b = hash1(p+vec2(1,0));
-    float c = hash1(p+vec2(0,1));
-    float d = hash1(p+vec2(1,1));
-    
-    return -1.0+2.0*(a + (b-a)*u.x + (c-a)*u.y + (a - b - c + d)*u.x*u.y);
-}
-const mat2 m2 = mat2(  0.80,  0.60,
-                      -0.60,  0.80 );
-float fbm_9( in vec2 x )
-{
-    float f = 1.9;
-    float s = 0.55;
-    float a = 0.0;
-    float b = 0.5;
-    for( int i=0; i<12; i++ )
-    {
-        float n = noise(x);
-        a += b*n;
-        b *= s;
-        x = f*m2*x;
-    }
-    
-	return a;
-}
+    //	calculate the hash.
+    //	( various hashing methods listed in order of speed )
+    vec4 hash_lowz, hash_highz;
+    FAST32_hash_3D( Pi, hash_lowz, hash_highz );
+    //FAST32_2_hash_3D( Pi, hash_lowz, hash_highz );
+    //BBS_hash_3D( Pi, hash_lowz, hash_highz );
+    //SGPP_hash_3D( Pi, hash_lowz, hash_highz );
 
-vec2 tcToAngle(vec2 tc)
-{
-    return tc * 2 * pi;
-}
-
-vec2 angleToTc(vec2 angle)
-{
-    vec2 x = angle/pi;
-    return vec2(x.x/2,x.y);
-}
-
-const vec3 up = vec3(0,1,0);
-const vec3 right = vec3(1,0,0);
-vec2 angles(vec3 pos)/*x from 0 to 2pi, y from 0 to pi*/
-{
-    /*vec2 tc1to1 = (2*tc)-1;
-
-	float x = cos(pi * tc1to1.x);
-    float y = sin(pi * tc1to1.x);
-    float z = cos(pi * tc1to1.y);
-    return vec3(x,y,z);*/
-
-    vec3 projectedToPlane = pos;
-    projectedToPlane.y = 0;
-
-    float angleYcos = dot(normalize(pos),up);
-    float angleXcos = dot(normalize(projectedToPlane),right);
-    float angleY = acos(angleYcos);
-    float angleX = acos(angleXcos);
-    /*if(pos.x<0)
-    {
-        angleY+=pi;
-    }*/
-    if(pos.z<0)
-    {
-        angleX+=pi;
-    }
-    
-    return vec2(angleX, angleY);
-}
-
-mat4 rotationX( float angle ) {
-	return mat4(	1.0,		0,			0,			0,
-			 		0, 	cos(angle),	-sin(angle),		0,
-					0, 	sin(angle),	 cos(angle),		0,
-					0, 			0,			  0, 		1);
-}
-
-mat4 rotationY( float angle ) {
-	return mat4(	cos(angle),		0,		sin(angle),	0,
-			 				0,		1.0,			 0,	0,
-					-sin(angle),	0,		cos(angle),	0,
-							0, 		0,				0,	1);
-}
-
-mat4 rotationZ( float angle ) {
-	return mat4(	cos(angle),		-sin(angle),	0,	0,
-			 		sin(angle),		cos(angle),		0,	0,
-							0,				0,		1,	0,
-							0,				0,		0,	1);
-}
-
-mat4 rotationMatrix(vec3 axis, float angle)
-{
-    axis = normalize(axis);
-    float s = sin(angle);
-    float c = cos(angle);
-    float oc = 1.0 - c;
-    
-    return mat4(oc * axis.x * axis.x + c,           oc * axis.x * axis.y - axis.z * s,  oc * axis.z * axis.x + axis.y * s,  0.0,
-                oc * axis.x * axis.y + axis.z * s,  oc * axis.y * axis.y + c,           oc * axis.y * axis.z - axis.x * s,  0.0,
-                oc * axis.z * axis.x - axis.y * s,  oc * axis.y * axis.z + axis.x * s,  oc * axis.z * axis.z + c,           0.0,
-                0.0,                                0.0,                                0.0,                                1.0);
-}
-
-vec3 angleToPos(vec2 angle)
-{
-    vec4 rotated = vec4(up,0) * rotationZ(angle.y);
-    rotated = rotated * rotationY(angle.x);
-    return rotated.xyz;
-}
-
-vec2 toUV(in vec3 n) 
-{		
-	vec2 uv;
-	
-	uv.x = atan(-n.x, n.y);
-	uv.x = (uv.x + pi / 2.0) / (pi * 2.0) + pi * (28.670 / 360.0);
-	
-	uv.y = acos(n.z) / pi;
-	
-	return uv;
-}
-
-// Uv range: [0, 1]
-vec3 toPolar(in vec2 uv)
-{	
-	float theta = 2.0 * pi * uv.x + - pi / 2.0;
-	float phi = pi * uv.y;
-	
-	vec3 n;
-	n.x = cos(theta) * sin(phi);
-	n.y = sin(theta) * sin(phi);
-	n.z = cos(phi);
-	
-	//n = normalize(n);
-	return n;
+    //	blend the results and return
+    vec3 blend = Interpolation_C2( Pf );
+    vec4 res0 = mix( hash_lowz, hash_highz, blend.z );
+    vec4 blend2 = vec4( blend.xy, vec2( 1.0 - blend.xy ) );
+    return dot( res0, blend2.zxzx * blend2.wwyy );
 }
 
 vec3 tangentFromSpherical(float theta, float phi)
@@ -301,7 +195,8 @@ vec3 sphereTangent(vec3 normal)
     }
     return tangentFromSpherical(theta1, phi1);
 }
-
+const mat2 m2 = mat2(  0.80,  0.60,
+                      -0.60,  0.80 );
 
 vec4 fbmTerrain (vec2 st) {
 	
@@ -312,8 +207,8 @@ vec4 fbmTerrain (vec2 st) {
     float lastOctave = 0.5;
     
     // Loop of octaves
-    for (int i = 0; i < 10; i++) {
-        vec3 randomWithDerivates = noised(st);
+    for (int i = 0; i < 9; i++) {
+        vec3 randomWithDerivates = Value2D_Deriv(st);
 		vec3 n = randomWithDerivates * amplitude;
         if(i>=8)
         {

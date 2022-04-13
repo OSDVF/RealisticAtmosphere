@@ -65,9 +65,10 @@ vec3 lightPoint(Planet planet, vec3 p, vec3 normal)
             }
         }
         float mu_l = dot(sphNormal, light.direction);
-        vec3 thisLightColor = (GetIrradiance(planet, irradianceTable, r, mu_l, lightIndexInTexture) *
+        vec3 thisLightColor = HQSettings_indirectApprox /*use precomputed indirect lighting?*/ ? /*initially illuminated only by sky*/
+                            (GetIrradiance(planet, irradianceTable, r, mu_l, lightIndexInTexture) *
                             (1.0 + dot(normal, sphNormal)) * 0.5 *
-                            SkyRadianceToLuminance.xyz);
+                            SkyRadianceToLuminance.xyz) : vec3(0);
         if(!inShadow)
         {
             thisLightColor += light.irradiance *

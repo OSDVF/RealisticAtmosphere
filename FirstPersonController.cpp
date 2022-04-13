@@ -44,10 +44,6 @@ void FirstPersonController::Update(float deltaTime, bool mouseLocked, entry::Mou
 	if (glm::length(velocity) > speed) {
 		velocity = normalize(velocity) * speed;
 	}
-	if (bx::isNan(velocity.x))
-	{
-		__debugbreak();
-	}
 
 	//
 	// Movement

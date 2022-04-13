@@ -119,8 +119,18 @@ void raytraceSecondary(inout vec3 colorOut, in vec3 origin, in vec3 normal, in v
 
         Hit objectHit = findObjectHit(secondaryRay);
         Hit planetHit;
-        vec3 atmColor;
-        bool terrainWasHit = planetsWithAtmospheres(secondaryRay, objectHit.t, /*out*/ atmColor, /*inout*/ throughput, /*out*/ planetHit);
+        vec3 atmColor = vec3(0);
+        bool terrainWasHit;
+        if(HQSettings_indirectApprox && objectHit.hitObjectIndex == -1)
+        {
+            //Indirect lighting from atmosphere is already computed for terrain
+            //So compute only lighting reflected from terrain
+            terrainWasHit = terrainColorAndHit(planets[0], secondaryRay, 0, objectHit.t, throughput, atmColor, planetHit);
+        }
+        else
+        {
+            terrainWasHit = planetsWithAtmospheres(secondaryRay, objectHit.t, /*out*/ atmColor, /*inout*/ throughput, /*out*/ planetHit);
+        }
         colorOut += atmColor * invIndirectCount;
         if(terrainWasHit)
         {

@@ -12,6 +12,7 @@
 #define HQFlags_EARTH_SHADOWS 1u
 #define HQFlags_ATMO_COMPUTE 2u
 #define HQFlags_LIGHT_SHAFTS 4u
+#define HQFlags_INDIRECT_APPROX 8u
 
 #ifdef BGFX_SHADER_LANGUAGE_GLSL
 const float POSITIVE_INFINITY = 3.402823466e+38;
@@ -48,23 +49,23 @@ int bounces = 0;
 int perAtmosphere = 64;
 int type = 0;
 vec4 MultisamplingSettings = {*(float*)&perPixel,*(float*)&bounces,*(float*)&perAtmosphere,*(float*)&type};
-vec4 QualitySettings = {5, 50, 12000, 0.4};
+vec4 QualitySettings = {5, 50, 63000, 0.4};
 int currentSample = 0;
 int directSamples = 1;//Direct samples per all samples
 unsigned int flags = HQFlags_NONE;
 vec4 HQSettings = {*(float*)&flags, *(float*)&currentSample, *(float*)&directSamples, 1};
-vec4 LightSettings = {1000, 0.03, 0.4, -0.09};
+vec4 LightSettings = {2000, 0.03, 0.4, -0.09};
 int lightTerrainDetectSteps = 40;
-vec4 LightSettings2 = {0.5, *(float*)&lightTerrainDetectSteps, 3, 0.8};
+vec4 LightSettings2 = {0.5, *(float*)&lightTerrainDetectSteps, 3, 0.6};
 vec4 PlanetMaterial = {1700, 2300, .4, .75};
-int planetSteps = 164;
+int planetSteps = 152;
 vec4 RaymarchingSteps = {*(float*)&planetSteps, 0.01, 0.005, 0.5};
 vec4 SunRadianceToLuminance;
 vec4 SkyRadianceToLuminance;
 vec4 CloudsSettings[] = {
                             vec4(128, 4, 200000, 1000),//samples, light samples, far plane, light far plane
-                            vec4(20,  5, 0.01, 0),//Terrain steps, cheap downsamle, cheap thres, max powder
-                            vec4(1e-4,0.1,0.3, 4),//sampling thres, aerosol amount, powder density, fade power
+                            vec4(50,  5, 0.01, 0),//Terrain steps, cheap downsamle, cheap thres, max powder
+                            vec4(1e-4, 0.1, 0.3, 4),//sampling thres, aerosol amount, powder density, fade power
                             vec4(128, 200000, 8)// light shafts steps, light shafts far plane, occlusion power
                         };
 #endif
@@ -127,6 +128,7 @@ vec4 CloudsSettings[] = {
 bool HQSettings_atmoCompute = (floatBitsToUint(HQSettings_flags) & HQFlags_ATMO_COMPUTE) != 0u;
 bool HQSettings_earthShadows = (floatBitsToUint(HQSettings_flags) & HQFlags_EARTH_SHADOWS) != 0u;
 bool HQSettings_lightShafts = (floatBitsToUint(HQSettings_flags) & HQFlags_LIGHT_SHAFTS) != 0u;
+bool HQSettings_indirectApprox = (floatBitsToUint(HQSettings_flags) & HQFlags_INDIRECT_APPROX) != 0u;
 #endif
 
 #include "Structures.glsl"

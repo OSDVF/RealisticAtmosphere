@@ -169,6 +169,38 @@ void precomputedAtmosphere(Planet p, Ray ray, float toT, bool terrainWasHit, ino
 }
 
 float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDistance, inout vec3 luminance, inout vec3 transmittance, bool terrainWasHit);
+bool terrainColorAndHit(Planet p, Ray ray, float fromDistance, inout float toDistance, inout vec3 throughput, inout vec3 luminance, out Hit terrainHit)
+{
+	// Out parameters
+	vec2 normalMap;
+	vec3 sphNormal;
+	vec3 worldSamplePos;
+	float sampleHeight;
+
+	if(raymarchTerrain(p, ray, fromDistance, /* inout */ toDistance,
+			/* the rest params are "out" */
+					normalMap, sphNormal, worldSamplePos, sampleHeight ))
+	{
+		vec3 worldNormal = terrainNormal(normalMap, sphNormal);
+		vec3 planetAlbedo = terrainColor(p, toDistance, worldSamplePos, worldNormal, sampleHeight);
+		cloudsForPlanet(p,ray,fromDistance,toDistance,Clouds_terrainSteps,throughput,luminance);
+		if(!DEBUG_ATMO_OFF)
+		{
+			//Compute atmosphere contribution between terrain and camera
+			if(HQSettings_atmoCompute)
+				raymarchAtmosphere(p, ray, fromDistance, toDistance, /*inout*/ luminance, /*inout*/ throughput, true);
+			else
+			{
+				precomputedAtmosphere(p, ray, toDistance, true, luminance, throughput);
+			}
+		}
+		luminance += planetAlbedo * lightPoint(p, worldSamplePos, worldNormal) * throughput;
+		throughput *= planetAlbedo;
+		terrainHit = Hit(worldSamplePos, worldNormal, -1, toDistance);
+		return true;
+	}
+	return false;
+}
 
 /**
   * Does a raymarching through the atmosphere and planet
@@ -200,52 +232,22 @@ bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out vec
 		//Limit the srating point to the screen
 		fromDistance = max(fromDistance, 0);
 
-		// Out parameters
-		vec2 normalMap;
-		vec3 worldSamplePos, sphNormal;
-		float sampleHeight;
-		if(raymarchTerrain(p, ray, fromDistance, /* inout */ toDistance,
-			/* the rest params are "out" */
-					normalMap, sphNormal, worldSamplePos, sampleHeight ))
+		if(terrainColorAndHit(p, ray, fromDistance, toDistance, throughput, luminance, planetHit))
 		{
-			vec3 worldNormal = terrainNormal(normalMap, sphNormal);
-			vec3 planetAlbedo;
-			if(DEBUG_NORMALS)
-			{
-				planetAlbedo = worldNormal * 0.5 + 0.5;
-			}
-			else
-			{
-				planetAlbedo = terrainColor(p, toDistance, worldSamplePos, worldNormal, sampleHeight);
-			}
-			cloudsForPlanet(p,ray,fromDistance,toDistance,Clouds_terrainSteps,throughput,luminance);
-			if(!DEBUG_ATMO_OFF)
-			{
-				if(HQSettings_atmoCompute)
-					raymarchAtmosphere(p, ray, fromDistance, toDistance, /*inout*/ luminance, /*inout*/ throughput, true);
-				else
-				{
-					precomputedAtmosphere(p, ray, toDistance, true, luminance, throughput);
-				}
-			}
-			luminance += planetAlbedo * lightPoint(p, worldSamplePos, worldNormal) * throughput;
-			throughput *= planetAlbedo;
-			planetHit = Hit(worldSamplePos, worldNormal, -1, toDistance);
 			return true;
 		}
-		else
-		{
-			cloudsForPlanet(p,ray,fromDistance,toDistance,Clouds_iter,throughput,luminance);
-			if(!DEBUG_ATMO_OFF)
-			{	
-				if(HQSettings_atmoCompute)
-					raymarchAtmosphere(p, ray, fromDistance, toDistance, /*inout*/ luminance,/*inout*/ throughput, false);
-				else
-				{
-					precomputedAtmosphere(p, ray, toDistance, false, luminance, throughput);
-				}
+		// Only atmosphere is in ray's path
+		cloudsForPlanet(p,ray,fromDistance,toDistance,Clouds_iter,throughput,luminance);
+		if(!DEBUG_ATMO_OFF)
+		{	
+			if(HQSettings_atmoCompute)
+				raymarchAtmosphere(p, ray, fromDistance, toDistance, /*inout*/ luminance,/*inout*/ throughput, false);
+			else
+			{
+				precomputedAtmosphere(p, ray, toDistance, false, luminance, throughput);
 			}
 		}
+		
 		vec3 worldHitPos = ray.origin + ray.direction * toDistance;
 		planetHit = Hit(worldHitPos, normalize(worldHitPos - p.center), -1, surfaceIntersection ? surfaceDistance : POSITIVE_INFINITY);
 		return false;

@@ -24,6 +24,8 @@ const float flareSize1 = 0;
 const float flareBrightness0 = 0.6;
 const float flareBrightness2 = 0.2;
 
+
+//https://www.shadertoy.com/view/4sX3Rs
 vec3 lensflare(vec2 uv, vec2 pos, float occlusion)
 {
 	vec2 main = uv-pos;
@@ -31,12 +33,13 @@ vec3 lensflare(vec2 uv, vec2 pos, float occlusion)
 	vec2 uvd = uv*(length(uv));
 	
 	float ang = atan(main.x,main.y);
-	float dist=length(main); dist = pow(dist,.1);
+	float dist=length(main);
+	dist = pow(dist,.1);
 	
 	float f0 = 1.0/(length(uv-pos)*flareSmallness0+1.0);
 	
-	f0 = f0 + f0*(sin(2*noise(vec2(sin(ang*2.+pos.x)*4.0 - cos(ang*3.+pos.y),0) - 1)*16.)*.1 + dist*flareSize1);
-	f0 *= flareBrightness0;
+	f0 = f0 + f0*(sin(2*Value2D(vec2(sin(ang*2.+pos.x)*4.0 - cos(ang*3.+pos.y),0) - 1)*16.)*.1 + dist*flareSize1);
+	f0 *= flareBrightness0 * min(1.5 - dist,1);
 	float f1 = max(0.01-pow(length(uv+1.2*pos),1.9),.0)*7.0;
 
 	float f2 = max(1.0/(1.0+32.0*pow(length(uvd+0.8*pos),2)),.0)*00.25 * centerness;

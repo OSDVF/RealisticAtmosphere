@@ -12,10 +12,10 @@ float cloudsMediumPrec(CloudLayer c, vec3 x) {
     float v = 0.0;
 	float a = 0.5;
 	vec3 shift = vec3(100);
-    level1 = noise(x) * noise(x * c.coverage);
+    level1 = Value3D(x) * Value3D(x * c.coverage);
 	x = x * 2.0 + shift;
 	for (int i = 0; i < 2; ++i) {
-		v += a * noise(x);
+		v += a * Value3D(x);
 		x = x * 2.0 + shift;
 		a *= 0.5;
 	}
@@ -27,10 +27,10 @@ float cloudsMediumPrec(CloudLayer c, vec3 x, out float level1) {
     float v = 0.0;
 	float a = 0.5;
 	vec3 shift = vec3(100);
-    level1 = noise(x) * noise(x * c.coverage);
+    level1 = Value3D(x) * Value3D(x * c.coverage);
 	x = x * 2.0 + shift;
 	for (int i = 0; i < 2; ++i) {
-		v += a * noise(x);
+		v += a * Value3D(x);
 		x = x * 2.0 + shift;
 		a *= 0.5;
 	}
@@ -42,10 +42,10 @@ float cloudsHighPrec(CloudLayer c, vec3 x, out float level1) {
     float v = 0.0;
 	float a = 0.5;
 	vec3 shift = vec3(100);
-    level1 = noise(x) * noise(x * c.coverage);
+    level1 = Value3D(x) * Value3D(x * c.coverage);
 	x = x * 2.0 + shift;
 	for (int i = 0; i < 5; ++i) {
-		v += a * noise(x);
+		v += a * Value3D(x);
 		x = x * 2.0 + shift;
 		a *= 0.5;
 	}
@@ -59,7 +59,7 @@ float cloudsHigherOrders(vec3 x)
 	vec3 shift = vec3(100);
 	x = x * 2.0;
 	for (int i = 0; i < 5; ++i) {
-		v += a * noise(x);
+		v += a * Value3D(x);
 		x = x * 2.0 + shift;
 		a *= 0.5;
 	}
@@ -67,7 +67,7 @@ float cloudsHigherOrders(vec3 x)
 }
 
 float cloudsCheap(CloudLayer c, vec3 x) {
-	return noise(x) * noise(x * c.coverage);
+	return Value3D(x) * Value3D(x * c.coverage);
 }
 
 vec3 miePhaseFunction(float cosNu)

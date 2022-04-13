@@ -61,12 +61,12 @@ namespace DefaultScene
 			0 //Material index
 		},
 		{//Blue sphere
-			{-18260, 1706, 16065}, //Position
+			{22832, 2022, 13326}, //Position
 			{1}, //Radius
 			1, //Material index
 		},
 		{//White sphere
-			{-18260, 1706, 16065.7}, //Position
+			{22832.2, 2022, 13326.7}, //Position
 			{1}, //Radius
 			2, //Material index
 		},
@@ -112,7 +112,7 @@ namespace DefaultScene
 			7994,//Rayleigh scale height
 
 			vec3(0,0,0),//Absorption (ozone) extinction coefficients - will be assigned later
-			earthRadius + 5000, // Mountains radius
+			earthRadius + 4000, // Mountains radius
 
 			atmosphereRadius - earthRadius, // Atmosphere thickness
 			25000,//Ozone peak height - height at which the ozone has maximum relative density
@@ -125,7 +125,7 @@ namespace DefaultScene
 			0,//Last light index (moon would be 1)
 			CloudLayer
 			{
-				{-23911, 0, 20000}, // position
+				{-69000, -2300, -300000}, // position
 				0.09,//coverage
 
 				cloudsStart, // Clouds start radius
@@ -162,15 +162,15 @@ namespace DefaultScene
 	const Preset presets[] = {
 		Preset
 		{
-			{-15654, 1661, 15875},
-			{-4, -273, 0},
-			{-1.5, 1.5}
+			{23796, 2266, 16636},
+			{-4.962, -550, 0},
+			{3.648, 1.501}
 		},
 		Preset
 		{
-			{-18253, 1709, 16070},
-			{-5, 113, 0},
-			{-1.5, 1.5}
+			{22849, 2031, 13328},
+			{-14, -601, 0},
+			{3.648,  1.501}
 		}
 	};
 };
