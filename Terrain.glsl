@@ -40,6 +40,23 @@ vec3 triplanarSample(sampler2DArray sampl, vec4 pos, vec3 normal, float lod)
 	return color.xyz;
 }
 
+float terrainCoverage(vec2 uv)
+{
+	return clamp(
+		pow(
+			(
+				Value2D(uv*0.0000002)*.5 +//basically inlined fBm
+				Value2D(uv*0.0000004)*.25 +
+				Value2D(uv*0.0000008)*.125 +
+				Value2D(uv*0.0000016)*.625 +
+				Value2D(uv*0.0000032)*.3125 +
+				Value2D(uv*0.0000064)*.15625
+			)*
+			2-1.1,//make more sea than land
+			11.0),//sharpen the shores
+		-0.1,1.0);
+}
+
 vec3 terrainColor(Planet planet, float T, vec3 pos, vec3 normal, float elev)
 {
 	// Triplanar texture mapping in world space
@@ -59,7 +76,7 @@ vec3 terrainColor(Planet planet, float T, vec3 pos, vec3 normal, float elev)
 				),
 			triplanarSample(terrainTextures, vec4(pos,3), normal, lod),
 			max(clamp(pow(-(normal.x+normal.z)*7,15),0,1),1 - smoothstep(700,1000,randomizedElev))
-		);
+		) * terrainCoverage(pos.xz);
 }
 
 float pow3(float f) {
@@ -120,11 +137,14 @@ float terrainSDF(Planet planet, float sampleHeight /*above sea level*/, vec2 uv,
 	// Result interpolated texture
 	bump = biLerp(bump1,bump2,bump3,bump4,sm.y,sm.x);
 	#else
+	float coverage = terrainCoverage(uv);
 	bump = texture(heightmapTexture, planetUV(uv)).xyz;
+	bump.x *= coverage;
+	bump.yz = mix(vec2(0.5), bump.yz, coverage);
 	#endif
 
 	double mountainHeight = double(planet.mountainsRadius) -  double(planet.surfaceRadius);
-	double surfaceHeight = bump.x * mountainHeight;
+	float surfaceHeight = bump.x * float(mountainHeight);
 	outNormalMap = bump.gb;
 	return float(sampleHeight - surfaceHeight);
 }

@@ -51,6 +51,7 @@ float random( vec4  v ) { return floatConstruct(hash(floatBitsToUint(v))); }
 vec4 Interpolation_C2_InterpAndDeriv( vec2 x ) { return x.xyxy * x.xyxy * ( x.xyxy * ( x.xyxy * ( x.xyxy * vec2( 6.0, 0.0 ).xxyy + vec2( -15.0, 30.0 ).xxyy ) + vec2( 10.0, -60.0 ).xxyy ) + vec2( 0.0, 30.0 ).xxyy ); }
 vec2 Interpolation_C2( vec2 x ) { return x * x * x * (x * (x * 6.0 - 15.0) + 10.0); }
 vec3 Interpolation_C2( vec3 x ) { return x * x * x * (x * (x * 6.0 - 15.0) + 10.0); }   //  6x^5-15x^4+10x^3	( Quintic Curve.  As used by Perlin in Improved Noise.  http://mrl.nyu.edu/~perlin/paper445.pdf )
+vec3 Interpolation_C2_Deriv( vec3 x ) { return x * x * (x * (x * 30.0 - 60.0) + 30.0); }
 //
 //	FAST32_hash
 //	A very fast hashing function.  Requires 32bit support.
@@ -164,6 +165,91 @@ float Value3D( vec3 P )
     vec4 res0 = mix( hash_lowz, hash_highz, blend.z );
     vec4 blend2 = vec4( blend.xy, vec2( 1.0 - blend.xy ) );
     return dot( res0, blend2.zxzx * blend2.wwyy );
+}
+
+//
+//	Value3D_Deriv
+//	Value3D noise with derivatives
+//	returns vec4( value, xderiv, yderiv, zderiv )
+//
+vec4 Value3D_Deriv( vec3 P )
+{
+    //	establish our grid cell and unit position
+    vec3 Pi = floor(P);
+    vec3 Pf = P - Pi;
+
+    //	calculate the hash.
+    //	( various hashing methods listed in order of speed )
+    vec4 hash_lowz, hash_highz;
+    FAST32_hash_3D( Pi, hash_lowz, hash_highz );
+
+    //	blend the results and return
+    vec3 blend = Interpolation_C2( Pf );
+    vec4 res0 = mix( hash_lowz, hash_highz, blend.z );
+    vec4 res1 = mix( res0.xyxz, res0.zwyw, blend.yyxx );
+    vec4 res3 = mix( vec4( hash_lowz.xy, hash_highz.xy ), vec4( hash_lowz.zw, hash_highz.zw ), blend.y );
+    vec2 res4 = mix( res3.xz, res3.yw, blend.x );
+    return vec4( res1.x, 0.0, 0.0, 0.0 ) + ( vec4( res1.yyw, res4.y ) - vec4( res1.xxz, res4.x ) ) * vec4( blend.x, Interpolation_C2_Deriv( Pf ) );
+}
+// https://www.shadertoy.com/view/st2cWc
+#define sepsize 2.0
+#define seplight 0.6
+#define sepanim 0.01
+vec4 cloud9(vec3 v)
+{
+    vec4 outp = vec4(0.0);
+    for (int i = 1; i <= 9; i++)
+    {
+        outp += (2*Value3D_Deriv(
+                    vec3(-143*i,842*i,0)
+                    + v 
+                        *
+                        vec3(
+                            1.,
+                            1.,
+                            pow(float(i),sepanim)
+                            )
+                        *
+                        pow(float(i),sepsize)
+                    )-1)
+                    *
+                    (
+                        1.0
+                        /
+                        pow(float(i),seplight)
+                    );
+    }
+    return outp;
+}
+vec4 cloud2(vec3 v)
+{
+    vec4 outp = vec4(0.0);
+    for (int i = 1; i <= 2; i++)
+    {
+        outp += (2*Value3D_Deriv(
+                    vec3(-143*i,842*i,0)
+                    + v 
+                        *
+                        vec3(
+                            1.,
+                            1.,
+                            pow(float(i),sepanim)
+                            )
+                        *
+                        pow(float(i),sepsize)
+                    )-1)
+                    *
+                    (
+                        1.0
+                        /
+                        pow(float(i),seplight)
+                    );
+    }
+    return outp;
+}
+float micro(vec3 v)
+{
+    return dot(normalize(cloud9(v).xyz),vec3(normalize(cloud2(v).xy),0.));
 }
 
 vec3 tangentFromSpherical(float theta, float phi)
