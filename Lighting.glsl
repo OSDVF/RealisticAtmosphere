@@ -58,7 +58,7 @@ vec3 lightPoint(Planet planet, vec3 p, vec3 normal)
         {
             for(int k = 0; k < planets.length();++k)
             {
-                if(raymarchTerrainL(planets[k], shadowRay, 0.01, LightSettings_farPlane))
+                if(raymarchTerrainD(planets[k], shadowRay, 0.01/*offset a bit to reduce self-shadowing*/, LightSettings_farPlane))
                 {
                     inShadow = true;
                 }

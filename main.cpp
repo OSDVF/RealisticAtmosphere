@@ -130,7 +130,6 @@ namespace RealisticAtmosphere
 		bgfx::UniformHandle _normalBufferSampler = BGFX_INVALID_HANDLE;
 		bgfx::UniformHandle _hqSettingsHandle = BGFX_INVALID_HANDLE;
 		bgfx::UniformHandle _lightSettings = BGFX_INVALID_HANDLE;
-		bgfx::UniformHandle _lightSettings2 = BGFX_INVALID_HANDLE;
 		bgfx::UniformHandle _cloudsSettings = BGFX_INVALID_HANDLE;
 		bgfx::UniformHandle _sunRadToLumHandle = BGFX_INVALID_HANDLE;
 		bgfx::UniformHandle _skyRadToLumHandle = BGFX_INVALID_HANDLE;
@@ -172,16 +171,20 @@ namespace RealisticAtmosphere
 		// The Entry library will call this method after setting up window manager
 		void init(int32_t argc, const char* const* argv, uint32_t width, uint32_t height) override
 		{
-			// Initial pathtracing settings values
+			// Initial realtime raytracing settings values.
 			_settingsBackup[0] = QualitySettings;
 			_settingsBackup[1] = MultisamplingSettings;
 			_settingsBackup[2] = RaymarchingSteps;
-			_settingsBackup[3] = LightSettings;
-			_settingsBackup[4] = LightSettings2;
-			_settingsBackup[5] = HQSettings;
-			/*_settingsBackup[6] = CloudsSettings[0];
-			_settingsBackup[7] = CloudsSettings[1];
-			_settingsBackup[8] = CloudsSettings[2];*/
+			_settingsBackup[3] = LightSettings[0];
+			_settingsBackup[4] = LightSettings[1];
+			_settingsBackup[5] = LightSettings[2];
+			_settingsBackup[6] = HQSettings;
+
+			// Display earth shadows in pathtracing
+			*(uint32_t*)&HQSettings_flags |= HQFlags_EARTH_SHADOWS;
+			/*_settingsBackup[7] = CloudsSettings[0];
+			_settingsBackup[8] = CloudsSettings[1];
+			_settingsBackup[9] = CloudsSettings[2];*/
 
 			applyPreset(0);//Set default player and sun positions
 
@@ -235,8 +238,7 @@ namespace RealisticAtmosphere
 			_multisamplingSettingsHandle = bgfx::createUniform("MultisamplingSettings", bgfx::UniformType::Vec4);
 			_qualitySettingsHandle = bgfx::createUniform("QualitySettings", bgfx::UniformType::Vec4);
 			_hqSettingsHandle = bgfx::createUniform("HQSettings", bgfx::UniformType::Vec4);
-			_lightSettings = bgfx::createUniform("LightSettings", bgfx::UniformType::Vec4);
-			_lightSettings2 = bgfx::createUniform("LightSettings2", bgfx::UniformType::Vec4);
+			_lightSettings = bgfx::createUniform("LightSettings", bgfx::UniformType::Vec4, sizeof(LightSettings) / sizeof(vec4));
 			_cloudsSettings = bgfx::createUniform("CloudsSettings", bgfx::UniformType::Vec4, sizeof(CloudsSettings) / sizeof(vec4));
 
 			_displayingShaderProgram = loadProgram("rt_display.vert", "rt_display.frag");
@@ -441,7 +443,6 @@ namespace RealisticAtmosphere
 			bgfx::destroy(_multisamplingSettingsHandle);
 			bgfx::destroy(_hqSettingsHandle);
 			bgfx::destroy(_lightSettings);
-			bgfx::destroy(_lightSettings2);
 			bgfx::destroy(_qualitySettingsHandle);
 			bgfx::destroy(_heightmapTextureHandle);
 			bgfx::destroy(_raytracerDepthAlbedoBuffer);
@@ -808,8 +809,7 @@ namespace RealisticAtmosphere
 			bgfx::setUniform(_planetMaterialHandle, &PlanetMaterial);
 			bgfx::setUniform(_raymarchingStepsHandle, &RaymarchingSteps);
 			bgfx::setUniform(_hqSettingsHandle, &HQSettings);
-			bgfx::setUniform(_lightSettings, &LightSettings);
-			bgfx::setUniform(_lightSettings2, &LightSettings2);
+			bgfx::setUniform(_lightSettings, LightSettings, sizeof(LightSettings) / sizeof(vec4));
 			bgfx::setUniform(_sunRadToLumHandle, &SunRadianceToLuminance);
 			bgfx::setUniform(_skyRadToLumHandle, &SkyRadianceToLuminance);
 			bgfx::setUniform(_cloudsSettings, CloudsSettings, sizeof(CloudsSettings) / sizeof(vec4));
@@ -855,21 +855,23 @@ namespace RealisticAtmosphere
 			swap(_settingsBackup[0], QualitySettings);
 			swap(_settingsBackup[1], MultisamplingSettings);
 			swap(_settingsBackup[2], RaymarchingSteps);
-			swap(_settingsBackup[3], LightSettings);
-			swap(_settingsBackup[4], LightSettings2);
-			swap(_settingsBackup[5], HQSettings);
-			//swap(_settingsBackup[6], CloudsSettings);
+			swap(_settingsBackup[3], LightSettings[0]);
+			swap(_settingsBackup[4], LightSettings[1]);
+			swap(_settingsBackup[5], LightSettings[2]);
+			swap(_settingsBackup[6], HQSettings);
+			//swap(_settingsBackup[7], CloudsSettings);
 		}
 
 		void drawPerformanceGUI()
 		{
 			if (ImGui::TreeNodeEx("Performance", ImGuiTreeNodeFlags_DefaultOpen))
 			{
-				flags = *(int*)&HQSettings_flags;
+				flags = *(uint32_t*)&HQSettings_flags;
 				bool usePrecomputed = (flags & HQFlags_ATMO_COMPUTE) == 0;
 				bool earthShadows = (flags & HQFlags_EARTH_SHADOWS) != 0;
 				bool lightShafts = (flags & HQFlags_LIGHT_SHAFTS) != 0;
 				bool indirectApprox = (flags & HQFlags_INDIRECT_APPROX) != 0;
+				bool reduceBanding = (flags & HQFlags_REDUCE_BANDING) != 0;
 				ImGui::Checkbox("Precompute atmo", &usePrecomputed);
 				if (usePrecomputed)
 				{
@@ -882,9 +884,18 @@ namespace RealisticAtmosphere
 				{
 					ImGui::InputInt("Samples", (int*)&Multisampling_perAtmospherePixel);
 				}
-				ImGui::Checkbox("Terrain shadows", &earthShadows);
 				ImGui::Checkbox("Light shafts", &lightShafts);
 				ImGui::Checkbox("Approximate skylight", &indirectApprox);
+				ImGui::Checkbox("Reduce banding", &reduceBanding);
+				if (reduceBanding)
+				{
+					ImGui::InputFloat("Amount", &LightSettings_bandingFactor);
+					flags |= HQFlags_REDUCE_BANDING;
+				}
+				else
+				{
+					flags &= ~HQFlags_REDUCE_BANDING;
+				}
 
 				if (usePrecomputed)
 				{
@@ -895,8 +906,14 @@ namespace RealisticAtmosphere
 					flags |= HQFlags_ATMO_COMPUTE;
 				}
 
+				ImGui::Checkbox("Terrain shadows", &earthShadows);
 				if (earthShadows)
 				{
+					ImGui::InputFloat("Cascade distance", &LightSettings_shadowCascade);
+					if (ImGui::IsItemHovered())
+					{
+						ImGui::SetTooltip("First cascade of shadows is more precise, second has lower quality (quite blocky)");
+					}
 					flags |= HQFlags_EARTH_SHADOWS;
 				}
 				else

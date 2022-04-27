@@ -7,16 +7,19 @@
 #include "Lighting.glsl"
 uniform sampler2D cloudsMieLUT;
 
+float Coverage(CloudLayer c, vec3 x)
+{
+    return 1.0 - micro(x * c.coverage);
+}
+
 float cloudsMediumPrec(CloudLayer c, vec3 x) {
 	float level1 = 0.0;
     float v = 0.0;
 	float a = 0.5;
-	vec3 shift = vec3(100);
-    level1 = Value3D(x) * Value3D(x * c.coverage);
-	x = x * 2.0 + shift;
-	for (int i = 0; i < 2; ++i) {
+    level1 = Coverage(c,x);
+	for (int i = 0; i < 3; ++i) {
 		v += a * Value3D(x);
-		x = x * 2.0 + shift;
+		x = x * 2.0;
 		a *= 0.5;
 	}
 	return level1 - v;
@@ -26,12 +29,10 @@ float cloudsMediumPrec(CloudLayer c, vec3 x, out float level1) {
 	level1 = 0.0;
     float v = 0.0;
 	float a = 0.5;
-	vec3 shift = vec3(100);
-    level1 = Value3D(x) * Value3D(x * c.coverage);
-	x = x * 2.0 + shift;
-	for (int i = 0; i < 2; ++i) {
+    level1 = Coverage(c,x);
+	for (int i = 0; i < 3; ++i) {
 		v += a * Value3D(x);
-		x = x * 2.0 + shift;
+		x = x * 2.0;
 		a *= 0.5;
 	}
 	return level1 - v;
@@ -41,12 +42,10 @@ float cloudsHighPrec(CloudLayer c, vec3 x, out float level1) {
 	level1 = 0.0;
     float v = 0.0;
 	float a = 0.5;
-	vec3 shift = vec3(100);
-    level1 = Value3D(x) * Value3D(x * c.coverage);
-	x = x * 2.0 + shift;
-	for (int i = 0; i < 5; ++i) {
+    level1 = Coverage(c,x);
+	for (int i = 0; i < 6; ++i) {
 		v += a * Value3D(x);
-		x = x * 2.0 + shift;
+		x = x * 2.0;
 		a *= 0.5;
 	}
 	return level1 - v;
@@ -56,18 +55,16 @@ float cloudsHigherOrders(vec3 x)
 {
     float v = 0.0;
 	float a = 0.5;
-	vec3 shift = vec3(100);
-	x = x * 2.0;
-	for (int i = 0; i < 5; ++i) {
+	for (int i = 0; i < 6; ++i) {
 		v += a * Value3D(x);
-		x = x * 2.0 + shift;
+		x = x * 2.0;
 		a *= 0.5;
 	}
 	return v;
 }
 
 float cloudsCheap(CloudLayer c, vec3 x) {
-	return Value3D(x) * Value3D(x * c.coverage);
+	return Coverage(c,x);
 }
 
 vec3 miePhaseFunction(float cosNu)
@@ -111,22 +108,22 @@ float heightFade(float cloudDensity, CloudLayer c, float height)
 
 float sampleCloudM(CloudLayer c, vec3 cloudSpacePos, float height)
 {
-    float cloudDensity = clamp(pow(cloudsMediumPrec(c, cloudSpacePos * c.sizeMultiplier) * c.density, c.sharpness), 0, 1);
+    float cloudDensity = pow(clamp(cloudsMediumPrec(c, cloudSpacePos * c.sizeMultiplier) * c.density, 0.0, 1.0), c.sharpness);
     return heightFade(cloudDensity, c, height);
 }
 float sampleCloudL(CloudLayer c, vec3 cloudSpacePos, float height, out float cheapDensity)
 {
-    float cloudDensity = clamp(pow(cloudsMediumPrec(c, cloudSpacePos * c.sizeMultiplier, cheapDensity) * c.density, c.sharpness), 0, 1);
+    float cloudDensity = pow(clamp(cloudsMediumPrec(c, cloudSpacePos * c.sizeMultiplier, cheapDensity) * c.density, 0.0, 1.0), c.sharpness);
     return heightFade(cloudDensity, c, height);
 }
 float sampleCloudH(CloudLayer c, vec3 cloudSpacePos, float height, out float cheapDensity)
 {
-    float cloudDensity = clamp(pow(cloudsHighPrec(c, cloudSpacePos * c.sizeMultiplier, cheapDensity) * c.density, c.sharpness), 0, 1);
+    float cloudDensity = pow(clamp(cloudsHighPrec(c, cloudSpacePos * c.sizeMultiplier, cheapDensity) * c.density, 0.0, 1.0), c.sharpness);
     return heightFade(cloudDensity, c, height);
 }
 float sampleCloud(CloudLayer c, vec3 cloudSpacePos, float height, float level1)
 {
-    float cloudDensity = clamp(pow((level1 - cloudsHigherOrders(cloudSpacePos * c.sizeMultiplier)) * c.density, c.sharpness), 0, 1);
+    float cloudDensity = pow(clamp((level1 - cloudsHigherOrders(cloudSpacePos * c.sizeMultiplier)) * c.density, 0.0, 1.0), c.sharpness);
     return heightFade(cloudDensity, c, height);
 }
 float sampleCloudCheap(CloudLayer c, vec3 cloudSpacePos)
@@ -134,11 +131,32 @@ float sampleCloudCheap(CloudLayer c, vec3 cloudSpacePos)
     return clamp(cloudsCheap(c, cloudSpacePos * c.sizeMultiplier),0,1);
 }
 
+//For reducing banding
+float ditheringNoise(Ray ray)
+{
+    return LightSettings_bandingFactor
+    *   mix(   //fBm construction
+            Value3D(ray.direction*30)*0.5+
+            Value3D(ray.direction*60)*0.25+
+            Value3D(ray.direction*120)*0.125,
+
+            random(ray.direction),
+            0.5
+        )
+    - (0.5 * LightSettings_bandingFactor);
+}
+
 void raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps, inout vec3 transmittance, inout vec3 luminance)
 {
 	float t = fromT;
 	float segmentLength = (toT - fromT) / steps;
     int iter = int(steps);
+    
+    if(HQSettings_reduceBanding)
+    //Reduce banding by offseting origin about random fraction
+    {
+        ray.origin += ray.direction * ditheringNoise(ray);
+    }
 
     for(uint l = planet.firstLight; l <= planet.lastLight; l++)
     {
@@ -170,13 +188,13 @@ void raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps,
                         // Shadow rays:
                         float lOpticalDepth = 0;
                         Ray shadowRay = Ray(cloudSpacePos, sunDir);
-                        float dummy, toDistance, toDistanceInner;
-                        raySphereIntersection(planet.center, c.endRadius, shadowRay, /*out*/ dummy, /*out*/ toDistance);
+                        float dummy, lToDistance, toDistanceInner;
+                        raySphereIntersection(planet.center, c.endRadius, shadowRay, /*out*/ dummy, /*out*/ lToDistance);
                         raySphereIntersection(planet.center, c.startRadius, shadowRay, /*out*/ toDistanceInner, /*out*/ dummy);
                         if(toDistanceInner > 0)
-                            toDistance = min(toDistance, toDistanceInner);
+                            lToDistance = min(lToDistance, toDistanceInner);
 
-                        float lSegmentLength = min(toDistance,Clouds_lightFarPlane)/Clouds_lightSteps;
+                        float lSegmentLength = min(lToDistance,Clouds_lightFarPlane)/Clouds_lightSteps;
                         vec3 lightRayStep = sunDir * lSegmentLength;
                         vec3 lCloudSamplePos = cloudSpacePos;
                         vec3 lWorldSamplePos = worldSpacePos;
@@ -187,8 +205,8 @@ void raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps,
                             lOpticalDepth += lDensity * lSegmentLength;
                             if(s == Clouds_lightSteps - 2)
                             {
-                                lightRayStep *= 8;
-                                lSegmentLength *= 8;
+                                lightRayStep *= 3;
+                                lSegmentLength *= 3;
                             }
                             lCloudSamplePos += lightRayStep;
                             lWorldSamplePos += lightRayStep;
@@ -198,8 +216,23 @@ void raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps,
                         float beer = exp(-lOpticalDepth * c.extinctionCoef);
                         float opticalDepth = density * segmentLength;
                         transmittance *= exp(-opticalDepth * c.extinctionCoef);
+                        /*if(isinf(transmittance.x))
+                        {
+                            luminance = vec3(0,1,0);
+                            return;
+                        }
+                        if(isinf(beer.x))
+                        {
+                            luminance = vec3(0,1,1);
+                            return;
+                        }*/
                        
                         scatteringSum += beer * density * PlanetIlluminance(planet, worldSpacePos, phase) * transmittance;
+                        if(isinf(scatteringSum.x))
+                        {
+                            luminance = vec3(1,0,0);
+                            return;
+                        }
                         if(transmittance.x < 0.001 && transmittance.y < 0.001 && transmittance.z < 0.001)
                             break;
                     }

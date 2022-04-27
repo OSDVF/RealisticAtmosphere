@@ -125,8 +125,9 @@ namespace DefaultScene
 			0,//Last light index (moon would be 1)
 			CloudLayer
 			{
-				{-69000, -2300, -300000}, // position
-				0.09,//coverage
+				{-110000, 200, -150000}, // position
+				//{-130000, 9701,-150000},//error check position
+				0.003,//coverage
 
 				cloudsStart, // Clouds start radius
 				cloudsEnd, // Clouds end radius
@@ -138,7 +139,7 @@ namespace DefaultScene
 				0.000855 * 0.999,// Scattering coefficient = ext. coef * single scat.albedo
 				0.000855,// Extinction coefficient
 
-				{1e-4,2e-4,1e-4},//size
+				{2e-4,4e-4,2e-4},//size
 				5 // sharpness
 			},
 			0,//First light index in precomputed textures
@@ -170,6 +171,12 @@ namespace DefaultScene
 		{
 			{22849, 2031, 13328},
 			{-14, -601, 0},
+			{3.648,  1.501}
+		},
+		Preset
+		{
+			{0, 2000000, 0},
+			{-50, -601, 0},
 			{3.648,  1.501}
 		}
 	};

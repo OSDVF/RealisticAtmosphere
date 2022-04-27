@@ -348,7 +348,9 @@
     <UpToDateCheckInput Include="**\*.glsl" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Clouds.glsl" />
+    <None Include="Clouds.glsl">
+      <FileType>Text</FileType>
+    </None>
     <None Include="Common.glsl" />
     <None Include="DirectIrradiance.comp" />
     <None Include="IndirectIrradiance.comp" />

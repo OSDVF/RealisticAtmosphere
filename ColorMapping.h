@@ -1,3 +1,8 @@
+/**
+* \author Ondøej Sabela
+* \
+*/
+
 #pragma once
 #include <vector>
 #include "GLSLTypeCompatibility.h"

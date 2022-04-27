@@ -13,6 +13,7 @@
 #define HQFlags_ATMO_COMPUTE 2u
 #define HQFlags_LIGHT_SHAFTS 4u
 #define HQFlags_INDIRECT_APPROX 8u
+#define HQFlags_REDUCE_BANDING 16u
 
 #ifdef BGFX_SHADER_LANGUAGE_GLSL
 const float POSITIVE_INFINITY = 3.402823466e+38;
@@ -31,8 +32,7 @@ uniform vec4 QualitySettings;
 uniform vec4 PlanetMaterial;
 uniform vec4 RaymarchingSteps;
 uniform vec4 HQSettings;
-uniform vec4 LightSettings;
-uniform vec4 LightSettings2;
+uniform vec4 LightSettings[3];
 uniform vec4 SunRadianceToLuminance;
 uniform vec4 SkyRadianceToLuminance;
 uniform vec4 CloudsSettings[4];
@@ -52,11 +52,14 @@ vec4 MultisamplingSettings = {*(float*)&perPixel,*(float*)&bounces,*(float*)&per
 vec4 QualitySettings = {5, 50, 63000, 0.4};
 int currentSample = 0;
 int directSamples = 1;//Direct samples per all samples
-unsigned int flags = HQFlags_NONE;
+unsigned int flags = HQFlags_INDIRECT_APPROX | HQFlags_REDUCE_BANDING;
 vec4 HQSettings = {*(float*)&flags, *(float*)&currentSample, *(float*)&directSamples, 1};
-vec4 LightSettings = {2000, 0.03, 0.4, -0.09};
 int lightTerrainDetectSteps = 40;
-vec4 LightSettings2 = {0.5, *(float*)&lightTerrainDetectSteps, 3, 0.6};
+vec4 LightSettings[] = {
+                            vec4(2000, 0.03, 0.4, -0.09),
+                            vec4(0.5, *(float*)&lightTerrainDetectSteps, 3, 0.6),
+                            vec4(2000, 700)
+                        };
 vec4 PlanetMaterial = {1700, 2300, .4, .75};
 int planetSteps = 152;
 vec4 RaymarchingSteps = {*(float*)&planetSteps, 0.01, 0.005, 0.5};
@@ -64,7 +67,7 @@ vec4 SunRadianceToLuminance;
 vec4 SkyRadianceToLuminance;
 vec4 CloudsSettings[] = {
                             vec4(128, 4, 200000, 1000),//samples, light samples, far plane, light far plane
-                            vec4(50,  5, 0.01, 0),//Terrain steps, cheap downsamle, cheap thres, max powder
+                            vec4(50,  5, 0.001, 0),//Terrain steps, cheap downsamle, cheap thres, max powder
                             vec4(1e-4, 0.1, 0.3, 4),//sampling thres, aerosol amount, powder density, fade power
                             vec4(128, 200000, 8)// light shafts steps, light shafts far plane, occlusion power
                         };
@@ -80,14 +83,16 @@ vec4 CloudsSettings[] = {
 #define QualitySettings_farPlane QualitySettings.z
 #define QualitySettings_optimism QualitySettings.w
 
-#define LightSettings_farPlane LightSettings.x
-#define LightSettings_precision LightSettings.y
-#define LightSettings_noRayThres LightSettings.z
-#define LightSettings_viewThres LightSettings.w
-#define LightSettings_cutoffDist LightSettings2.x
-#define LightSettings_shadowSteps LightSettings2.y
-#define LightSettings_gradient LightSettings2.z
-#define LightSettings_terrainOptimMult LightSettings2.w
+#define LightSettings_farPlane LightSettings[0].x
+#define LightSettings_precision LightSettings[0].y
+#define LightSettings_noRayThres LightSettings[0].z
+#define LightSettings_viewThres LightSettings[0].w
+#define LightSettings_cutoffDist LightSettings[1].x
+#define LightSettings_shadowSteps LightSettings[1].y
+#define LightSettings_gradient LightSettings[1].z
+#define LightSettings_terrainOptimMult LightSettings[1].w
+#define LightSettings_shadowCascade LightSettings[2].x
+#define LightSettings_bandingFactor LightSettings[2].y
 
 #define HQSettings_flags HQSettings.x
 #define HQSettings_sampleNum HQSettings.y
@@ -129,6 +134,7 @@ bool HQSettings_atmoCompute = (floatBitsToUint(HQSettings_flags) & HQFlags_ATMO_
 bool HQSettings_earthShadows = (floatBitsToUint(HQSettings_flags) & HQFlags_EARTH_SHADOWS) != 0u;
 bool HQSettings_lightShafts = (floatBitsToUint(HQSettings_flags) & HQFlags_LIGHT_SHAFTS) != 0u;
 bool HQSettings_indirectApprox = (floatBitsToUint(HQSettings_flags) & HQFlags_INDIRECT_APPROX) != 0u;
+bool HQSettings_reduceBanding = (floatBitsToUint(HQSettings_flags) & HQFlags_REDUCE_BANDING) != 0u;
 #endif
 
 #include "Structures.glsl"

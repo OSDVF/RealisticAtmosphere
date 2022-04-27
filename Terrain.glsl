@@ -210,7 +210,7 @@ bool raymarchTerrain(Planet planet, Ray ray, float fromDistance, inout float toD
 	return false;
 }
 
-// Reduced version, that uses different uniform parameters
+// Reduced version (for shadows and light shafts), that uses different uniform parameters
 bool raymarchTerrainL(Planet planet, Ray ray, float fromDistance, float toDistance)
 {
 	float currentT = fromDistance;
@@ -223,6 +223,41 @@ bool raymarchTerrainL(Planet planet, Ray ray, float fromDistance, float toDistan
 		vec3 worldSamplePos;
 
 		float sampleHeight = getSampleParameters(planet, ray, currentT, /*out*/sphNormal, /*out*/worldSamplePos);
+		float terrainDistance = terrainSDF(planet, sampleHeight, worldSamplePos.xz, /*out*/ normalMap);
+		if(terrainDistance < LightSettings_precision * currentT)
+		{
+			// Sufficient distance to claim as "hit"
+			return true;
+		}
+		if(terrainDistance > toDistance)
+			return false;
+
+		currentT += QualitySettings_optimism * terrainDistance;
+	}
+	return false;
+}
+
+// "Dynamic" cascaded version
+bool raymarchTerrainD(Planet planet, Ray ray, float fromDistance, float toDistance)
+{
+	float currentT = fromDistance;
+	toDistance = min(toDistance, LightSettings_farPlane);
+
+	vec3 worldSamplePos = Camera_position;
+	for(int i = 0; i < floatBitsToInt(LightSettings_shadowSteps);i++)
+	{
+		vec2 normalMap;
+		vec3 sphNormal;
+		float sampleHeight;
+		if(distance(worldSamplePos, Camera_position) > LightSettings_shadowCascade)
+		{
+			sampleHeight = getSampleParameters(planet, ray, currentT, /*out*/sphNormal, /*out*/worldSamplePos);
+		}
+		else
+		{
+			sampleHeight = getSampleParametersH(planet, ray, currentT, /*out*/sphNormal, /*out*/worldSamplePos);
+		}
+		
 		float terrainDistance = terrainSDF(planet, sampleHeight, worldSamplePos.xz, /*out*/ normalMap);
 		if(terrainDistance < LightSettings_precision * currentT)
 		{
