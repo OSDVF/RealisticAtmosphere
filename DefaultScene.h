@@ -154,6 +154,7 @@ namespace DefaultScene
 			float x = 0;
 			float y = 0;
 		} sun;
+		float cloudsFarPlane = 200000.0f;
 		struct {
 			float x = 0;
 			float y = 0;
@@ -165,7 +166,8 @@ namespace DefaultScene
 		{
 			{23796, 2266, 16636},
 			{-4.962, -550, 0},
-			{3.648, 1.484}
+			{3.648, 1.484},
+			150000
 		},
 		Preset
 		{
@@ -183,7 +185,8 @@ namespace DefaultScene
 		{
 			{0, 2000000, 0},
 			{-50, -601, 0},
-			{3.648,  1.501}
+			{3.648,  1.501},
+			4900000
 		}
 	};
 };

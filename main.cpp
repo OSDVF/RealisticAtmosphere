@@ -190,7 +190,6 @@ namespace RealisticAtmosphere
 			*(int*)&RaymarchingSteps.x = 300;
 			// 300 cloud raymarching steps
 			Clouds_iter = 300;
-			Clouds_farPlane = 200000;
 			LightSettings_farPlane = 10000;
 
 			applyPreset(0);//Set default player and sun positions
@@ -1391,10 +1390,12 @@ namespace RealisticAtmosphere
 
 		void applyPreset(uint8_t preset)
 		{
-			_person.Camera.SetPosition(DefaultScene::presets[preset].camera);
-			_person.Camera.SetRotation(DefaultScene::presets[preset].rotation);
-			_sunAngle = DefaultScene::presets[preset].sun.y;
-			_secondSunAngle = DefaultScene::presets[preset].sun.x;
+			auto presetObj = DefaultScene::presets[preset];
+			_person.Camera.SetPosition(presetObj.camera);
+			_person.Camera.SetRotation(presetObj.rotation);
+			_sunAngle = presetObj.sun.y;
+			_secondSunAngle = presetObj.sun.x;
+			Clouds_farPlane = presetObj.cloudsFarPlane;
 		}
 
 		void inputSlicesCount()
