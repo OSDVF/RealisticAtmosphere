@@ -60,7 +60,7 @@ vec4 LightSettings[] = {
                             vec4(0.5, *(float*)&lightTerrainDetectSteps, 3, 0.6),
                             vec4(2000, 700)
                         };
-vec4 PlanetMaterial = {1700, 2300, .4, .75};
+vec4 PlanetMaterial = {1700, 2300, .4, .4};
 int planetSteps = 152;
 vec4 RaymarchingSteps = {*(float*)&planetSteps, 0.01, 0.005, 0.5};
 vec4 SunRadianceToLuminance;

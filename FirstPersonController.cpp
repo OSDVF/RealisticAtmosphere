@@ -12,14 +12,10 @@ void FirstPersonController::Update(float deltaTime, bool mouseLocked, entry::Mou
 	if (running == true) {
 		speed = RunSpeed;
 	}
-	else if (running && isMoving && isGrounded) {
-		speed = WalkSpeed;
-	}
 	else {
 		speed = WalkSpeed / AirModifier;
 	}
 
-	isGrounded = false;//TODO
 	jump = keyboardState[SDL_SCANCODE_SPACE];
 	bool up = keyboardState[SDL_SCANCODE_W];
 	bool left = keyboardState[SDL_SCANCODE_A];

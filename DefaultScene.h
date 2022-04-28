@@ -117,10 +117,10 @@ namespace DefaultScene
 			atmosphereRadius - earthRadius, // Atmosphere thickness
 			25000,//Ozone peak height - height at which the ozone has maximum relative density
 			(1.0 / 15000.0),//Ozone troposphere density coefficient - for heights below ozonePeakHeight
-			-(1.0 / 15000.0),//Ozone stratosphere density coefficient - for heights above peak
+			-(2.0/3.0),//Ozone troposphere density constant
 
-			-(1.0),//Ozone troposphere density constant
-			(7.0 / 3.0),//Ozone stratosphere density constant
+			-(1.0 / 15000.0),//Ozone stratosphere density coefficient - for heights above peak
+			(8.0 / 3.0),//Ozone stratosphere density constant
 			0,//First light index (sun = 0)
 			0,//Last light index (moon would be 1)
 			CloudLayer

@@ -77,7 +77,7 @@ namespace RealisticAtmosphere
 		uint32_t _debugFlags = 0;
 		uint32_t _resetFlags = 0;
 		int _tonemappingType = 0;
-		bool _showFlare = false;
+		bool _showFlare = true;
 		float _flareVisibility = 1.0f;
 		int _flareOcclusionSamples = 40;
 		entry::MouseState _mouseState;
@@ -277,7 +277,7 @@ namespace RealisticAtmosphere
 
 			// Compute spectrum mapping functions
 			ColorMapping::FillSpectrum(SkyRadianceToLuminance, SunRadianceToLuminance, DefaultScene::planetBuffer[0], DefaultScene::directionalLightBuffer[0]);
-			DefaultScene::materialBuffer[0].emission =
+			DefaultScene::materialBuffer[0].emission = /*sun emission calcualation from its angular radius*/
 				bx::div(
 					DefaultScene::directionalLightBuffer[0].irradiance,
 					M_PI * DefaultScene::sunAngularRadius * DefaultScene::sunAngularRadius
@@ -865,7 +865,9 @@ namespace RealisticAtmosphere
 			swap(_settingsBackup[4], LightSettings[1]);
 			swap(_settingsBackup[5], LightSettings[2]);
 			swap(_settingsBackup[6], HQSettings);
-			//swap(_settingsBackup[7], CloudsSettings);
+			swap(_settingsBackup[7], CloudsSettings[0]);
+			swap(_settingsBackup[8], CloudsSettings[1]);
+			swap(_settingsBackup[9], CloudsSettings[2]);
 		}
 
 		void drawPerformanceGUI()

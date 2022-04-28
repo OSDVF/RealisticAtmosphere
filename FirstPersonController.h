@@ -7,8 +7,8 @@ class FirstPersonController
 public:
 	MouseCamera Camera;
 	bool CanJump = true;
-	float WalkSpeed = 1;
-	float RunSpeed = 4;
+	float WalkSpeed = 1.4;
+	float RunSpeed = 10;
 	float AirModifier = 1.5f;
 	float Friction = 0.86f;
 	float JumpForce = 40;
@@ -20,8 +20,6 @@ public:
 	// Current physical velocity of the controller
 	glm::vec3 velocity;
 	bool isMoving = true;
-	bool isGrounded = true;
-	bool isUnderWater = true;
 	bool isJumping = false;
 
 	void Update(float deltaTime, bool mouseLocked, entry::MouseState mouseState);
