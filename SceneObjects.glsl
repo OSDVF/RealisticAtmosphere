@@ -68,7 +68,7 @@ vec4 SkyRadianceToLuminance;
 vec4 CloudsSettings[] = {
                             vec4(128, 4, 200000, 1000),//samples, light samples, far plane, light far plane
                             vec4(50,  5, 0.001, 0),//Terrain steps, cheap downsamle, cheap thres, max powder
-                            vec4(1e-4, 0.1, 0.3, 4),//sampling thres, aerosol amount, powder density, fade power
+                            vec4(1e-4, 0.1, 0.3, 2),//sampling thres, aerosol amount, powder density, fade power
                             vec4(128, 200000, 8)// light shafts steps, light shafts far plane, occlusion power
                         };
 #endif

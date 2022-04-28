@@ -104,7 +104,7 @@ namespace RealisticAtmosphere
 		float _tanFovX = 0;
 		float _fovY = 45;
 		FirstPersonController _person;
-		vec4 _settingsBackup[7];
+		vec4 _settingsBackup[10];
 
 		// Save these to be returned in place when the terrain rendering is re-enabled
 		float prevTerrainSteps = 0;
@@ -179,12 +179,19 @@ namespace RealisticAtmosphere
 			_settingsBackup[4] = LightSettings[1];
 			_settingsBackup[5] = LightSettings[2];
 			_settingsBackup[6] = HQSettings;
-
-			// Display earth shadows in pathtracing
-			*(uint32_t*)&HQSettings_flags |= HQFlags_EARTH_SHADOWS;
-			/*_settingsBackup[7] = CloudsSettings[0];
+			_settingsBackup[7] = CloudsSettings[0];
 			_settingsBackup[8] = CloudsSettings[1];
-			_settingsBackup[9] = CloudsSettings[2];*/
+			_settingsBackup[9] = CloudsSettings[2];
+
+			// Pathtracing must have higher quality
+			// Display earth shadows
+			*(uint32_t*)&HQSettings_flags |= HQFlags_EARTH_SHADOWS;
+			// 300 planet raymarching steps
+			*(int*)&RaymarchingSteps.x = 300;
+			// 300 cloud raymarching steps
+			Clouds_iter = 300;
+			Clouds_farPlane = 200000;
+			LightSettings_farPlane = 10000;
 
 			applyPreset(0);//Set default player and sun positions
 
@@ -1245,9 +1252,9 @@ namespace RealisticAtmosphere
 					{
 						ImGui::InputFloat3("Speed", &_cloudsWind.x, "%e");
 					}
-					ImGui::InputFloat("Steps", &Clouds_iter, 1, 1);
-					ImGui::InputFloat("LightSteps", &Clouds_lightSteps, 1, 1);
-					ImGui::InputFloat("TerrainSteps", &Clouds_terrainSteps, 1, 1);
+					ImGui::InputFloat("Steps", &Clouds_iter, 1, 1, "%.0f");
+					ImGui::InputFloat("LightSteps", &Clouds_lightSteps, 1, 1, "%.0f");
+					ImGui::InputFloat("TerrainSteps", &Clouds_terrainSteps, 1, 1, "%.0f");
 					ImGui::InputFloat("LightFarPlane", &Clouds_lightFarPlane);
 					ImGui::InputFloat("Render Distance", &Clouds_farPlane);
 
@@ -1290,6 +1297,7 @@ namespace RealisticAtmosphere
 					ImGui::PushItemWidth(120);
 					ImGui::InputFloat("Density", &cloudsLayer.density, 0, 0, "%e");
 					ImGui::InputFloat("Powder density", &Clouds_powderDensity, 0, 0, "%e");
+					ImGui::InputFloat("Powder maximum", &Clouds_maxPowder, 0, 0, "%e");
 					ImGui::InputFloat("Sharpness", &cloudsLayer.sharpness);
 					ImGui::InputFloat("Lower gradient", &cloudsLayer.lowerGradient);
 					ImGui::InputFloat("Upper Cutoff", &cloudsLayer.upperGradient);
