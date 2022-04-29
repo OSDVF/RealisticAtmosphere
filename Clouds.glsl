@@ -96,7 +96,7 @@ vec3 combinedPhaseFunction(float cosNu)
 
 float powder(float density) {
     float powderApprox = 1.0 - exp(-density * Clouds_powderDensity * 2.0);
-    return clamp(powderApprox * 2.0, 0, 1);
+    return clamp(powderApprox, 0, 1);
 }
 
 float heightFade(float cloudDensity, CloudLayer c, float height)
@@ -213,11 +213,16 @@ void raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps,
                         }
                     
                         // Single scattering
-                        float beer = exp(-lOpticalDepth * c.extinctionCoef);
+                        float beer = min(
+                                        exp(-lOpticalDepth * c.extinctionCoef) + Clouds_beerAmbient,
+                                    1);
                         float opticalDepth = density * segmentLength;
                         transmittance *= exp(-opticalDepth * c.extinctionCoef);
-                       
-                        scatteringSum += beer * density * PlanetIlluminance(planet, worldSpacePos, phase) * transmittance;
+
+                        // Multiple scattering approximation
+                        float pw = max(powder(opticalDepth), Clouds_powderAmbient);
+
+                        scatteringSum += beer * pw * density * PlanetIlluminance(planet, worldSpacePos, phase) * transmittance;
                         if(transmittance.x < 0.001 && transmittance.y < 0.001 && transmittance.z < 0.001)
                             break;
                     }

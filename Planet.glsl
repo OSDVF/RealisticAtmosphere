@@ -211,6 +211,7 @@ bool terrainColorAndHit(Planet p, Ray ray, float fromDistance, inout float toDis
 bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out vec3 luminance, inout vec3 throughput, out Hit planetHit)
 {
 	luminance = vec3(0);
+	planetHit.t = POSITIVE_INFINITY;
 	for (int k = 0; k < planets.length(); ++k)
     {
         Planet p = planets[k];
@@ -225,6 +226,7 @@ bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out vec
 		bool surfaceIntersection;
         if (surfaceIntersection = raySphereIntersection(p.center, p.surfaceRadius, ray, surfaceDistance, t1) && t1 > 0) 
         {
+			planetHit.t = surfaceDistance;
 			tMax = min(tMax, max(0, surfaceDistance));//Limit by planet surface or "some object" distance
         }
 		//Limit the computation bounds according to the Hit
@@ -249,7 +251,9 @@ bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out vec
 		}
 		
 		vec3 worldHitPos = ray.origin + ray.direction * toDistance;
-		planetHit = Hit(worldHitPos, normalize(worldHitPos - p.center), -1, surfaceIntersection ? surfaceDistance : POSITIVE_INFINITY);
+		planetHit.position = worldHitPos;
+		planetHit.normalAtHit = normalize(worldHitPos - p.center);
+		planetHit.hitObjectIndex = -1;
 		return false;
 	}
 }

@@ -190,7 +190,9 @@ namespace RealisticAtmosphere
 			*(int*)&RaymarchingSteps.x = 300;
 			// 200 cloud raymarching steps
 			Clouds_iter = 200;
-			Clouds_lightSteps = 8;//Double light steps
+			Clouds_terrainSteps = 90;
+			Clouds_lightSteps = 10;//Double light steps
+			Clouds_lightFarPlane = 30000;
 			LightSettings_farPlane = 10000;
 
 			applyPreset(0);//Set default player and sun positions
@@ -557,6 +559,10 @@ namespace RealisticAtmosphere
 						{
 							applyPreset(3);
 						}
+						else if (inputGetKeyState(entry::Key::Key5))
+						{
+							applyPreset(4);
+						}
 					}
 					break;
 				}
@@ -662,7 +668,9 @@ namespace RealisticAtmosphere
 			if (screenSpaceSun.z > 0 && _showFlare)
 			{
 				// If the sun is not behind the camera
-				flareBrightness = bx::dot(Camera[1].toVec3(), DefaultScene::directionalLightBuffer[0].direction) * _flareVisibility;
+				flareBrightness = std::fmax(
+						bx::dot(Camera[1].toVec3(), DefaultScene::directionalLightBuffer[0].direction) * _flareVisibility,
+					0);
 			}
 
 			uint32_t packedTonemappingAndOcclusion =
@@ -1298,12 +1306,30 @@ namespace RealisticAtmosphere
 					}
 					ImGui::PushItemWidth(120);
 					ImGui::InputFloat("Density", &cloudsLayer.density, 0, 0, "%e");
-					ImGui::InputFloat("Powder density", &Clouds_powderDensity, 0, 0, "%e");
-					if (ImGui::IsItemHovered())
+
+					bool useMultScattApprox = Clouds_beerAmbient != 0;
+					static float prevBeerAmbient = 0.f;
+					static float prevPowderDensity = 0.f;
+					static float prevPowderAmbient = 1.f;
+					if (ImGui::Checkbox("Multiple scat. approx", &useMultScattApprox))
 					{
-						ImGui::SetTooltip("Simulates multiple scattering in the form of \"powder\" effect.");
+						swap(prevBeerAmbient, Clouds_beerAmbient);
+						swap(prevPowderDensity, Clouds_powderDensity);
+						swap(prevPowderAmbient, Clouds_powderAmbient);
 					}
-					ImGui::InputFloat("Powder maximum", &Clouds_maxPowder, 0, 0, "%e");
+					{
+						ImGui::TreePush();
+						ImGui::InputFloat("Ambient", &Clouds_beerAmbient);
+						ImGui::PushItemWidth(90);
+						ImGui::InputFloat("Powder density", &Clouds_powderDensity);
+						if (ImGui::IsItemHovered())
+						{
+							ImGui::SetTooltip("Simulates multiple scattering in the form of \"powder\" effect.");
+						}
+						ImGui::InputFloat("Powder ambient", &Clouds_powderAmbient);
+						ImGui::PopItemWidth();
+						ImGui::TreePop();
+					}
 					ImGui::InputFloat("Sharpness", &cloudsLayer.sharpness);
 					ImGui::InputFloat("Lower gradient", &cloudsLayer.lowerGradient);
 					ImGui::InputFloat("Upper gradient", &cloudsLayer.upperGradient);

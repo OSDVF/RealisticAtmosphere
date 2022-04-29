@@ -58,7 +58,7 @@ int lightTerrainDetectSteps = 40;
 vec4 LightSettings[] = {
                             vec4(2000, 0.03, 0.4, -0.09),
                             vec4(0.5, *(float*)&lightTerrainDetectSteps, 3, 0.6),
-                            vec4(2000, 700)
+                            vec4(2000, 700, 1e-2)
                         };
 vec4 PlanetMaterial = {1700, 2300, .4, .4};
 int planetSteps = 152;
@@ -67,9 +67,9 @@ vec4 SunRadianceToLuminance;
 vec4 SkyRadianceToLuminance;
 vec4 CloudsSettings[] = {
                             vec4(128, 4, 200000, 1500),//samples, light samples, far plane, light far plane
-                            vec4(50,  5, 0.001, 0),//Terrain steps, cheap downsamle, cheap thres, max powder
-                            vec4(1e-4, 0.1, 0.3, 2),//sampling thres, aerosol amount, powder density, fade power
-                            vec4(128, 200000, 8)// light shafts steps, light shafts far plane, occlusion power
+                            vec4(50,  5, 0.001, 0.7),//Terrain steps, cheap downsamle, cheap thres, powder ambient
+                            vec4(1e-4, 0.1, 0.2, 2),//sampling thres, aerosol amount, powder density, fade power
+                            vec4(128, 200000, 8, 0.08)// light shafts steps, light shafts far plane, occlusion power, beer ambient
                         };
 #endif
 
@@ -93,6 +93,7 @@ vec4 CloudsSettings[] = {
 #define LightSettings_terrainOptimMult LightSettings[1].w
 #define LightSettings_shadowCascade LightSettings[2].x
 #define LightSettings_bandingFactor LightSettings[2].y
+#define LightSettings_secondaryOffset LightSettings[2].z
 
 #define HQSettings_flags HQSettings.x
 #define HQSettings_sampleNum HQSettings.y
@@ -115,16 +116,17 @@ vec4 CloudsSettings[] = {
 #define Clouds_terrainSteps CloudsSettings[1].x
 #define Clouds_cheapDownsample CloudsSettings[1].y
 #define Clouds_cheapThreshold CloudsSettings[1].z
-#define Clouds_maxPowder CloudsSettings[1].w
+#define Clouds_powderAmbient CloudsSettings[1].w
 
 #define Clouds_sampleThres CloudsSettings[2].x
 #define Clouds_aerosols CloudsSettings[2].y
 #define Clouds_powderDensity CloudsSettings[2].z
 #define Clouds_fadePower CloudsSettings[2].w
 
-#define Clouds_occlusionSteps CloudsSettings[2].x
-#define Clouds_occlusionFarPlane CloudsSettings[2].y
-#define Clouds_occlusionPower CloudsSettings[2].z
+#define Clouds_occlusionSteps CloudsSettings[3].x
+#define Clouds_occlusionFarPlane CloudsSettings[3].y
+#define Clouds_occlusionPower CloudsSettings[3].z
+#define Clouds_beerAmbient CloudsSettings[3].w
 
 #define CurrentChunk_x floatBitsToInt(SunRadianceToLuminance.w)
 #define CurrentChunk_y floatBitsToInt(SkyRadianceToLuminance.w)
