@@ -19,9 +19,6 @@
     <Filter Include="Shader Programs\Compute Render">
       <UniqueIdentifier>{b46bef74-eb81-4dca-b264-6239aa485556}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Shader Programs\Vertex Types">
-      <UniqueIdentifier>{f54f71dc-9166-4cee-8fdb-6c0c1fbf9aa7}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Shader Programs\Material Shaders">
       <UniqueIdentifier>{47bb6430-e373-484d-8620-66b57912ff35}</UniqueIdentifier>
     </Filter>
@@ -31,12 +28,12 @@
     <Filter Include="Shader Programs\Compute Render\Precompute">
       <UniqueIdentifier>{45dbcda8-1b37-46c9-aa17-da6f91ddc01a}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\Vertex Types">
+      <UniqueIdentifier>{f54f71dc-9166-4cee-8fdb-6c0c1fbf9aa7}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="TestCube.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="ScreenSpaceQuad.cpp">
@@ -51,126 +48,114 @@
     <ClCompile Include="ColorMapping.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="CloudsBlue.cpp">
+    <ClCompile Include="LUTS\CloudsBlue.cpp">
       <Filter>Source Files\Phase Functions</Filter>
     </ClCompile>
-    <ClCompile Include="CloudsGreen.cpp">
+    <ClCompile Include="LUTS\CloudsGreen.cpp">
       <Filter>Source Files\Phase Functions</Filter>
     </ClCompile>
-    <ClCompile Include="CloudsRed.cpp">
+    <ClCompile Include="LUTS\CloudsRed.cpp">
       <Filter>Source Files\Phase Functions</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="normal_render.vert">
+    <None Include="ShadersSource\Buffers.glsl">
       <Filter>Shader Programs</Filter>
     </None>
-    <None Include="shaders\scripts\shaderc32debug.ps1">
-      <Filter>Shader Programs\Compile Scripts</Filter>
-    </None>
-    <None Include="shaders\scripts\shaderc32release.ps1">
-      <Filter>Shader Programs\Compile Scripts</Filter>
-    </None>
-    <None Include="shaders\scripts\shaderc64debug.ps1">
-      <Filter>Shader Programs\Compile Scripts</Filter>
-    </None>
-    <None Include="shaders\scripts\shaderc64release.ps1">
-      <Filter>Shader Programs\Compile Scripts</Filter>
-    </None>
-    <None Include="normal_render.frag">
+    <None Include="ShadersSource\Debug.glsl">
       <Filter>Shader Programs</Filter>
     </None>
-    <None Include="ComputeRender\compute_render.comp">
-      <Filter>Shader Programs\Compute Render</Filter>
-    </None>
-    <None Include="ComputeRender\rt_display.frag">
-      <Filter>Shader Programs\Compute Render</Filter>
-    </None>
-    <None Include="ComputeRender\varying.def.sc">
-      <Filter>Shader Programs\Compute Render</Filter>
-    </None>
-    <None Include="raytracer.glsl">
+    <None Include="ShadersSource\Hit.glsl">
       <Filter>Shader Programs</Filter>
     </None>
-    <None Include="varying.def.sc">
+    <None Include="ShadersSource\Intersections.glsl">
       <Filter>Shader Programs</Filter>
     </None>
-    <None Include="ComputeRender\rt_display.vert">
-      <Filter>Shader Programs\Compute Render</Filter>
-    </None>
-    <None Include="Intersections.glsl">
+    <None Include="ShadersSource\Lighting.glsl">
       <Filter>Shader Programs</Filter>
     </None>
-    <None Include="Random.glsl">
+    <None Include="ShadersSource\Math.glsl">
       <Filter>Shader Programs</Filter>
     </None>
-    <None Include="Buffers.glsl">
+    <None Include="ShadersSource\Random.glsl">
       <Filter>Shader Programs</Filter>
     </None>
-    <None Include="Planet.glsl">
+    <None Include="ShadersSource\raytracer.glsl">
+      <Filter>Shader Programs</Filter>
+    </None>
+    <None Include="ShadersSource\SceneObjects.glsl">
+      <Filter>Shader Programs</Filter>
+    </None>
+    <None Include="ShadersSource\Structures.glsl">
+      <Filter>Shader Programs</Filter>
+    </None>
+    <None Include="ShadersSource\varying.def.sc">
+      <Filter>Shader Programs</Filter>
+    </None>
+    <None Include="ShadersSource\Clouds.glsl">
       <Filter>Shader Programs\Material Shaders</Filter>
     </None>
-    <None Include="Heightmap.comp">
-      <Filter>Shader Programs</Filter>
-    </None>
-    <None Include="Terrain.glsl">
+    <None Include="ShadersSource\Planet.glsl">
       <Filter>Shader Programs\Material Shaders</Filter>
     </None>
-    <None Include="Lighting.glsl">
-      <Filter>Shader Programs</Filter>
-    </None>
-    <None Include="Debug.glsl">
-      <Filter>Shader Programs</Filter>
-    </None>
-    <None Include="Hit.glsl">
-      <Filter>Shader Programs</Filter>
-    </None>
-    <None Include="Math.glsl">
-      <Filter>Shader Programs</Filter>
-    </None>
-    <None Include="Clouds.glsl">
+    <None Include="ShadersSource\Terrain.glsl">
       <Filter>Shader Programs\Material Shaders</Filter>
     </None>
-    <None Include="OpticalDepth.comp">
+    <None Include="ShadersSource\ComputeRender\compute_render.comp">
+      <Filter>Shader Programs\Compute Render</Filter>
+    </None>
+    <None Include="ShadersSource\ComputeRender\rt_display.frag">
+      <Filter>Shader Programs\Compute Render</Filter>
+    </None>
+    <None Include="ShadersSource\ComputeRender\rt_display.vert">
+      <Filter>Shader Programs\Compute Render</Filter>
+    </None>
+    <None Include="ShadersSource\ComputeRender\varying.def.sc">
+      <Filter>Shader Programs\Compute Render</Filter>
+    </None>
+    <None Include="ShadersSource\ComputeRender\Precompute\DirectIrradiance.comp">
       <Filter>Shader Programs\Compute Render\Precompute</Filter>
     </None>
-    <None Include="DirectIrradiance.comp">
+    <None Include="ShadersSource\ComputeRender\Precompute\Heightmap.comp">
       <Filter>Shader Programs\Compute Render\Precompute</Filter>
     </None>
-    <None Include="Transmittance.comp">
+    <None Include="ShadersSource\ComputeRender\Precompute\IndirectIrradiance.comp">
       <Filter>Shader Programs\Compute Render\Precompute</Filter>
     </None>
-    <None Include="SingleScattering.comp">
+    <None Include="ShadersSource\ComputeRender\Precompute\OpticalDepth.comp">
       <Filter>Shader Programs\Compute Render\Precompute</Filter>
     </None>
-    <None Include="IndirectIrradiance.comp">
+    <None Include="ShadersSource\ComputeRender\Precompute\PrecomputeSettings.glsl">
       <Filter>Shader Programs\Compute Render\Precompute</Filter>
     </None>
-    <None Include="Common.glsl">
+    <None Include="ShadersSource\ComputeRender\Precompute\SingleScattering.comp">
+      <Filter>Shader Programs\Compute Render\Precompute</Filter>
+    </None>
+    <None Include="ShadersSource\ComputeRender\Precompute\Transmittance.comp">
+      <Filter>Shader Programs\Compute Render\Precompute</Filter>
+    </None>
+    <None Include="compileScripts\shaderc32debug.ps1">
+      <Filter>Shader Programs\Compile Scripts</Filter>
+    </None>
+    <None Include="compileScripts\shaderc32release.ps1">
+      <Filter>Shader Programs\Compile Scripts</Filter>
+    </None>
+    <None Include="compileScripts\shaderc64debug.ps1">
+      <Filter>Shader Programs\Compile Scripts</Filter>
+    </None>
+    <None Include="compileScripts\shaderc64release.ps1">
+      <Filter>Shader Programs\Compile Scripts</Filter>
+    </None>
+    <None Include="ShadersSource\Common.glsl">
       <Filter>Shader Programs</Filter>
-    </None>
-    <None Include="PrecomputeSettings.glsl">
-      <Filter>Shader Programs\Compute Render\Precompute</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="TestCube.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="PosVertex.h">
-      <Filter>Shader Programs\Vertex Types</Filter>
-    </ClInclude>
-    <ClInclude Include="PosColorVertex.h">
-      <Filter>Shader Programs\Vertex Types</Filter>
+      <Filter>Header Files\Vertex Types</Filter>
     </ClInclude>
     <ClInclude Include="PosTexCoordVertex.h">
-      <Filter>Shader Programs\Vertex Types</Filter>
-    </ClInclude>
-    <ClInclude Include="PosNormalTangentTexcoordVertex.h">
-      <Filter>Shader Programs\Vertex Types</Filter>
-    </ClInclude>
-    <ClInclude Include="PosColorTexCoordVertex.h">
-      <Filter>Shader Programs\Vertex Types</Filter>
+      <Filter>Header Files\Vertex Types</Filter>
     </ClInclude>
     <ClInclude Include="ScreenSpaceQuad.h">
       <Filter>Header Files</Filter>
@@ -196,17 +181,11 @@
     <ClInclude Include="ColorMapping.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="PhaseFunctions.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="DefaultScene.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Structures.glsl">
-      <Filter>Shader Programs</Filter>
-    </ClInclude>
-    <ClInclude Include="SceneObjects.glsl">
-      <Filter>Shader Programs</Filter>
+    <ClInclude Include="LUTs\PhaseFunctions.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

@@ -16,7 +16,7 @@ uniform vec4 HQSettings;
 #define HQSettings_exposure HQSettings.w
 uniform vec4 MultisamplingSettings;
 #include "../Debug.glsl"
-#include "../Tonemapping.h"
+#include "../../Tonemapping.h"
 #include "../Random.glsl"
 
 const float flareSmallness0 = 100;

@@ -6,7 +6,7 @@
 #pragma once
 #include <vector>
 #include "GLSLTypeCompatibility.h"
-#include "Structures.glsl"
+#include "ShadersSource/Structures.glsl"
 // source of values and functions: https://ebruneton.github.io/precomputed_atmospheric_scattering/
 namespace ColorMapping {
 	static constexpr double kLambdaR = 680.0;

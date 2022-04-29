@@ -1,5 +1,5 @@
 //!#version 440
-#include "Random.glsl"
+#include "../../Random.glsl"
 layout(local_size_x=16, local_size_y=16, local_size_z = 1) in;
 layout(rgba32f, binding=0) writeonly restrict uniform image2D heightmapOutput;//r = height, bga = normal
 

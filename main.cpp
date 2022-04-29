@@ -25,7 +25,7 @@
 #include <sstream>
 #include <algorithm>
 #include "Tonemapping.h"
-#include "PhaseFunctions.h"
+#include "LUTs/PhaseFunctions.h"
 #include "ColorMapping.h"
 #include "DefaultScene.h"
 
@@ -187,8 +187,9 @@ namespace RealisticAtmosphere
 			// Pathtracing must have higher quality
 			//
 
-			// Display earth shadows
-			*(uint32_t*)&HQSettings_flags |= HQFlags_EARTH_SHADOWS;
+			// Display earth shadows and compute atmosphere exacly
+			*(uint32_t*)&HQSettings_flags |= HQFlags_EARTH_SHADOWS | HQFlags_ATMO_COMPUTE;
+
 			// 300 planet raymarching steps
 			*(int*)&RaymarchingSteps.x = 300;
 			// 200 cloud raymarching steps

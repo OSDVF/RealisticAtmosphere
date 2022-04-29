@@ -150,7 +150,7 @@
     </CustomBuildStep>
     <CustomBuildStep />
     <PreBuildEvent>
-      <Command>powershell -ExecutionPolicy Bypass -File .\shaders\scripts\shaderc32debug.ps1</Command>
+      <Command>powershell -ExecutionPolicy Bypass -File .\compileScripts\shaderc32debug.ps1</Command>
       <Message>Building Shaders</Message>
     </PreBuildEvent>
   </ItemDefinitionGroup>
@@ -180,7 +180,7 @@
     </CustomBuildStep>
     <CustomBuildStep />
     <PreBuildEvent>
-      <Command>powershell -ExecutionPolicy Bypass -File .\shaders\scripts\shaderc32debug.ps1</Command>
+      <Command>powershell -ExecutionPolicy Bypass -File .\compileScripts\shaderc32debug.ps1</Command>
       <Message>Building Shaders</Message>
     </PreBuildEvent>
   </ItemDefinitionGroup>
@@ -213,7 +213,7 @@
     </CustomBuildStep>
     <CustomBuildStep />
     <PreBuildEvent>
-      <Command>powershell -ExecutionPolicy Bypass -File .\shaders\scripts\shaderc32release.ps1</Command>
+      <Command>powershell -ExecutionPolicy Bypass -File .\compileScripts\shaderc32release.ps1</Command>
       <Message>Building Shaders</Message>
     </PreBuildEvent>
   </ItemDefinitionGroup>
@@ -242,7 +242,7 @@
     </CustomBuildStep>
     <CustomBuildStep />
     <PreBuildEvent>
-      <Command>powershell -ExecutionPolicy Bypass -File .\shaders\scripts\shaderc64debug.ps1</Command>
+      <Command>powershell -ExecutionPolicy Bypass -File .\compileScripts\shaderc64debug.ps1</Command>
       <Message>Building Shaders</Message>
     </PreBuildEvent>
   </ItemDefinitionGroup>
@@ -272,7 +272,7 @@
     </CustomBuildStep>
     <CustomBuildStep />
     <PreBuildEvent>
-      <Command>powershell -ExecutionPolicy Bypass -File .\shaders\scripts\shaderc64debug.ps1</Command>
+      <Command>powershell -ExecutionPolicy Bypass -File .\compileScripts\shaderc64debug.ps1</Command>
       <Message>Building Shaders</Message>
     </PreBuildEvent>
   </ItemDefinitionGroup>
@@ -305,20 +305,19 @@
     </CustomBuildStep>
     <CustomBuildStep />
     <PreBuildEvent>
-      <Command>powershell -ExecutionPolicy Bypass -File .\shaders\scripts\shaderc64release.ps1</Command>
+      <Command>powershell -ExecutionPolicy Bypass -File .\compileScripts\shaderc64release.ps1</Command>
       <Message>Building Shaders</Message>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="CloudsBlue.cpp" />
-    <ClCompile Include="CloudsGreen.cpp" />
+    <ClCompile Include="LUTS\CloudsBlue.cpp" />
+    <ClCompile Include="LUTS\CloudsGreen.cpp" />
+    <ClCompile Include="LUTS\CloudsRed.cpp" />
     <ClCompile Include="ColorMapping.cpp" />
     <ClCompile Include="MouseCamera.cpp" />
     <ClCompile Include="FirstPersonController.cpp" />
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="CloudsRed.cpp" />
     <ClCompile Include="ScreenSpaceQuad.cpp" />
-    <ClCompile Include="TestCube.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="bgfx\.build\projects\vs2017\bgfx.vcxproj">
@@ -348,44 +347,36 @@
     <UpToDateCheckInput Include="**\*.glsl" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Clouds.glsl">
-      <FileType>Text</FileType>
-    </None>
-    <None Include="Common.glsl" />
-    <None Include="DirectIrradiance.comp" />
-    <None Include="IndirectIrradiance.comp" />
-    <None Include="Buffers.glsl" />
-    <None Include="ComputeRender\rt_display.vert" />
-    <None Include="ComputeRender\rt_display.frag" />
-    <None Include="ComputeRender\compute_render.comp" />
-    <None Include="Debug.glsl" />
-    <None Include="Heightmap.comp" />
-    <None Include="Hit.glsl" />
-    <None Include="Intersections.glsl" />
-    <None Include="Lighting.glsl" />
-    <None Include="Math.glsl" />
-    <None Include="normal_render.frag" />
-    <None Include="normal_render.vert" />
-    <None Include="Planet.glsl" />
-    <None Include="OpticalDepth.comp" />
-    <None Include="PrecomputeSettings.glsl" />
-    <None Include="Random.glsl" />
-    <None Include="raytracer.glsl" />
-    <ClInclude Include="SceneObjects.glsl">
-      <FileType>Document</FileType>
-    </ClInclude>
-    <None Include="shaders\scripts\shaderc32debug.ps1" />
-    <None Include="shaders\scripts\shaderc32release.ps1" />
-    <None Include="ComputeRender\varying.def.sc" />
-    <None Include="shaders\scripts\shaderc64debug.ps1" />
-    <None Include="shaders\scripts\shaderc64release.ps1" />
-    <None Include="SingleScattering.comp" />
-    <ClInclude Include="Structures.glsl">
-      <FileType>Document</FileType>
-    </ClInclude>
-    <None Include="Terrain.glsl" />
-    <None Include="Transmittance.comp" />
-    <None Include="varying.def.sc" />
+    <None Include="compileScripts\shaderc32debug.ps1" />
+    <None Include="compileScripts\shaderc32release.ps1" />
+    <None Include="compileScripts\shaderc64debug.ps1" />
+    <None Include="compileScripts\shaderc64release.ps1" />
+    <None Include="ShadersSource\Buffers.glsl" />
+    <None Include="ShadersSource\Clouds.glsl" />
+    <None Include="ShadersSource\Common.glsl" />
+    <None Include="ShadersSource\ComputeRender\compute_render.comp" />
+    <None Include="ShadersSource\ComputeRender\Precompute\DirectIrradiance.comp" />
+    <None Include="ShadersSource\ComputeRender\Precompute\Heightmap.comp" />
+    <None Include="ShadersSource\ComputeRender\Precompute\IndirectIrradiance.comp" />
+    <None Include="ShadersSource\ComputeRender\Precompute\OpticalDepth.comp" />
+    <None Include="ShadersSource\ComputeRender\Precompute\PrecomputeSettings.glsl" />
+    <None Include="ShadersSource\ComputeRender\Precompute\SingleScattering.comp" />
+    <None Include="ShadersSource\ComputeRender\Precompute\Transmittance.comp" />
+    <None Include="ShadersSource\ComputeRender\rt_display.frag" />
+    <None Include="ShadersSource\ComputeRender\rt_display.vert" />
+    <None Include="ShadersSource\ComputeRender\varying.def.sc" />
+    <None Include="ShadersSource\Debug.glsl" />
+    <None Include="ShadersSource\Hit.glsl" />
+    <None Include="ShadersSource\Intersections.glsl" />
+    <None Include="ShadersSource\Lighting.glsl" />
+    <None Include="ShadersSource\Math.glsl" />
+    <None Include="ShadersSource\Planet.glsl" />
+    <None Include="ShadersSource\Random.glsl" />
+    <None Include="ShadersSource\raytracer.glsl" />
+    <None Include="ShadersSource\SceneObjects.glsl" />
+    <None Include="ShadersSource\Structures.glsl" />
+    <None Include="ShadersSource\Terrain.glsl" />
+    <None Include="ShadersSource\varying.def.sc" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ColorMapping.h" />
@@ -393,15 +384,11 @@
     <ClInclude Include="FirstPersonController.h" />
     <ClInclude Include="GLSLTypeCompatibility.h" />
     <ClInclude Include="gl_utils.h" />
-    <ClInclude Include="PhaseFunctions.h" />
-    <ClInclude Include="PosColorTexCoordVertex.h" />
-    <ClInclude Include="PosColorVertex.h" />
-    <ClInclude Include="PosNormalTangentTexcoordVertex.h" />
+    <ClInclude Include="LUTs\PhaseFunctions.h" />
     <ClInclude Include="PosTexCoordVertex.h" />
     <ClInclude Include="PosVertex.h" />
     <ClInclude Include="DefaultScene.h" />
     <ClInclude Include="ScreenSpaceQuad.h" />
-    <ClInclude Include="TestCube.h" />
     <ClInclude Include="SceneObjects.h" />
     <ClInclude Include="Tonemapping.h" />
   </ItemGroup>

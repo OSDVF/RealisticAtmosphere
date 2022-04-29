@@ -1,3 +1,3 @@
 #pragma once
 #include "GLSLTypeCompatibility.h"
-#include "SceneObjects.glsl"
+#include "ShadersSource/SceneObjects.glsl"

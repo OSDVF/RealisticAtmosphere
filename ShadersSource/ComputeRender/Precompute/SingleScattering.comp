@@ -1,8 +1,8 @@
 //?#version 440
-#include "Common.glsl"
-#include "Buffers.glsl"
-#include "SceneObjects.glsl"
-#include "Math.glsl"
+#include "../../Common.glsl"
+#include "../../Buffers.glsl"
+#include "../../SceneObjects.glsl"
+#include "../../Math.glsl"
 #include "PrecomputeSettings.glsl"
 
 layout(local_size_x=16, local_size_y=16, local_size_z = 4) in;

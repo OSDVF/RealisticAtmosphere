@@ -1,6 +1,6 @@
 ﻿#pragma once
 #include "GLSLTypeCompatibility.h"
-#include "Structures.glsl"
+#include "ShadersSource/Structures.glsl"
 #include <array>
 /**
 * Contains global data of currently submitted scene objects
