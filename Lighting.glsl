@@ -31,8 +31,9 @@ vec3 PlanetIlluminance(Planet planet, vec3 point)
     return PlanetIlluminance(planet, point, vec3(1));
 }
 
-vec3 lightPoint(Planet planet, vec3 p, vec3 normal)
+vec3 lightPoint(Planet planet, vec3 p, vec3 normal, out bool shadowedByTerrain)
 {
+    shadowedByTerrain = false;
     vec3 totalLightColor = AMBIENT_LIGHT;// Initially the object is only lightened up by ambient light
     // Compute illumination by casting 'shadow rays' into lights
 
@@ -58,9 +59,10 @@ vec3 lightPoint(Planet planet, vec3 p, vec3 normal)
         {
             for(int k = 0; k < planets.length();++k)
             {
-                if(raymarchTerrainD(planets[k], shadowRay, 0.01/*offset a bit to reduce self-shadowing*/, LightSettings_farPlane))
+                if(raymarchTerrainD(planets[k], shadowRay, LightSettings_shadowNearPlane/*offset a bit to reduce self-shadowing*/, LightSettings_farPlane))
                 {
                     inShadow = true;
+                    shadowedByTerrain = true;
                 }
             }
         }
@@ -112,7 +114,7 @@ vec3 computeLightColor(Hit hit)
         {
             for(int k = 0; k < planets.length();++k)
             {
-                if(raymarchTerrainL(planets[k], shadowRay, 0.01, LightSettings_farPlane))
+                if(raymarchTerrainL(planets[k], shadowRay, LightSettings_shadowNearPlane, LightSettings_farPlane))
                 {
                     inShadow = true;
                 }

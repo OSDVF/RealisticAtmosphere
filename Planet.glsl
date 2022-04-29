@@ -168,7 +168,7 @@ void precomputedAtmosphere(Planet p, Ray ray, float toT, bool terrainWasHit, ino
 	transmittance *= atmoTransmittance;
 }
 
-float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDistance, inout vec3 luminance, inout vec3 transmittance, bool terrainWasHit);
+float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDistance, inout vec3 luminance, inout vec3 transmittance, bool terrainWasHit, bool shadowed);
 bool terrainColorAndHit(Planet p, Ray ray, float fromDistance, inout float toDistance, inout vec3 throughput, inout vec3 luminance, out Hit terrainHit)
 {
 	// Out parameters
@@ -184,21 +184,25 @@ bool terrainColorAndHit(Planet p, Ray ray, float fromDistance, inout float toDis
 		vec3 worldNormal = terrainNormal(normalMap, sphNormal);
 		vec3 planetAlbedo = terrainColor(p, toDistance, worldSamplePos, worldNormal, sampleHeight);
 		cloudsForPlanet(p,ray,fromDistance,toDistance,Clouds_terrainSteps,throughput,luminance);
+
+		bool shadowedByTerrain;
+		vec3 light = lightPoint(p, worldSamplePos, worldNormal, /*out*/ shadowedByTerrain);
 		if(!DEBUG_ATMO_OFF)
 		{
 			//Compute atmosphere contribution between terrain and camera
 			if(HQSettings_atmoCompute)
-				raymarchAtmosphere(p, ray, fromDistance, toDistance, /*inout*/ luminance, /*inout*/ throughput, true);
+				raymarchAtmosphere(p, ray, fromDistance, toDistance, /*inout*/ luminance, /*inout*/ throughput, true, shadowedByTerrain);
 			else
 			{
 				precomputedAtmosphere(p, ray, toDistance, true, luminance, throughput);
 			}
 		}
-		luminance += planetAlbedo * lightPoint(p, worldSamplePos, worldNormal) * throughput;
+		luminance += planetAlbedo * light * throughput;
 		throughput *= planetAlbedo;
 		terrainHit = Hit(worldSamplePos, worldNormal, -1, toDistance);
 		return true;
 	}
+	terrainHit.t = POSITIVE_INFINITY;
 	return false;
 }
 
@@ -233,7 +237,6 @@ bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out vec
 		toDistance = min(tMax, toDistance);
 		//Limit the srating point to the screen
 		fromDistance = max(fromDistance, 0);
-
 		if(terrainColorAndHit(p, ray, fromDistance, toDistance, throughput, luminance, planetHit))
 		{
 			return true;
@@ -243,7 +246,7 @@ bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out vec
 		if(!DEBUG_ATMO_OFF)
 		{	
 			if(HQSettings_atmoCompute)
-				raymarchAtmosphere(p, ray, fromDistance, toDistance, /*inout*/ luminance,/*inout*/ throughput, false);
+				raymarchAtmosphere(p, ray, fromDistance, toDistance, /*inout*/ luminance,/*inout*/ throughput, false, false);
 			else
 			{
 				precomputedAtmosphere(p, ray, toDistance, false, luminance, throughput);
@@ -259,7 +262,7 @@ bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out vec
 }
 
 
-float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDistance, inout vec3 luminance, inout vec3 transmittance, bool terrainWasHit)
+float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDistance, inout vec3 luminance, inout vec3 transmittance, bool terrainWasHit, bool shadowed)
 {
 	float t0, t1;
 
@@ -313,7 +316,7 @@ float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDis
 			bool noSureIfEclipse = true;
 			if(terrainWasHit)
 			{
-				if(sunToNormalCos < LightSettings_viewThres)
+				if(sunToNormalCos < LightSettings_viewThres || (shadowed && maxDistance - currentDistance < RaymarchingSteps.y ))
 				{
 					continue;//No light when sun is under the horizon
 				}

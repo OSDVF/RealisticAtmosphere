@@ -183,17 +183,21 @@ namespace RealisticAtmosphere
 			_settingsBackup[8] = CloudsSettings[1];
 			_settingsBackup[9] = CloudsSettings[2];
 
+			//
 			// Pathtracing must have higher quality
+			//
+
 			// Display earth shadows
 			*(uint32_t*)&HQSettings_flags |= HQFlags_EARTH_SHADOWS;
 			// 300 planet raymarching steps
 			*(int*)&RaymarchingSteps.x = 300;
 			// 200 cloud raymarching steps
 			Clouds_iter = 200;
-			Clouds_terrainSteps = 90;
-			Clouds_lightSteps = 10;//Double light steps
-			Clouds_lightFarPlane = 30000;
+			Clouds_terrainSteps = 80;
+			Clouds_lightSteps = 8;
+			Clouds_lightFarPlane = 40000;
 			LightSettings_farPlane = 10000;
+			*(int*)&LightSettings_shadowSteps = 70;
 
 			applyPreset(0);//Set default player and sun positions
 
@@ -669,7 +673,7 @@ namespace RealisticAtmosphere
 			{
 				// If the sun is not behind the camera
 				flareBrightness = std::fmax(
-						bx::dot(Camera[1].toVec3(), DefaultScene::directionalLightBuffer[0].direction) * _flareVisibility,
+					bx::dot(Camera[1].toVec3(), DefaultScene::directionalLightBuffer[0].direction) * _flareVisibility,
 					0);
 			}
 
@@ -1153,7 +1157,7 @@ namespace RealisticAtmosphere
 					}
 					break;
 				}
-
+				ImGui::InputFloat("Shadow near plane", &LightSettings_shadowNearPlane);
 				ImGui::Checkbox("Lens Flare", &_showFlare);
 				if (_showFlare)
 				{
@@ -1191,13 +1195,31 @@ namespace RealisticAtmosphere
 				{
 					ImGui::InputFloat("Precision", &LightSettings_precision, 0, 0, "%e");
 					ImGui::InputFloat("Far Plane", &LightSettings_farPlane);
-					ImGui::InputFloat("NoRayThres", &LightSettings_noRayThres);
-					ImGui::InputFloat("ViewThres", &LightSettings_viewThres);
-					ImGui::InputFloat("Gradient", &LightSettings_gradient);
-					ImGui::InputFloat("CutoffDist", &LightSettings_cutoffDist);
 					ImGui::SetNextItemWidth(90);
-					ImGui::InputInt("Shdw dtct stps", (int*)&LightSettings_shadowSteps);
+					ImGui::InputInt("Shadow steps", (int*)&LightSettings_shadowSteps);
 					ImGui::InputFloat("Hit Optimism", &LightSettings_terrainOptimMult);
+					static float prevShadowedThreshold = 0;
+					static float prevNoRayThres = 0.4;
+					static float prevViewThres = -1;
+					static float prevCutoffDist = 0;
+					bool empiricOptimizations = RaymarchingSteps.y != 0;
+					if (ImGui::Checkbox("Empiric optimizations", &empiricOptimizations))
+					{
+						swap(prevShadowedThreshold, RaymarchingSteps.y);
+						swap(prevNoRayThres, LightSettings_noRayThres);
+						swap(prevViewThres, LightSettings_viewThres);
+						swap(prevCutoffDist, LightSettings_cutoffDist);
+					}
+					if (empiricOptimizations)
+					{
+						ImGui::InputFloat("ShadowedThres", &RaymarchingSteps.y);
+						if (RaymarchingSteps.y < 1.0f)
+							RaymarchingSteps.y = 1.0f;
+						ImGui::InputFloat("NoRayThres", &LightSettings_noRayThres);
+						ImGui::InputFloat("ViewThres", &LightSettings_viewThres);
+						ImGui::InputFloat("Gradient", &LightSettings_gradient);
+						ImGui::InputFloat("CutoffDist", &LightSettings_cutoffDist);
+					}
 					ImGui::TreePop();
 				}
 				ImGui::PopItemWidth();
@@ -1239,7 +1261,6 @@ namespace RealisticAtmosphere
 					ImGui::InputFloat("1", &PlanetMaterial.x);
 					ImGui::InputFloat("2", &PlanetMaterial.y);
 					ImGui::InputFloat("Gradient", &PlanetMaterial.w);
-					ImGui::InputFloat("Detail", &RaymarchingSteps.y);
 					ImGui::TreePop();
 				}
 				ImGui::PopItemWidth();
@@ -1400,18 +1421,37 @@ namespace RealisticAtmosphere
 				ImGui::Text("%d sampled", currentSample);
 			}
 			ImGui::PushItemWidth(90);
+
 			ImGui::InputInt("Primary rays", (int*)&HQSettings_directSamples);
+			*(int*)&HQSettings_directSamples = bx::max(*(int*)&HQSettings_directSamples, 1);
 			if (ImGui::IsItemHovered())
 				ImGui::SetTooltip("Number of rays cast from one pixel");
-			ImGui::InputInt("Secondary rays", (int*)&Multisampling_indirect);
+
+			int secondary = *(int*)&Multisampling_indirect - 1;
+			ImGui::InputInt("Secondary rays", &secondary);
+			secondary = bx::max(secondary, 0);
+			*(int*)&Multisampling_indirect = secondary + 1;
 			if (ImGui::IsItemHovered())
-				ImGui::SetTooltip("Number of rays cast per one surface hit point\nTotal rays per pixel = primary * secondary");
+				ImGui::SetTooltip("Number of rays cast per one surface hit point\nTotal rays per pixel = primary * (1 + secondary)");
+
 			ImGui::InputInt("Bounces", (int*)&Multisampling_maxBounces);
+			*(int*)&Multisampling_maxBounces = bx::max(*(int*)&Multisampling_maxBounces, 0);
 			if (ImGui::IsItemHovered())
 				ImGui::SetTooltip("How many times can a secondary ray bounce from surface");
 
 			inputSlicesCount();
 			ImGui::PopItemWidth();
+			drawPresetButton("1", 0);
+			ImGui::SameLine();
+			drawPresetButton("2", 1);
+			ImGui::SameLine();
+			drawPresetButton("3", 2);
+			ImGui::SameLine();
+			drawPresetButton("4", 3);
+			ImGui::SameLine();
+			drawPresetButton("5", 4);
+			ImGui::SameLine();
+			ImGui::Text("Predefined views");
 			drawPlanetGUI();
 
 			drawTerrainGUI();
@@ -1419,6 +1459,16 @@ namespace RealisticAtmosphere
 			drawCloudsGUI();
 			drawPerformanceGUI();
 			ImGui::End();
+		}
+
+		void drawPresetButton(const char* text, int presetNum)
+		{
+			if (ImGui::SmallButton(text))
+			{
+				applyPreset(presetNum);
+				currentSample = 0;
+				_currentChunk = -1;
+			}
 		}
 
 		void applyPreset(uint8_t preset)

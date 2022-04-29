@@ -58,11 +58,11 @@ int lightTerrainDetectSteps = 40;
 vec4 LightSettings[] = {
                             vec4(2000, 0.03, 0.4, -0.09),
                             vec4(0.5, *(float*)&lightTerrainDetectSteps, 3, 0.6),
-                            vec4(2000, 700, 1e-2)
+                            vec4(2000, 700, 1e-2, 60)
                         };
 vec4 PlanetMaterial = {1700, 2300, .4, .4};
 int planetSteps = 152;
-vec4 RaymarchingSteps = {*(float*)&planetSteps, 0.01, 0.005, 0.5};
+vec4 RaymarchingSteps = {*(float*)&planetSteps, 400/*shadowedThres*/, 0.005, 0.5};
 vec4 SunRadianceToLuminance;
 vec4 SkyRadianceToLuminance;
 vec4 CloudsSettings[] = {
@@ -94,6 +94,7 @@ vec4 CloudsSettings[] = {
 #define LightSettings_shadowCascade LightSettings[2].x
 #define LightSettings_bandingFactor LightSettings[2].y
 #define LightSettings_secondaryOffset LightSettings[2].z
+#define LightSettings_shadowNearPlane LightSettings[2].w
 
 #define HQSettings_flags HQSettings.x
 #define HQSettings_sampleNum HQSettings.y
