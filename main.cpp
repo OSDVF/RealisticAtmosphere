@@ -188,8 +188,9 @@ namespace RealisticAtmosphere
 			*(uint32_t*)&HQSettings_flags |= HQFlags_EARTH_SHADOWS;
 			// 300 planet raymarching steps
 			*(int*)&RaymarchingSteps.x = 300;
-			// 300 cloud raymarching steps
-			Clouds_iter = 300;
+			// 200 cloud raymarching steps
+			Clouds_iter = 200;
+			Clouds_lightSteps = 8;//Double light steps
 			LightSettings_farPlane = 10000;
 
 			applyPreset(0);//Set default player and sun positions
@@ -1246,7 +1247,7 @@ namespace RealisticAtmosphere
 				ImGui::InputFloat3("Size", &cloudsLayer.sizeMultiplier.x, "%.1e");
 				ImGui::InputFloat3("Pos", &cloudsLayer.position.x);
 				ImGui::PushItemWidth(100);
-				if (ImGui::TreeNodeEx("Settings", ImGuiTreeNodeFlags_DefaultOpen))
+				if (ImGui::TreeNode("Settings"))
 				{
 					ImGui::Checkbox("Wind", &_moveClouds);
 					if (_moveClouds)
@@ -1269,8 +1270,8 @@ namespace RealisticAtmosphere
 					}
 
 					ImGui::InputFloat("Sample thres", &Clouds_sampleThres, 0, 0, "%e");
-					ImGui::InputFloat("From height", &cloudsLayer.startRadius);
-					ImGui::InputFloat("To height", &cloudsLayer.endRadius);
+					ImGui::InputFloat("Layer start", &cloudsLayer.startRadius);
+					ImGui::InputFloat("Layer end", &cloudsLayer.endRadius);
 					cloudsLayer.layerThickness = cloudsLayer.endRadius - cloudsLayer.startRadius;
 					ImGui::TreePop();
 				}
@@ -1298,11 +1299,15 @@ namespace RealisticAtmosphere
 					ImGui::PushItemWidth(120);
 					ImGui::InputFloat("Density", &cloudsLayer.density, 0, 0, "%e");
 					ImGui::InputFloat("Powder density", &Clouds_powderDensity, 0, 0, "%e");
+					if (ImGui::IsItemHovered())
+					{
+						ImGui::SetTooltip("Simulates multiple scattering in the form of \"powder\" effect.");
+					}
 					ImGui::InputFloat("Powder maximum", &Clouds_maxPowder, 0, 0, "%e");
 					ImGui::InputFloat("Sharpness", &cloudsLayer.sharpness);
 					ImGui::InputFloat("Lower gradient", &cloudsLayer.lowerGradient);
-					ImGui::InputFloat("Upper Cutoff", &cloudsLayer.upperGradient);
-					ImGui::InputFloat("Fade power", &Clouds_fadePower);
+					ImGui::InputFloat("Upper gradient", &cloudsLayer.upperGradient);
+					ImGui::InputFloat("Gradient power", &Clouds_fadePower);
 					ImGui::InputFloat("Scattering", &cloudsLayer.scatteringCoef, 0, 0, "%e");
 					ImGui::InputFloat("Extinction", &cloudsLayer.extinctionCoef, 0, 0, "%e");
 					ImGui::InputFloat("Aerosols", &Clouds_aerosols, 0.05, .1);

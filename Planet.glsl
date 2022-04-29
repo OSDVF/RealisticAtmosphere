@@ -326,7 +326,8 @@ float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDis
 					lightFromT = (maxDistance - currentDistance) * LightSettings_terrainOptimMult;
 				}
 			}
-			if(sunToNormalCos > LightSettings_noRayThres || currentDistance > QualitySettings_farPlane)
+			if(sunToNormalCos > LightSettings_noRayThres // Terrain is never above the viewer, so we can skip testing for shadowing in a conic area above the camera
+				|| currentDistance > QualitySettings_farPlane)
 			{
 				if(DEBUG_RM)
 					luminance = vec3(0,1,0);
@@ -340,6 +341,7 @@ float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDis
 				{
 					if(dot(sunOnPlanetPlane,viewOnPlanetPlane) > 0 && terrainWasHit && currentDistance > maxDistance * LightSettings_cutoffDist)
 					{
+						// If the view ray has direction towards the center of the planet more than towards the sky
 						if(DEBUG_RM)
 							luminance = vec3(1,0,0);
 						// In all the later samples, the sun will be also occluded

@@ -125,14 +125,8 @@
     <None Include="Hit.glsl">
       <Filter>Shader Programs</Filter>
     </None>
-    <None Include="Lambert.glsl">
-      <Filter>Shader Programs\Material Shaders</Filter>
-    </None>
     <None Include="Math.glsl">
       <Filter>Shader Programs</Filter>
-    </None>
-    <None Include="Sampling.glsl">
-      <Filter>Shader Programs\Material Shaders</Filter>
     </None>
     <None Include="Clouds.glsl">
       <Filter>Shader Programs\Material Shaders</Filter>

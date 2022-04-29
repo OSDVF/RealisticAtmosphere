@@ -61,7 +61,7 @@ Ray createSecondaryRay(vec3 pos, vec3 normal)
     mat3 onb = construct_ONB_frisvad(normal);
     vec3 dir = normalize(onb * sample_cos_hemisphere(randomValues));
     Ray ray_next = Ray(pos, dir);
-	ray_next.origin += ray_next.direction * 1e-2;
+	ray_next.origin += ray_next.direction * 1e-2;//Offset to prevent self-blocking
     return ray_next;
 }
 

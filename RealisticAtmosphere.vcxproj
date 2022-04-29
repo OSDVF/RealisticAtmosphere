@@ -354,7 +354,6 @@
     <None Include="Common.glsl" />
     <None Include="DirectIrradiance.comp" />
     <None Include="IndirectIrradiance.comp" />
-    <None Include="Lambert.glsl" />
     <None Include="Buffers.glsl" />
     <None Include="ComputeRender\rt_display.vert" />
     <None Include="ComputeRender\rt_display.frag" />
@@ -372,7 +371,6 @@
     <None Include="PrecomputeSettings.glsl" />
     <None Include="Random.glsl" />
     <None Include="raytracer.glsl" />
-    <None Include="Sampling.glsl" />
     <ClInclude Include="SceneObjects.glsl">
       <FileType>Document</FileType>
     </ClInclude>

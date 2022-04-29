@@ -187,7 +187,7 @@ void raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps,
 
                         // Shadow rays:
                         float lOpticalDepth = 0;
-                        Ray shadowRay = Ray(cloudSpacePos, sunDir);
+                        Ray shadowRay = Ray(worldSpacePos, sunDir);
                         float dummy, lToDistance, toDistanceInner;
                         raySphereIntersection(planet.center, c.endRadius, shadowRay, /*out*/ dummy, /*out*/ lToDistance);
                         raySphereIntersection(planet.center, c.startRadius, shadowRay, /*out*/ toDistanceInner, /*out*/ dummy);
@@ -216,23 +216,8 @@ void raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps,
                         float beer = exp(-lOpticalDepth * c.extinctionCoef);
                         float opticalDepth = density * segmentLength;
                         transmittance *= exp(-opticalDepth * c.extinctionCoef);
-                        /*if(isinf(transmittance.x))
-                        {
-                            luminance = vec3(0,1,0);
-                            return;
-                        }
-                        if(isinf(beer.x))
-                        {
-                            luminance = vec3(0,1,1);
-                            return;
-                        }*/
                        
                         scatteringSum += beer * density * PlanetIlluminance(planet, worldSpacePos, phase) * transmittance;
-                        if(isinf(scatteringSum.x))
-                        {
-                            luminance = vec3(1,0,0);
-                            return;
-                        }
                         if(transmittance.x < 0.001 && transmittance.y < 0.001 && transmittance.z < 0.001)
                             break;
                     }
