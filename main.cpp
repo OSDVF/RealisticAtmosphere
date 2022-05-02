@@ -372,7 +372,7 @@ namespace RealisticAtmosphere
 			bgfx::setBuffer(1, _atmosphereBufferHandle, bgfx::Access::Read);
 			bgfx::setBuffer(2, _directionalLightBufferHandle, bgfx::Access::Read);
 			bgfx::dispatch(0, transmittanceProgram, bx::ceil(256 / float(SHADER_LOCAL_GROUP_COUNT)), bx::ceil(64 / float(SHADER_LOCAL_GROUP_COUNT)));
-Tw
+ 
 			bgfx::ShaderHandle precomputeSingleScattering = loadShader("SingleScattering.comp");
 			bgfx::ProgramHandle scatteringProgram = bgfx::createProgram(precomputeSingleScattering);
 			constexpr int SCATTERING_TEXTURE_WIDTH =
@@ -1290,6 +1290,11 @@ Tw
 					{
 						ImGui::InputFloat("LightSteps", &Clouds_lightSteps, 1, 1, "%.0f");
 						ImGui::InputFloat("LightFarPlane", &Clouds_lightFarPlane);
+						ImGui::InputFloat("OcclusionSteps", &Clouds_occlusionSteps, 1, 1, "%.0f");
+						ImGui::InputFloat("OcclusionPower", &Clouds_occlusionPower);
+						ImGui::InputFloat("OcclusionMax", &Clouds_occlusionMax);
+						ImGui::InputFloat("OcclusionDensity", &Clouds_occlusionDensity);
+						ImGui::InputFloat("OcclusionFarPlane", &Clouds_occlusionFarPlane);
 						if (flags & HQFlags_REDUCE_BANDING)
 						{
 							ImGui::Text("de-Banding enabled");

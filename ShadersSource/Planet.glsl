@@ -145,7 +145,7 @@ float raymarchOcclusion(Planet planet, Ray ray, float fromT, float toT, bool vie
 		}*/
 
 		float cloudsDensity = raymarchCloudsL(planet, shadowRay, 0, Clouds_occlusionFarPlane, Clouds_occlusionSteps);
-		shadowLength += dx * clamp(1 - exp(-cloudsDensity * Clouds_occlusionPower), 0, 1);
+		shadowLength += dx * clamp(cloudsDensity * Clouds_occlusionDensity, 0, Clouds_occlusionPower);
 	}
 	return shadowLength;
 }
@@ -183,7 +183,10 @@ bool terrainColorAndHit(Planet p, Ray ray, float fromDistance, inout float toDis
 	{
 		vec3 worldNormal = terrainNormal(normalMap, sphNormal);
 		vec3 planetAlbedo = terrainColor(p, toDistance, worldSamplePos, worldNormal, sampleHeight);
-		cloudsForPlanet(p,ray,fromDistance,toDistance,Clouds_terrainSteps,throughput,luminance);
+		vec3 cloudsTrans, cloudsLum;
+		cloudsForPlanet(p,ray,fromDistance,toDistance,Clouds_terrainSteps,cloudsTrans,cloudsLum);
+		luminance += cloudsLum * throughput;
+		throughput *= cloudsTrans;
 
 		bool shadowedByTerrain;
 		vec3 light = lightPoint(p, worldSamplePos, worldNormal, /*out*/ shadowedByTerrain);
@@ -242,15 +245,39 @@ bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out vec
 			return true;
 		}
 		// Only atmosphere is in ray's path
-		cloudsForPlanet(p,ray,fromDistance,toDistance,Clouds_iter,throughput,luminance);
+		vec3 cloudTrans, cloudLum;
+		float cloudsDistance = cloudsForPlanet(p,ray,fromDistance,toDistance,Clouds_iter,cloudTrans,cloudLum);
 		if(!DEBUG_ATMO_OFF)
-		{	
+		{
 			if(HQSettings_atmoCompute)
-				raymarchAtmosphere(p, ray, fromDistance, toDistance, /*inout*/ luminance,/*inout*/ throughput, false, false);
+			{
+				if(cloudsDistance > 0)
+				{
+					raymarchAtmosphere(p, ray, fromDistance, cloudsDistance, /*inout*/ luminance,/*inout*/ throughput, false, false);
+					luminance += cloudLum * throughput;
+					throughput *= cloudTrans;
+					raymarchAtmosphere(p, ray, cloudsDistance, toDistance, /*inout*/ luminance,/*inout*/ throughput, false, false);
+				}
+				else
+				{
+					raymarchAtmosphere(p, ray, fromDistance, toDistance, /*inout*/ luminance,/*inout*/ throughput, false, false);
+				}
+			}
 			else
 			{
-				precomputedAtmosphere(p, ray, toDistance, false, luminance, throughput);
+				if(cloudsDistance > 0)
+				{
+					precomputedAtmosphere(p, ray, cloudsDistance, false, luminance, throughput);
+					luminance += cloudLum * throughput;
+					throughput *= cloudTrans;
+				}
+				ray.origin += ray.direction * cloudsDistance;
+				precomputedAtmosphere(p, ray, toDistance - cloudsDistance, false, luminance, throughput);
 			}
+		}
+		else
+		{
+			luminance = vec3(cloudsDistance);
 		}
 		
 		vec3 worldHitPos = ray.origin + ray.direction * toDistance;
