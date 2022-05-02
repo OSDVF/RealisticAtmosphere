@@ -55,7 +55,6 @@ namespace RealisticAtmosphere
 #pragma region Application_State
 		uint16_t* _readedTexture = nullptr;//CPU buffer for converted texture
 		bgfx::TextureHandle _stagingBuffer = BGFX_INVALID_HANDLE;//Texture handle in which a screenshot will be copied
-		void* _syncObj = nullptr;
 		// Number of frame at which a screenshot will be taken
 		uint32_t _screenshotFrame = SCREENSHOT_NEVER;
 		float _performanceFrequency = 0;
@@ -373,7 +372,7 @@ namespace RealisticAtmosphere
 			bgfx::setBuffer(1, _atmosphereBufferHandle, bgfx::Access::Read);
 			bgfx::setBuffer(2, _directionalLightBufferHandle, bgfx::Access::Read);
 			bgfx::dispatch(0, transmittanceProgram, bx::ceil(256 / float(SHADER_LOCAL_GROUP_COUNT)), bx::ceil(64 / float(SHADER_LOCAL_GROUP_COUNT)));
-
+Tw
 			bgfx::ShaderHandle precomputeSingleScattering = loadShader("SingleScattering.comp");
 			bgfx::ProgramHandle scatteringProgram = bgfx::createProgram(precomputeSingleScattering);
 			constexpr int SCATTERING_TEXTURE_WIDTH =
@@ -749,30 +748,27 @@ namespace RealisticAtmosphere
 
 		void renderScene()
 		{
-			if (bgfx::multithreadedRender || _syncObj == nullptr || bgfx::syncComplete(_syncObj))
-			{
-				int chunkSizeX = bx::ceil(_renderImageSize.width / (float)_slicesCount);
-				chunkSizeX = firstMultipleOfXGreaterThanY(SHADER_LOCAL_GROUP_COUNT, chunkSizeX);
-				int chunkSizeY = bx::ceil(_renderImageSize.height / (float)_slicesCount);
-				chunkSizeY = firstMultipleOfXGreaterThanY(SHADER_LOCAL_GROUP_COUNT, chunkSizeY);
-				int chunkXstart = chunkSizeX * (_currentChunk % _slicesCount);
-				int chunkYstart = chunkSizeY * (_currentChunk / _slicesCount);
-				SunRadianceToLuminance.w = *(float*)&chunkXstart;
-				SkyRadianceToLuminance.w = *(float*)&chunkYstart;
+			int chunkSizeX = bx::ceil(_renderImageSize.width / (float)_slicesCount);
+			chunkSizeX = firstMultipleOfXGreaterThanY(SHADER_LOCAL_GROUP_COUNT, chunkSizeX);
+			int chunkSizeY = bx::ceil(_renderImageSize.height / (float)_slicesCount);
+			chunkSizeY = firstMultipleOfXGreaterThanY(SHADER_LOCAL_GROUP_COUNT, chunkSizeY);
+			int chunkXstart = chunkSizeX * (_currentChunk % _slicesCount);
+			int chunkYstart = chunkSizeY * (_currentChunk / _slicesCount);
+			SunRadianceToLuminance.w = *(float*)&chunkXstart;
+			SkyRadianceToLuminance.w = *(float*)&chunkYstart;
 
-				setBuffersAndSamplers();
+			setBuffersAndSamplers();
 
 #if _DEBUG
-				updateDebugUniforms();
+			updateDebugUniforms();
 #endif
 
-				computeShaderRaytracer(chunkSizeX / SHADER_LOCAL_GROUP_COUNT, chunkSizeY / SHADER_LOCAL_GROUP_COUNT);
-				_currentChunk++;
-				if (_currentChunk >= _slicesCount * _slicesCount)
-				{
-					_currentChunk = 0;
-					currentSample++;
-				}
+			computeShaderRaytracer(chunkSizeX / SHADER_LOCAL_GROUP_COUNT, chunkSizeY / SHADER_LOCAL_GROUP_COUNT);
+			_currentChunk++;
+			if (_currentChunk >= _slicesCount * _slicesCount)
+			{
+				_currentChunk = 0;
+				currentSample++;
 			}
 		}
 
@@ -804,11 +800,6 @@ namespace RealisticAtmosphere
 			bgfx::setImage(1, _raytracerNormalsOutput, 0, bgfx::Access::ReadWrite);
 			bgfx::setImage(2, _raytracerDepthAlbedoBuffer, 0, bgfx::Access::ReadWrite);
 			bgfx::dispatch(0, _computeShaderProgram, numX, numY);
-			// Create synchronization fence which we will ask if the compute shader dispatch has finished
-			if (!bgfx::multithreadedRender)
-			{
-				_syncObj = bgfx::fenceSync();
-			}
 		}
 
 		void updateBuffers()
