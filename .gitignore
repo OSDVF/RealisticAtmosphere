@@ -387,4 +387,3 @@ FodyWeavers.xsd
 .idea/
 *.sln.iml
 /.gtm/
-/SDL2
