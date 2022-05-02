@@ -35,7 +35,7 @@ uniform vec4 HQSettings;
 uniform vec4 LightSettings[3];
 uniform vec4 SunRadianceToLuminance;
 uniform vec4 SkyRadianceToLuminance;
-uniform vec4 CloudsSettings[4];
+uniform vec4 CloudsSettings[5];
 #else
 vec4 Camera[] =
 {
@@ -67,9 +67,10 @@ vec4 SunRadianceToLuminance;
 vec4 SkyRadianceToLuminance;
 vec4 CloudsSettings[] = {
                             vec4(128, 4, 200000, 1500),//samples, light samples, far plane, light far plane
-                            vec4(50,  5, 0.001, 0.7),//Terrain steps, cheap downsamle, cheap thres, powder ambient
-                            vec4(1e-4, 0.1, 0.2, 2),//sampling thres, aerosol amount, powder density, fade power
-                            vec4(128, 200000, 8, 0.08)// light shafts steps, light shafts far plane, occlusion power, beer ambient
+                            vec4(50,  5, 0.001, 0.98),//Terrain steps, cheap downsamle, cheap thres, powder ambient
+                            vec4(1e-4, 0.1, -6e-3, 2),//sampling thres, aerosol amount, powder density, fade power
+                            vec4(128, 200000, 8, 0.08),// light shafts steps, light shafts far plane, occlusion power, beer ambient
+                            vec4(500, 3)//light de-banding mult, light de-banding cone
                         };
 #endif
 
@@ -92,7 +93,7 @@ vec4 CloudsSettings[] = {
 #define LightSettings_gradient LightSettings[1].z
 #define LightSettings_terrainOptimMult LightSettings[1].w
 #define LightSettings_shadowCascade LightSettings[2].x
-#define LightSettings_bandingFactor LightSettings[2].y
+#define LightSettings_deBanding LightSettings[2].y
 #define LightSettings_secondaryOffset LightSettings[2].z
 #define LightSettings_shadowNearPlane LightSettings[2].w
 
@@ -128,6 +129,9 @@ vec4 CloudsSettings[] = {
 #define Clouds_occlusionFarPlane CloudsSettings[3].y
 #define Clouds_occlusionPower CloudsSettings[3].z
 #define Clouds_beerAmbient CloudsSettings[3].w
+
+#define Clouds_deBanding CloudsSettings[4].x
+#define Clouds_cone CloudsSettings[4].y
 
 #define CurrentChunk_x floatBitsToInt(SunRadianceToLuminance.w)
 #define CurrentChunk_y floatBitsToInt(SkyRadianceToLuminance.w)

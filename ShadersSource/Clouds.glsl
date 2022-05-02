@@ -94,9 +94,9 @@ vec3 combinedPhaseFunction(float cosNu)
     return mix(miePhaseFunction(cosNu), vec3(miePhaseFunctionLow(cosNu)), Clouds_aerosols);
 }
 
-float powder(float density) {
-    float powderApprox = 1.0 - exp(-density * Clouds_powderDensity * 2.0);
-    return clamp(powderApprox, 0, 1);
+float powder(float density, float nu) {
+    float powderApprox = 1.0 - exp(density * Clouds_powderDensity);
+    return clamp(powderApprox * nu, Clouds_powderAmbient, 1);
 }
 
 float heightFade(float cloudDensity, CloudLayer c, float height)
@@ -134,7 +134,7 @@ float sampleCloudCheap(CloudLayer c, vec3 cloudSpacePos)
 //For reducing banding
 float ditheringNoise(Ray ray)
 {
-    return LightSettings_bandingFactor
+    return LightSettings_deBanding
     *   mix(   //fBm construction
             Value3D(ray.direction*30)*0.5+
             Value3D(ray.direction*60)*0.25+
@@ -143,7 +143,7 @@ float ditheringNoise(Ray ray)
             random(ray.direction),
             0.5
         )
-    - (0.5 * LightSettings_bandingFactor);
+    - (0.5 * LightSettings_deBanding);
 }
 
 void raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps, inout vec3 transmittance, inout vec3 luminance)
@@ -198,6 +198,7 @@ void raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps,
                         vec3 lightRayStep = sunDir * lSegmentLength;
                         vec3 lCloudSamplePos = cloudSpacePos;
                         vec3 lWorldSamplePos = worldSpacePos;
+                        float coneOffset = 1;
                         for(float s = 0; s < Clouds_lightSteps; s++)
                         {
                             float lheight = distance(lWorldSamplePos, planet.center);
@@ -208,8 +209,23 @@ void raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps,
                                 lightRayStep *= 3;
                                 lSegmentLength *= 3;
                             }
-                            lCloudSamplePos += lightRayStep;
-                            lWorldSamplePos += lightRayStep;
+                            if(HQSettings_reduceBanding)
+                            {
+                                //Light samples are scattered inside a cone
+                                vec3 stepWithDeBanding = vec3(
+                                    random(lCloudSamplePos.x),
+                                    random(lCloudSamplePos.y),
+                                    random(lCloudSamplePos.z)
+                                    ) * Clouds_deBanding * coneOffset + lightRayStep;
+                                coneOffset *= Clouds_cone;
+                                lCloudSamplePos += stepWithDeBanding;
+                                lWorldSamplePos += stepWithDeBanding;
+                            }
+                            else
+                            {
+                                lCloudSamplePos += lightRayStep;
+                                lWorldSamplePos += lightRayStep;
+                            }
                         }
                     
                         // Single scattering
@@ -217,12 +233,12 @@ void raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps,
                                         exp(-lOpticalDepth * c.extinctionCoef) + Clouds_beerAmbient,
                                     1);
                         float opticalDepth = density * segmentLength;
-                        transmittance *= exp(-opticalDepth * c.extinctionCoef);
 
                         // Multiple scattering approximation
-                        float pw = max(powder(opticalDepth), Clouds_powderAmbient);
+                        float pw = powder(lOpticalDepth, nu);
 
-                        scatteringSum += beer * pw * density * PlanetIlluminance(planet, worldSpacePos, phase) * transmittance;
+                        transmittance *= exp(-opticalDepth * c.extinctionCoef) * pw;
+                        scatteringSum += beer * density * PlanetIlluminance(planet, worldSpacePos, phase) * transmittance;
                         if(transmittance.x < 0.001 && transmittance.y < 0.001 && transmittance.z < 0.001)
                             break;
                     }

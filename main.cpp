@@ -568,6 +568,10 @@ namespace RealisticAtmosphere
 						{
 							applyPreset(4);
 						}
+						else if (inputGetKeyState(entry::Key::Key6))
+						{
+							applyPreset(5);
+						}
 					}
 					break;
 				}
@@ -911,7 +915,11 @@ namespace RealisticAtmosphere
 				ImGui::Checkbox("Reduce banding", &reduceBanding);
 				if (reduceBanding)
 				{
-					ImGui::InputFloat("Amount", &LightSettings_bandingFactor);
+					ImGui::PushItemWidth(100);
+					ImGui::InputFloat("Primary factor", &LightSettings_deBanding);
+					ImGui::InputFloat("Light factor", &Clouds_deBanding);
+					ImGui::InputFloat("Cone width", &Clouds_cone);
+					ImGui::PopItemWidth();
 					flags |= HQFlags_REDUCE_BANDING;
 				}
 				else
@@ -1285,10 +1293,27 @@ namespace RealisticAtmosphere
 						ImGui::InputFloat3("Speed", &_cloudsWind.x, "%e");
 					}
 					ImGui::InputFloat("Steps", &Clouds_iter, 1, 1, "%.0f");
-					ImGui::InputFloat("LightSteps", &Clouds_lightSteps, 1, 1, "%.0f");
 					ImGui::InputFloat("TerrainSteps", &Clouds_terrainSteps, 1, 1, "%.0f");
-					ImGui::InputFloat("LightFarPlane", &Clouds_lightFarPlane);
 					ImGui::InputFloat("Render Distance", &Clouds_farPlane);
+					if (ImGui::TreeNode("Cl. Lighting"))
+					{
+						ImGui::InputFloat("LightSteps", &Clouds_lightSteps, 1, 1, "%.0f");
+						ImGui::InputFloat("LightFarPlane", &Clouds_lightFarPlane);
+						if (flags & HQFlags_REDUCE_BANDING)
+						{
+							ImGui::Text("de-Banding enabled");
+							ImGui::PushItemWidth(100);
+							ImGui::InputFloat("Primary factor", &LightSettings_deBanding);
+							ImGui::InputFloat("Light factor", &Clouds_deBanding);
+							ImGui::InputFloat("Cone", &Clouds_cone);
+							ImGui::PopItemWidth();
+						}
+						else
+						{
+							ImGui::Text("de-Banding can be enabled\nin the Performance section.");
+						}
+						ImGui::TreePop();
+					}
 
 					ImGui::InputFloat("Coverage", &cloudsLayer.coverage);
 
@@ -1339,11 +1364,12 @@ namespace RealisticAtmosphere
 						swap(prevPowderDensity, Clouds_powderDensity);
 						swap(prevPowderAmbient, Clouds_powderAmbient);
 					}
+					if(useMultScattApprox)
 					{
 						ImGui::TreePush();
 						ImGui::InputFloat("Ambient", &Clouds_beerAmbient);
 						ImGui::PushItemWidth(90);
-						ImGui::InputFloat("Powder density", &Clouds_powderDensity);
+						ImGui::InputFloat("Powder density", &Clouds_powderDensity, 0, 0, "%e");
 						if (ImGui::IsItemHovered())
 						{
 							ImGui::SetTooltip("Simulates multiple scattering in the form of \"powder\" effect.");

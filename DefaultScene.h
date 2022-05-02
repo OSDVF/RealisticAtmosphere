@@ -140,7 +140,7 @@ namespace DefaultScene
 				10.354e-3,// Extinction coefficient
 
 				{8e-5,16e-5,8e-5},//size
-				1.4 // sharpness
+				1.05 // sharpness
 			},
 			0,//First light index in precomputed textures
 			0,0,0//Padding
@@ -192,6 +192,13 @@ namespace DefaultScene
 		{
 			{61950, 42398, -83371},
 			{-34, -549, 0},
+			{0,  0.593},
+			200000
+		},
+		Preset
+		{
+			{25241, 29450, -104701},
+			{-33, -545, 0},
 			{0,  0.593},
 			200000
 		},
