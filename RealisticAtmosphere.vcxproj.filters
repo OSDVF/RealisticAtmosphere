@@ -188,4 +188,8 @@
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
+  <ItemGroup>
+    <CopyFileToFolders Include="SDL2\lib\x86\SDL2.dll" />
+    <CopyFileToFolders Include="SDL2\lib\x64\SDL2.dll" />
+  </ItemGroup>
 </Project>
