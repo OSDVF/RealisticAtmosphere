@@ -10,3 +10,6 @@
 [submodule "glm"]
 	path = glm
 	url = git@github.com:g-truc/glm.git
+[submodule "SDL2"]
+	path = SDL2
+	url = git@github.com:OSDVF/RealisticAtmo-SDL2.git

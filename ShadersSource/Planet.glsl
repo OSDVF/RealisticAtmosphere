@@ -70,12 +70,13 @@ vec3 GetSkyRadiance(
 }
 
 int M_perAtmospherePixel = floatBitsToInt(Multisampling_perAtmospherePixel);;
-float raymarchOcclusion(Planet planet, Ray ray, float fromT, float toT, bool viewTerrainHit, DirectionalLight l)
+float raymarchOcclusion(Planet planet, Ray ray, float fromT, float toT, bool viewTerrainHit, bool shadowed, DirectionalLight l)
 {
 	float t = fromT;
 	float dx = (toT - fromT) / float(M_perAtmospherePixel);
 	dx = max(dx, QualitySettings_minStepSize);// Otherwise too close object would evaluate too much steps
 	float shadowLength = 0;
+	float nu = dot(ray.direction, l.direction);
 	for(int i = 0; i < M_perAtmospherePixel; i++,t+=dx)
 	{
 		vec3 worldPos = ray.origin + ray.direction * t;
@@ -84,12 +85,11 @@ float raymarchOcclusion(Planet planet, Ray ray, float fromT, float toT, bool vie
 		vec3 sphNormal = planetRelativePos /r;
 		float mu = dot(sphNormal, ray.direction);
 		float mu_s = dot(sphNormal, l.direction);
-		float nu = dot(ray.direction, l.direction);
 		bool noSureIfEclipse = true;
 		float lightFromT = 0, lightToT, _;
-		/*if(viewTerrainHit)
+		if(viewTerrainHit)
 		{
-			if(mu_s < LightSettings_viewThres)
+			if(mu_s < LightSettings_viewThres || (shadowed && toT - t < RaymarchingSteps.y ))
 			{
 				shadowLength += dx;
 				continue;//No light when sun is under the horizon
@@ -97,8 +97,9 @@ float raymarchOcclusion(Planet planet, Ray ray, float fromT, float toT, bool vie
 			// When view ray and sun are on the opposite side, there nearly "should not be" any rays
 			float diff = nu - LightSettings_noRayThres;
 			// But it whould sometimes create a visible seam, so we create a gradient here
-			if(diff < 0 && mod(i, LightSettings_gradient) < 1)
+			if(diff < 0)
 			{
+				shadowLength += dx * abs(diff);
 				noSureIfEclipse = false;
 			}
 			else
@@ -111,12 +112,12 @@ float raymarchOcclusion(Planet planet, Ray ray, float fromT, float toT, bool vie
 		{
 			noSureIfEclipse = false;
 		}
-		*/
+		
 		// Intersect light ray with outer shell of the atmosphere
 		Ray shadowRay = Ray(worldPos, l.direction);
 		raySphereIntersection(planet.center, planet.atmosphereRadius,
 							shadowRay, _, lightToT);
-							/*
+							
 		//Firstly check for opaque object hits
 		Hit hit = findObjectHit(shadowRay, false);
 		lightToT = min(hit.t, lightToT);
@@ -142,15 +143,12 @@ float raymarchOcclusion(Planet planet, Ray ray, float fromT, float toT, bool vie
 		{
 			shadowLength += dx;
 			continue;//Light is occluded by a object
-		}*/
-
-		float cloudsDensity = raymarchCloudsL(planet, shadowRay, 0, Clouds_occlusionFarPlane, Clouds_occlusionSteps);
-		shadowLength += dx * clamp(cloudsDensity * Clouds_occlusionDensity, 0, Clouds_occlusionPower);
+		}
 	}
 	return shadowLength;
 }
 
-void precomputedAtmosphere(Planet p, Ray ray, float toT, bool terrainWasHit, inout vec3 luminance, inout vec3 transmittance)
+void precomputedAtmosphere(Planet p, Ray ray, float toT, bool terrainWasHit, bool terrainShadowed, inout vec3 luminance, inout vec3 transmittance)
 {
 	vec3 atmoTransmittance;
 	float lightIndex = 0;
@@ -158,7 +156,7 @@ void precomputedAtmosphere(Planet p, Ray ray, float toT, bool terrainWasHit, ino
 	for(uint l = p.firstLight; l <= p.lastLight; l++)
 	{
 		DirectionalLight light = directionalLights[l];
-		float shadow = HQSettings_lightShafts ? raymarchOcclusion(p, ray, 0, toT, terrainWasHit, light) : 0;
+		float shadow = HQSettings_lightShafts ? raymarchOcclusion(p, ray, 0, toT, terrainWasHit, terrainShadowed, light) : 0;
 		luminance += GetSkyRadianceToPoint(p, transmittanceTable, singleScatteringTable,
 											planetSpaceCam, toT, ray.direction, shadow, 
 											light.direction, lightIndex, /*out*/ atmoTransmittance)
@@ -209,12 +207,12 @@ bool terrainColorAndHit(Planet p, Ray ray, float fromDistance, inout float toDis
 			{
 				if(cloudsDistance > 0)
 				{
-					precomputedAtmosphere(p, ray, cloudsDistance, true, luminance, throughput);
+					precomputedAtmosphere(p, ray, cloudsDistance, true, shadowedByTerrain, luminance, throughput);
 					luminance += cloudsLum * throughput;
 					throughput *= cloudsTrans;
 				}
 				ray.origin += ray.direction * cloudsDistance;
-				precomputedAtmosphere(p, ray, toDistance - cloudsDistance, true, luminance, throughput);
+				precomputedAtmosphere(p, ray, toDistance - cloudsDistance, true, shadowedByTerrain, luminance, throughput);
 			}
 		}
 		luminance += planetAlbedo * light * throughput;
@@ -287,12 +285,12 @@ bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out vec
 			{
 				if(cloudsDistance > 0)
 				{
-					precomputedAtmosphere(p, ray, cloudsDistance, false, luminance, throughput);
+					precomputedAtmosphere(p, ray, cloudsDistance, false, false, luminance, throughput);
 					luminance += cloudLum * throughput;
 					throughput *= cloudTrans;
 				}
 				ray.origin += ray.direction * cloudsDistance;
-				precomputedAtmosphere(p, ray, toDistance - cloudsDistance, false, luminance, throughput);
+				precomputedAtmosphere(p, ray, toDistance - cloudsDistance, false, false, luminance, throughput);
 			}
 		}
 		else
