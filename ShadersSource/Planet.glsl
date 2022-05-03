@@ -69,7 +69,7 @@ vec3 GetSkyRadiance(
       MiePhaseFunction(planet.mieAsymmetryFactor, nu)) * SkyRadianceToLuminance.rgb;
 }
 
-int M_perAtmospherePixel = floatBitsToInt(Multisampling_perAtmospherePixel);;
+int M_perAtmospherePixel = floatBitsToInt(Multisampling_perAtmospherePixel);
 float raymarchOcclusion(Planet planet, Ray ray, float fromT, float toT, bool viewTerrainHit, bool shadowed, DirectionalLight l)
 {
 	float t = fromT;
@@ -156,7 +156,7 @@ void precomputedAtmosphere(Planet p, Ray ray, float toT, bool terrainWasHit, boo
 	for(uint l = p.firstLight; l <= p.lastLight; l++)
 	{
 		DirectionalLight light = directionalLights[l];
-		float shadow = HQSettings_lightShafts ? raymarchOcclusion(p, ray, 0, toT, terrainWasHit, terrainShadowed, light) : 0;
+		float shadow = HQSettings_lightShafts ? raymarchOcclusion(p, ray, 0, toT, terrainWasHit, terrainShadowed, light) : 0.0;
 		luminance += GetSkyRadianceToPoint(p, transmittanceTable, singleScatteringTable,
 											planetSpaceCam, toT, ray.direction, shadow, 
 											light.direction, lightIndex, /*out*/ atmoTransmittance)
@@ -166,7 +166,7 @@ void precomputedAtmosphere(Planet p, Ray ray, float toT, bool terrainWasHit, boo
 	transmittance *= atmoTransmittance;
 }
 
-float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDistance, float cloudsDistance, inout vec3 luminance, inout vec3 transmittance, bool terrainWasHit, bool shadowed);
+float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDistance, float cloudsDistance, bool terrainWasHit, bool shadowed, inout vec3 luminance, inout vec3 transmittance);
 bool terrainColorAndHit(Planet p, Ray ray, float fromDistance, inout float toDistance, inout vec3 throughput, inout vec3 luminance, out Hit terrainHit)
 {
 	// Out parameters
@@ -193,14 +193,14 @@ bool terrainColorAndHit(Planet p, Ray ray, float fromDistance, inout float toDis
 			{
 				if(cloudsDistance > 0)
 				{
-					raymarchAtmosphere(p, ray, fromDistance, toDistance, cloudsDistance, /*inout*/ luminance, /*inout*/ throughput, true, shadowedByTerrain);
+					raymarchAtmosphere(p, ray, fromDistance, toDistance, cloudsDistance, true, shadowedByTerrain, /*inout*/ luminance, /*inout*/ throughput);
 					luminance += cloudsLum * throughput;
 					throughput *= cloudsTrans;
-					raymarchAtmosphere(p, ray, cloudsDistance, toDistance, toDistance, /*inout*/ luminance, /*inout*/ throughput, true, shadowedByTerrain);
+					raymarchAtmosphere(p, ray, cloudsDistance, toDistance, toDistance, true, shadowedByTerrain, /*inout*/ luminance, /*inout*/ throughput);
 				}
 				else
 				{
-					raymarchAtmosphere(p, ray, fromDistance, toDistance, toDistance, /*inout*/ luminance, /*inout*/ throughput, true, shadowedByTerrain);
+					raymarchAtmosphere(p, ray, fromDistance, toDistance, toDistance, true, shadowedByTerrain, /*inout*/ luminance, /*inout*/ throughput);
 				}
 			}
 			else
@@ -217,7 +217,7 @@ bool terrainColorAndHit(Planet p, Ray ray, float fromDistance, inout float toDis
 		}
 		luminance += planetAlbedo * light * throughput;
 		throughput *= planetAlbedo;
-		terrainHit = Hit(worldSamplePos, worldNormal, -1, toDistance);
+		terrainHit = Hit(worldSamplePos, worldNormal, UINT_MAX, toDistance);
 		return true;
 	}
 	terrainHit.t = POSITIVE_INFINITY;
@@ -268,17 +268,17 @@ bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out vec
 			{
 				if(cloudsDistance > 0)
 				{
-					raymarchAtmosphere(p, ray, fromDistance, toDistance, cloudsDistance, /*inout*/ luminance, /*inout*/ throughput, false, false);
+					raymarchAtmosphere(p, ray, fromDistance, toDistance, cloudsDistance, false, false, /*inout*/ luminance, /*inout*/ throughput);
 					luminance += cloudLum * throughput;
 					throughput *= cloudTrans;
 					if(throughput.r > 0.001 || throughput.g > 0.001 || throughput.b > 0.001)
 					{
-						raymarchAtmosphere(p, ray, cloudsDistance, toDistance, toDistance, /*inout*/ luminance, /*inout*/ throughput, false, false);
+						raymarchAtmosphere(p, ray, cloudsDistance, toDistance, toDistance, false, false, /*inout*/ luminance, /*inout*/ throughput);
 					}
 				}
 				else
 				{
-					raymarchAtmosphere(p, ray, fromDistance, toDistance, toDistance, /*inout*/ luminance, /*inout*/ throughput, false, false);
+					raymarchAtmosphere(p, ray, fromDistance, toDistance, toDistance, false, false, /*inout*/ luminance, /*inout*/ throughput);
 				}
 			}
 			else
@@ -306,7 +306,7 @@ bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out vec
 	}
 }
 
-float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDistance, float cloudsDistance, inout vec3 luminance, inout vec3 transmittance, bool terrainWasHit, bool shadowed)
+float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDistance, float cloudsDistance, bool terrainWasHit, bool shadowed, inout vec3 luminance, inout vec3 transmittance)
 {
 	float t0, t1;
 

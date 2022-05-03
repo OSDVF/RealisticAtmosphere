@@ -9,7 +9,7 @@ layout(std430, binding=3) readonly buffer ObjectBuffer
     Sphere objects[];
 };
 
-layout(std430, binding=4) readonly buffer PlanetBuffer
+layout(std430, binding=4) readonly buffer PlanetBuffer 
 {
     Planet planets[];
 };

@@ -18,7 +18,7 @@ void main()
 		vec3 normal;
 		vec3 albedo;//We call the initial throughput "albedo" because it consists only of first object albedo
 		float depth;
-		raytracePrimSec(coord, /*out*/ color,/*out*/ normal, /*out*/ albedo, /*out*/ depth, 1.0/float(indirectSamples));
+		raytracePrimSec(coord, 1.0/float(indirectSamples), /*out*/ color,/*out*/ normal, /*out*/ albedo, /*out*/ depth);
 		float packedAlbedo = uintBitsToFloat(//unlit
 			uint(albedo.x*255)
 			|
@@ -65,7 +65,7 @@ void main()
 			vec3 normal;
 			vec3 albedo;
 			float depth;
-			raytracePrimSec(subpixelCoord, /*out*/ newColor,/*out*/ normal, /*out*/ albedo, /*out*/ depth, 1.0/float(indirectSamples));
+			raytracePrimSec(subpixelCoord, 1.0/float(indirectSamples), /*out*/ newColor,/*out*/ normal, /*out*/ albedo, /*out*/ depth);
 			float packedAlbedo = uintBitsToFloat(//unlit
 				uint(albedo.x*255)
 				|

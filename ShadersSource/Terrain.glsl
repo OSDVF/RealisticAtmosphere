@@ -8,10 +8,6 @@
 float getSampleParameters(Planet planet, Ray ray, float currentDistance, out vec3 sphNormal, out vec3 worldSamplePos);
 vec2 mirrorTilingUV(vec2 uv);
 
-#ifdef COMPUTE
-uvec2 quadIndex = gl_LocalInvocationID.xy / 2;
-shared vec3 hitPosition;
-#endif
 vec3 triplanarSample(sampler2DArray sampl, vec4 pos, vec3 normal, float lod)
 {
 	pos.xyz = pos.xyz / 5;
