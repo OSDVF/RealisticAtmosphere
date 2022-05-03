@@ -110,6 +110,11 @@ vec2 getSubpixelCoords(vec2 fromPixel, int directSampleNum)
 
 void raytraceSecondary(vec3 origin, vec3 normal, vec3 throughput, float invIndirectCount, inout vec3 colorOut)
 {
+    // Switch to lower quality for secondary rays:
+    HQSettings_earthShadows = false;
+    HQSettings_atmoCompute = false;
+    HQSettings_lightShafts = false;
+
     // Traces secondary ray from the point specified by "normal, albedo, depth = primary ray length" parameters
     int bounces = floatBitsToInt(Multisampling_maxBounces);
     // Create secondary rays
@@ -123,7 +128,7 @@ void raytraceSecondary(vec3 origin, vec3 normal, vec3 throughput, float invIndir
         bool terrainWasHit;
         if(HQSettings_indirectApprox && objectHit.hitObjectIndex == -1)
         {
-            //Indirect lighting from atmosphere is already computed for terrain
+            //Indirect lighting from atmosphere is already computed
             //So compute only lighting reflected from terrain
             terrainWasHit = terrainColorAndHit(planets[0], secondaryRay, 0, objectHit.t, throughput, atmColor, planetHit);
         }
@@ -140,9 +145,9 @@ void raytraceSecondary(vec3 origin, vec3 normal, vec3 throughput, float invIndir
         if (objectHit.hitObjectIndex != -1 && objectHit.t <= planetHit.t)
         {
             Material objMaterial = materials[objects[objectHit.hitObjectIndex].materialIndex];
-            vec3 totalLightColor = computeLightColor(objectHit);
-            colorOut += (objMaterial.emission + totalLightColor * objMaterial.albedo.xyz) * throughput * invIndirectCount;
-            throughput *= objMaterial.albedo.xyz;
+            vec3 totalLightColor = objectIlluminance(objectHit);
+            colorOut += (objMaterial.emission + totalLightColor * objMaterial.albedo.rgb)  * objMaterial.albedo.a * throughput * invIndirectCount;
+            throughput *= objMaterial.albedo.rgb * objMaterial.albedo.a;
 
             origin = objectHit.position;
             normal = objectHit.normalAtHit;
@@ -155,10 +160,10 @@ void raytraceSecondary(vec3 origin, vec3 normal, vec3 throughput, float invIndir
     }
 }
 
-void raytracePrimSec(vec2 subpixelCoord, float invIndirectCount, out vec3 colorOut, out vec3 normal, out vec3 throughput, out float depth)
+vec3 raytracePrimSec(vec2 subpixelCoord, float invIndirectCount, out vec3 normal, out vec3 throughput, out float depth)
 {
     // Traces both primary and secondary ray
-    colorOut = vec3(0);
+    vec3 colorOut = vec3(0);
     normal = vec3(0);
     throughput = vec3(1);// save initial throughput to albedo
     depth = 0;//No hit
@@ -183,14 +188,15 @@ void raytracePrimSec(vec2 subpixelCoord, float invIndirectCount, out vec3 colorO
     {
         // Add color of the object at the hit
         Material objMaterial = materials[objects[objectHit.hitObjectIndex].materialIndex];
-        vec3 totalLightColor = computeLightColor(objectHit);
-
-        colorOut += (objMaterial.albedo.xyz * totalLightColor + objMaterial.emission.xyz) * throughput;
-        throughput *= objMaterial.albedo.xyz;
+        vec3 totalLightColor = objectIlluminance(objectHit);
+        
+        colorOut += (objMaterial.albedo.rgb * totalLightColor + objMaterial.emission.xyz) * throughput;
+        throughput *= objMaterial.albedo.rgb;//Transparency is ignored here as it is not really implemented and only used to identify 'ghost' objects (e.g. sun)
         normal = objectHit.normalAtHit;
         if(objMaterial.albedo.a != 0) // Do not put transparent objects into depth buffer
             depth = objectHit.t;
 
         raytraceSecondary(objectHit.position, normal, throughput, invIndirectCount, colorOut);
     }
+    return colorOut;
 }

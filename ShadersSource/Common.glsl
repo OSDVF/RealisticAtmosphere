@@ -33,9 +33,9 @@ float GetUnitRangeFromTextureCoord(float u, float texture_size) {
 
 vec3 GetIrradiance(
     const Planet planet,
-    sampler2DArray irradiance_texture,
+    IRRADIANCE_SAMPLER_TYPE irradiance_texture,
     float r, float mu_l, float arrayCoord) {
-    vec3 size = textureSize(irradiance_texture, 0);
+    IRRADIANCE_COORD_TYPE size = textureSize(irradiance_texture, 0);
     vec3 uv = vec3(
         GetTextureCoordFromUnitRange(
             mu_l * 0.5 + 0.5, size.x
@@ -46,7 +46,7 @@ vec3 GetIrradiance(
         arrayCoord
     );
 
-    return vec3(texture(irradiance_texture, uv));
+    return vec3(texture(irradiance_texture, IRRADIANCE_COORD_TYPE(uv)));
 }
 
 float DistanceToTopAtmosphereBoundary(const Planet planet,
@@ -275,7 +275,7 @@ vec4 GetScatteringTextureUvwzFromRMuMuSNu(Planet planet,
   float u_nu = (nu + 1.0) / 2.0;
 
   // Offset the Y coordinate according to the number of lights in the texture
-  u_mu = (u_mu + lightIndex)/SCATTERING_TEXTURE_LIGHT_COUNT;
+  u_mu = (u_mu + lightIndex)/SCATTERING_LIGHT_COUNT;
   return vec4(u_nu, u_mu_s, u_mu, u_r);
 }
 

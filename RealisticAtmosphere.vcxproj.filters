@@ -31,6 +31,9 @@
     <Filter Include="Header Files\Vertex Types">
       <UniqueIdentifier>{f54f71dc-9166-4cee-8fdb-6c0c1fbf9aa7}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Copy To Output">
+      <UniqueIdentifier>{e5a0473d-b627-483d-965f-1c3760a82f65}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -189,7 +192,11 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <CopyFileToFolders Include="SDL2\lib\x86\SDL2.dll" />
-    <CopyFileToFolders Include="SDL2\lib\x64\SDL2.dll" />
+    <CopyFileToFolders Include="SDL2\lib\x64\SDL2.dll">
+      <Filter>Copy To Output</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="SDL2\lib\x86\SDL2.dll">
+      <Filter>Copy To Output</Filter>
+    </CopyFileToFolders>
   </ItemGroup>
 </Project>

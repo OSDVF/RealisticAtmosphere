@@ -249,7 +249,7 @@ float raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps
                         float pw = powder(lOpticalDepth, nu);
 
                         transmittance *= exp(-opticalDepth * c.extinctionCoef) * pw;
-                        scatteringSum += beer * density * PlanetIlluminance(planet, worldSpacePos, phase) * transmittance;
+                        scatteringSum += beer * density * cloudsIlluminance(planet, worldSpacePos, phase) * transmittance;
                         if(transmittance.x < 0.001 && transmittance.y < 0.001 && transmittance.z < 0.001)
                             break;
                     }

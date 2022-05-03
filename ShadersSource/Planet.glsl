@@ -87,62 +87,80 @@ float raymarchOcclusion(Planet planet, Ray ray, float fromT, float toT, bool vie
 		float mu_s = dot(sphNormal, l.direction);
 		bool noSureIfEclipse = true;
 		float lightFromT = 0, lightToT, _;
-		if(viewTerrainHit)
+
+		if(HQSettings_lightShafts)
 		{
-			if(mu_s < LightSettings_viewThres || (shadowed && toT - t < RaymarchingSteps.y ))
+			if(viewTerrainHit)
 			{
-				shadowLength += dx;
-				continue;//No light when sun is under the horizon
+				if(mu_s < LightSettings_viewThres || (shadowed && toT - t < RaymarchingSteps.y ))
+				{
+					shadowLength += dx;
+					continue;//No light when sun is under the horizon
+				}
+				// When view ray and sun are on the opposite side, there nearly "should not be" any rays
+				float diff = nu - LightSettings_noRayThres;
+				// But it whould sometimes create a visible seam, so we create a gradient here
+				if(diff < 0)
+				{
+					shadowLength += dx * abs(diff);
+					noSureIfEclipse = false;
+				}
+				else
+				{
+					// We can start terrain raymarching at the distance of the terrain from the camera
+					lightFromT = (toT - t) * LightSettings_terrainOptimMult;
+				}
 			}
-			// When view ray and sun are on the opposite side, there nearly "should not be" any rays
-			float diff = nu - LightSettings_noRayThres;
-			// But it whould sometimes create a visible seam, so we create a gradient here
-			if(diff < 0)
+			if(mu_s > LightSettings_noRayThres || t > QualitySettings_farPlane)
 			{
-				shadowLength += dx * abs(diff);
 				noSureIfEclipse = false;
 			}
-			else
-			{
-				// We can start terrain raymarching at the distance of the terrain from the camera
-				lightFromT = (toT - t) * LightSettings_terrainOptimMult;
-			}
-		}
-		if(mu_s > LightSettings_noRayThres || t > QualitySettings_farPlane)
-		{
-			noSureIfEclipse = false;
-		}
 		
-		// Intersect light ray with outer shell of the atmosphere
-		Ray shadowRay = Ray(worldPos, l.direction);
-		raySphereIntersection(planet.center, planet.atmosphereRadius,
-							shadowRay, _, lightToT);
+			// Intersect light ray with outer shell of the atmosphere
+			Ray shadowRay = Ray(worldPos, l.direction);
+			raySphereIntersection(planet.center, planet.atmosphereRadius,
+								shadowRay, _, lightToT);
 							
-		//Firstly check for opaque object hits
-		Hit hit = findObjectHit(shadowRay, false);
-		lightToT = min(hit.t, lightToT);
-		// Secondly check if sun is in shadow of the planet
-		vec3 viewOnPlanetPlane = ray.direction - mu * sphNormal;
-		vec3 sunOnPlanetPlane = l.direction - mu_s * sphNormal;
+			//Firstly check for opaque object hits
+			Hit hit = findObjectHit(shadowRay, false);
+			lightToT = min(hit.t, lightToT);
+			// Secondly check if sun is in shadow of the planet
+			vec3 viewOnPlanetPlane = ray.direction - mu * sphNormal;
+			vec3 sunOnPlanetPlane = l.direction - mu_s * sphNormal;
 
-		if(noSureIfEclipse && r < planet.mountainsRadius)
-		{
-			//If we hit the mountains			
-			if(raymarchTerrainL(planet, shadowRay, lightFromT, lightToT))
+			if(noSureIfEclipse && r < planet.mountainsRadius)
 			{
-				if(dot(sunOnPlanetPlane, viewOnPlanetPlane) > 0 && viewTerrainHit && t > toT * LightSettings_cutoffDist)
+				//If we hit the mountains			
+				if(raymarchTerrainL(planet, shadowRay, lightFromT, lightToT))
 				{
-					// In all the later samples, the sun will be also occluded
-					return shadowLength + toT - t;//The later samples would all be occluded by the terrain
+					if(dot(sunOnPlanetPlane, viewOnPlanetPlane) > 0 && viewTerrainHit && t > toT * LightSettings_cutoffDist)
+					{
+						// In all the later samples, the sun will be also occluded
+						return shadowLength + toT - t;//The later samples would all be occluded by the terrain
+					}
+					shadowLength += dx;
+					continue;//Skip to next sample. This effectively creates light rays
 				}
+			}
+			if(hit.hitObjectIndex != -1)
+			{
 				shadowLength += dx;
-				continue;//Skip to next sample. This effectively creates light rays
+				continue;//Light is occluded by a object
 			}
 		}
-		if(hit.hitObjectIndex != -1)
+		else
 		{
-			shadowLength += dx;
-			continue;//Light is occluded by a object
+			Ray shadowRay = Ray(worldPos, l.direction);
+			raySphereIntersection(planet.center, planet.atmosphereRadius,
+								shadowRay, _, lightToT);
+							
+			//Check ONLY for opaque object hits
+			Hit hit = findObjectHit(shadowRay, false);
+			if(hit.hitObjectIndex != -1)
+			{
+				shadowLength += dx;
+				continue;//Light is occluded by a object
+			}
 		}
 	}
 	return shadowLength;
@@ -185,7 +203,7 @@ bool terrainColorAndHit(Planet p, Ray ray, float fromDistance, inout float toDis
 		float cloudsDistance = cloudsForPlanet(p,ray,fromDistance,toDistance,Clouds_terrainSteps,cloudsTrans,cloudsLum);
 
 		bool shadowedByTerrain;
-		vec3 light = lightPoint(p, worldSamplePos, worldNormal, /*out*/ shadowedByTerrain);
+		vec3 light = planetIlluminance(p, worldSamplePos, worldNormal, /*out*/ shadowedByTerrain);
 		if(!DEBUG_ATMO_OFF)
 		{
 			//Compute atmosphere contribution between terrain and camera
@@ -344,6 +362,7 @@ float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDis
 			//
 			DirectionalLight light = directionalLights[l];
 			float lightToViewCos /*nu*/ = dot(light.direction, ray.direction);
+			float sunToNormalCos /*mu_s*/ = dot(light.direction, sphNormal);
 
 			float lightFromT = 0, dummy, lightToT; 
 			// Intersect light ray with outer shell of the planet
@@ -353,54 +372,56 @@ float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDis
 
 			//Firstly check for object hits
 			Hit hit = findObjectHit(shadowRay, false);
-			lightToT = min(hit.t, lightToT);
-			// Secondly check if sun is in shadow of the planet
-			float sunToNormalCos = dot(light.direction, sphNormal);
-			vec3 viewOnPlanetPlane = ray.direction - dot(ray.direction,sphNormal) * sphNormal;
-			vec3 sunOnPlanetPlane = light.direction - sunToNormalCos * sphNormal;
-
-			bool noSureIfEclipse = true;
-			if(terrainWasHit)
+			if(HQSettings_lightShafts)// Only raymarch terrain if the user wants to
 			{
-				if(sunToNormalCos < LightSettings_viewThres || (shadowed && maxDistance - currentDistance < RaymarchingSteps.y ))
+				lightToT = min(hit.t, lightToT);
+				// Secondly check if sun is in shadow of the planet
+				vec3 viewOnPlanetPlane = ray.direction - dot(ray.direction,sphNormal) * sphNormal;
+				vec3 sunOnPlanetPlane = light.direction - sunToNormalCos * sphNormal;
+
+				bool noSureIfEclipse = true;
+				if(terrainWasHit)
 				{
-					continue;//No light when sun is under the horizon
+					if(sunToNormalCos < LightSettings_viewThres || (shadowed && maxDistance - currentDistance < RaymarchingSteps.y ))
+					{
+						continue;//No light when sun is under the horizon
+					}
+					// When view ray and sun are on the opposite side, there nearly "should not be" any rays
+					float diff = lightToViewCos - LightSettings_noRayThres;
+					// But it whould sometimes create a visible seam, so we create a gradient here
+					if(diff < 0 && mod(i, LightSettings_gradient) < 1)
+					{
+						noSureIfEclipse = false;
+					}
+					else
+					{
+						// We can start terrain raymarching at the distance of the terrain from the camera
+						lightFromT = (maxDistance - currentDistance) * LightSettings_terrainOptimMult;
+					}
 				}
-				// When view ray and sun are on the opposite side, there nearly "should not be" any rays
-				float diff = lightToViewCos - LightSettings_noRayThres;
-				// But it whould sometimes create a visible seam, so we create a gradient here
-				if(diff < 0 && mod(i, LightSettings_gradient) < 1)
+				if(sunToNormalCos > LightSettings_noRayThres // Terrain is never above the viewer, so we can skip testing for shadowing in a conic area above the camera
+					|| currentDistance > QualitySettings_farPlane)
 				{
+					if(DEBUG_RM)
+						luminance = vec3(0,1,0);
 					noSureIfEclipse = false;
 				}
-				else
-				{
-					// We can start terrain raymarching at the distance of the terrain from the camera
-					lightFromT = (maxDistance - currentDistance) * LightSettings_terrainOptimMult;
-				}
-			}
-			if(sunToNormalCos > LightSettings_noRayThres // Terrain is never above the viewer, so we can skip testing for shadowing in a conic area above the camera
-				|| currentDistance > QualitySettings_farPlane)
-			{
-				if(DEBUG_RM)
-					luminance = vec3(0,1,0);
-				noSureIfEclipse = false;
-			}
 
-			if(noSureIfEclipse && distance(worldSamplePos, planet.center) < planet.mountainsRadius)
-			{
-				//If we hit the mountains			
-				if(raymarchTerrainL(planet, shadowRay, lightFromT, lightToT))
+				if(noSureIfEclipse && distance(worldSamplePos, planet.center) < planet.mountainsRadius)
 				{
-					if(dot(sunOnPlanetPlane,viewOnPlanetPlane) > 0 && terrainWasHit && currentDistance > maxDistance * LightSettings_cutoffDist)
+					//If we hit the mountains			
+					if(raymarchTerrainL(planet, shadowRay, lightFromT, lightToT))
 					{
-						// If the view ray has direction towards the center of the planet more than towards the sky
-						if(DEBUG_RM)
-							luminance = vec3(1,0,0);
-						// In all the later samples, the sun will be also occluded
-						break;//The later samples would all be occluded by the terrain
+						if(dot(sunOnPlanetPlane,viewOnPlanetPlane) > 0 && terrainWasHit && currentDistance > maxDistance * LightSettings_cutoffDist)
+						{
+							// If the view ray has direction towards the center of the planet more than towards the sky
+							if(DEBUG_RM)
+								luminance = vec3(1,0,0);
+							// In all the later samples, the sun will be also occluded
+							break;//The later samples would all be occluded by the terrain
+						}
+						continue;//Skip to next sample. This effectively creates light rays
 					}
-					continue;//Skip to next sample. This effectively creates light rays
 				}
 			}
 			if(hit.hitObjectIndex != -1)

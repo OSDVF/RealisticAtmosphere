@@ -7,6 +7,9 @@
  */
 #ifndef SCENEOBJECTS
 #define SCENEOBJECTS
+
+#include "Structures.glsl"
+
 #define AMBIENT_LIGHT vec3(0)
 #define HQFlags_NONE 0u
 #define HQFlags_EARTH_SHADOWS 1u
@@ -23,7 +26,7 @@ uniform sampler2DArray terrainTextures;
 uniform sampler2D heightmapTexture;
 uniform sampler2D opticalDepthTable;
 uniform sampler2D transmittanceTable;
-uniform sampler2DArray irradianceTable;
+uniform IRRADIANCE_SAMPLER_TYPE irradianceTable;
 uniform sampler3D singleScatteringTable;
 uniform vec4 u_viewRect;
 uniform vec4 Camera[4];
@@ -58,7 +61,7 @@ int lightTerrainDetectSteps = 40;
 vec4 LightSettings[] = {
                             vec4(2000, 0.03, 0.4, -0.09),
                             vec4(0.5, *(float*)&lightTerrainDetectSteps, 3, 0.6),
-                            vec4(2000, 700, 1e-2, 60)
+                            vec4(2000, 700, 5e-2, 60)
                         };
 vec4 PlanetMaterial = {1700, 2300, .4, .4};
 int planetSteps = 152;

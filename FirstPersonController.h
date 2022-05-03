@@ -5,6 +5,7 @@
 class FirstPersonController
 {
 public:
+	// Virtual camera which is used in the raytracer
 	MouseCamera Camera;
 	bool CanJump = true;
 	float WalkSpeed = 1.4;

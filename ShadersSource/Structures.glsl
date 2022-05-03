@@ -1,13 +1,26 @@
 //?#version 440
+// Will be included in .cpp and also .glsl
 #ifndef STRUCTURES_H
 #define STRUCTURES_H
+
+// Defining constants common for C++ and GLSL code
+#define SCATTERING_LIGHT_COUNT 1
+
+#if SCATTERING_LIGHT_COUNT > 1
+#define IRRADIANCE_COORD_TYPE vec3
+#define IRRADIANCE_SAMPLER_TYPE sampler2DArray
+#else
+#define IRRADIANCE_COORD_TYPE vec2
+#define IRRADIANCE_SAMPLER_TYPE sampler2D
+#endif
+
+
 const int SCATTERING_TEXTURE_R_SIZE = 32;
 const int SCATTERING_TEXTURE_MU_SIZE = 128;
 const int SCATTERING_TEXTURE_MU_S_SIZE = 32;
 const int SCATTERING_TEXTURE_NU_SIZE = 8;
-const float SCATTERING_TEXTURE_LIGHT_COUNT = 2;
 
-const int SCATTERING_TEXTURE_HEIGHT = SCATTERING_TEXTURE_MU_SIZE * int(SCATTERING_TEXTURE_LIGHT_COUNT);
+const int SCATTERING_TEXTURE_HEIGHT = SCATTERING_TEXTURE_MU_SIZE * int(SCATTERING_LIGHT_COUNT);
 
 struct CloudLayer
 {
@@ -33,7 +46,7 @@ struct DirectionalLight
     vec3 direction;
     float angularRadius;
 
-    vec3 irradiance;
+    vec3 irradiance;//Irradiance at atmosphere boundary
     float intensity;
 };
 

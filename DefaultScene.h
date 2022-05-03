@@ -55,11 +55,6 @@ namespace DefaultScene
 			{sunRadius}, //Radius
 			0 //Material index
 		},
-		{//Moon
-			{0, 0, sunObjectDistance}, //Position
-			{moonRadius}, //Radius
-			0 //Material index
-		},
 		{//Blue sphere
 			{22832, 2022, 13326}, //Position
 			{1}, //Radius
@@ -77,25 +72,13 @@ namespace DefaultScene
 		}
 	};
 
-	std::array<DirectionalLight, 2> directionalLightBuffer = {
+	std::array<DirectionalLight, SCATTERING_LIGHT_COUNT> directionalLightBuffer = {
 		DirectionalLight{//Sun
 			{0,0,0},//Direction will be assigned
 			float(sunAngularRadius),
 			{1,1,1},//irradiance will be assigned
 			0.3
-		},
-		DirectionalLight{//Moon
-			{0,0,0},//Direction will be assigned
-			moonAngularRadiusMax,
-			{
-				0.005,
-				0.005,
-				0.005
-			},
-		//https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4487308/
-		//values are in μW.m−2.nm−1 so we need to convert them to lumens
-		1
-	}
+		}
 	};
 
 	std::array<Planet, 1> planetBuffer = {
@@ -105,10 +88,10 @@ namespace DefaultScene
 			earthRadius,//start radius
 
 			atmosphereRadius,//end radius
-			0,//βˢₘ Will be assigned later
+			0,//κˢₘ Will be assigned later
 			0.8,//Mie asymmetry factor
 			1200,//Mie scale height
-			vec3(0,0,0),//βˢᵣ Will be assigned later
+			vec3(0,0,0),//κˢᵣ Will be assigned later
 			7994,//Rayleigh scale height
 
 			vec3(0,0,0),//Absorption (ozone) extinction coefficients - will be assigned later
@@ -155,10 +138,6 @@ namespace DefaultScene
 			float y = 0;
 		} sun;
 		float cloudsFarPlane = 200000.0f;
-		struct {
-			float x = 0;
-			float y = 0;
-		} moon;
 	};
 
 	const Preset presets[] = {

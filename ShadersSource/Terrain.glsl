@@ -145,6 +145,7 @@ float terrainSDF(Planet planet, float sampleHeight /*above sea level*/, vec2 uv,
 	return float(sampleHeight - surfaceHeight);
 }
 
+// Return parameters corresponding to one raymarching sample
 float getSampleParameters(Planet planet, Ray ray, float currentDistance, out vec3 sphNormal, out vec3 worldSamplePos)
 {
 	worldSamplePos = ray.origin + currentDistance * ray.direction;
@@ -155,6 +156,7 @@ float getSampleParameters(Planet planet, Ray ray, float currentDistance, out vec
 	return centerDist - planet.surfaceRadius;
 }
 
+// High precision (double) version
 float getSampleParametersH(Planet planet, Ray ray, float currentDistance, out vec3 sphNormal, out vec3 worldSamplePos)
 {
 	dvec3 worldSamplePosH = dvec3(ray.origin) + double(currentDistance) * dvec3(ray.direction);
@@ -184,17 +186,29 @@ bool raymarchTerrain(Planet planet, Ray ray, float fromDistance, inout float toD
 		{
 			sampleHeight = getSampleParametersH(planet, ray, currentT, /*out*/sphNormal, /*out*/worldSamplePos);
 			terrainDistance = terrainSDF(planet, sampleHeight, worldSamplePos.xz, /*out*/ normalMap);
-			if(abs(terrainDistance) < RaymarchingSteps.z * currentT || terrainDistance < -50)
+
+			float currentPrecision = RaymarchingSteps.z * currentT; // Creates lower level of detail for further points
+			if(abs(terrainDistance) < currentPrecision || terrainDistance < -50)
 			{
 				// Sufficient distance to claim as "hit"
 				toDistance = currentT;
 				return true;
 			}
-
-			currentT += QualitySettings_optimism * terrainDistance;
+			float optimisticStep = QualitySettings_optimism * terrainDistance;
+			if(optimisticStep < 0)
+			{
+				// When doing step backwards
+				currentT += QualitySettings_optimism * terrainDistance;
+			}
+			else
+			{
+				// Forward steps should have some minimal length
+				currentT += max(QualitySettings_optimism * terrainDistance, currentPrecision);
+			}
 		}
 		else
 		{
+			// Render distance exceeded
 			return false;
 		}
 	}

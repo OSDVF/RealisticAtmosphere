@@ -7,7 +7,21 @@
 #include "Common.glsl"
 #include "Terrain.glsl"
 
-vec3 PlanetIlluminance(Planet planet, vec3 point, vec3 phaseFunctionValue)
+vec3 skyIndirect(Planet planet, vec3 normal, vec3 sphNormal, float r, float mu_l, float lightIndexInTexture)
+{
+    return (GetIrradiance(planet, irradianceTable, r, mu_l, lightIndexInTexture) *
+            (1.0 + dot(normal, sphNormal)) * 0.5 *
+            SkyRadianceToLuminance.xyz);
+}
+
+vec3 planetLightDirect(Planet planet, DirectionalLight light, float r, float mu_l, vec3 normal)
+{
+    return light.irradiance * GetTransmittanceToLight(planet, light.angularRadius, transmittanceTable, r, mu_l) *
+    max(dot(normal, light.direction), 0.0) *
+    SunRadianceToLuminance.xyz;
+}
+
+vec3 cloudsIlluminance(Planet planet, vec3 point, vec3 phaseFunctionValue)
 {
     vec3 toPlanetSpace = point - planet.center;
     float r = length(toPlanetSpace);
@@ -26,12 +40,12 @@ vec3 PlanetIlluminance(Planet planet, vec3 point, vec3 phaseFunctionValue)
     return irradiance;
 }
 
-vec3 PlanetIlluminance(Planet planet, vec3 point)
+vec3 cloudsIlluminance(Planet planet, vec3 point)
 {
-    return PlanetIlluminance(planet, point, vec3(1));
+    return cloudsIlluminance(planet, point, vec3(1));
 }
 
-vec3 lightPoint(Planet planet, vec3 p, vec3 normal, out bool shadowedByTerrain)
+vec3 planetIlluminance(Planet planet, vec3 p, vec3 normal, out bool shadowedByTerrain)
 {
     shadowedByTerrain = false;
     vec3 totalLightColor = AMBIENT_LIGHT;// Initially the object is only lightened up by ambient light
@@ -67,23 +81,20 @@ vec3 lightPoint(Planet planet, vec3 p, vec3 normal, out bool shadowedByTerrain)
             }
         }
         float mu_l = dot(sphNormal, light.direction);
-        vec3 thisLightColor = HQSettings_indirectApprox /*use precomputed indirect lighting?*/ ? /*initially illuminated only by sky*/
-                            (GetIrradiance(planet, irradianceTable, r, mu_l, lightIndexInTexture) *
-                            (1.0 + dot(normal, sphNormal)) * 0.5 *
-                            SkyRadianceToLuminance.xyz) : vec3(0);
+
+        // Apply indirect lighting
+        vec3 thisPlanetLightColor = HQSettings_indirectApprox /*use precomputed indirect lighting?*/ ? /*initially illuminated only by sky*/
+                            skyIndirect(planet, normal, sphNormal, r, mu_l, lightIndexInTexture) : vec3(0);
         if(!inShadow)
         {
-            thisLightColor += light.irradiance *
-                            GetTransmittanceToLight(planet, light.angularRadius, transmittanceTable, r, mu_l) *
-                            max(dot(normal, light.direction), 0.0) *
-                            SunRadianceToLuminance.xyz;       
+            thisPlanetLightColor += planetLightDirect(planet, light, r, mu_l, normal);
         }
-        totalLightColor += thisLightColor * light.intensity;
+        totalLightColor += thisPlanetLightColor * light.intensity;
     }
     return totalLightColor;
 }
 
-vec3 computeLightColor(Hit hit)
+vec3 objectIlluminance(Hit hit)
 {
     if(DEBUG_NORMALS)
     {
@@ -92,15 +103,22 @@ vec3 computeLightColor(Hit hit)
     vec3 totalLightColor = AMBIENT_LIGHT;// Initially the object is only lightened up by ambient light
     // Compute illumination by casting 'shadow rays' into lights
 
+    // TODO optimize for more planets
+    float lightIndexInTexture = 0.0;
+    vec3 sphericalPos = hit.position - planets[0].center;
+    float r = length(sphericalPos);
+    vec3 sphNormal = sphericalPos / r;
     // Check for directional lights
     for(int i = 0; i < directionalLights.length(); i++)
     {
         DirectionalLight light = directionalLights[i];
         vec3 lDir = light.direction;
         bool inShadow = false;
+
+        float mu_l = dot(sphNormal, lDir);
         Ray shadowRay = Ray(hit.position, lDir);
         for (int k = 0; k < objects.length(); ++k) {
-            if(k == hit.hitObjectIndex || materials[objects[k].materialIndex].albedo.a == 0)
+            if(k == hit.hitObjectIndex || materials[objects[k].materialIndex].albedo.a /*ghost objects don't have shadows*/ == 0)
             {
                 continue;
             }
@@ -114,15 +132,30 @@ vec3 computeLightColor(Hit hit)
         {
             for(int k = 0; k < planets.length();++k)
             {
-                if(raymarchTerrainL(planets[k], shadowRay, LightSettings_shadowNearPlane, LightSettings_farPlane))
+                if(raymarchTerrainD(planets[k], shadowRay, LightSettings_shadowNearPlane, LightSettings_farPlane))
                 {
                     inShadow = true;
                 }
             }
         }
-        if(inShadow)
-            continue;
-        totalLightColor += light.irradiance * max(dot(lDir, hit.normalAtHit),0);
+
+        if(i >= planets[0].firstLight && i <= planets[0].lastLight)
+        {
+            // This is a 'planetary' light - sun, moon, etc. and has its light irradiance precomputed in LUT
+            // Apply indirect lighting approximation
+            vec3 thisPlanetLightColor = HQSettings_indirectApprox /*use precomputed indirect lighting?*/ ? /*initially illuminated only by sky*/
+                                skyIndirect(planets[0], hit.normalAtHit, sphNormal, r, mu_l, lightIndexInTexture) : vec3(0);
+            if(!inShadow)
+            {
+                thisPlanetLightColor += planetLightDirect(planets[0], light, r, mu_l, hit.normalAtHit);      
+            }
+            totalLightColor = thisPlanetLightColor * light.intensity;
+            lightIndexInTexture+=1;
+        }
+        else
+        {
+            totalLightColor += light.irradiance * max(dot(lDir, hit.normalAtHit),0);
+        }
     }
     return totalLightColor;
 }

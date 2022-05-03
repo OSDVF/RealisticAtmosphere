@@ -14,11 +14,10 @@ void main()
 	int directSampleNum = sampleNum / indirectSamples;
 	if(sampleNum == 0)
 	{
-		vec3 color;
 		vec3 normal;
 		vec3 albedo;//We call the initial throughput "albedo" because it consists only of first object albedo
 		float depth;
-		raytracePrimSec(coord, 1.0/float(indirectSamples), /*out*/ color,/*out*/ normal, /*out*/ albedo, /*out*/ depth);
+		vec3 color = raytracePrimSec(coord, 1.0/float(indirectSamples),/*out*/ normal, /*out*/ albedo, /*out*/ depth);
 		float packedAlbedo = uintBitsToFloat(//unlit
 			uint(albedo.x*255)
 			|
@@ -55,17 +54,16 @@ void main()
 
 				Ray cam = createCameraRay(subpixelCoord);
 				vec3 origin = cam.origin + depth * cam.direction;
-				raytraceSecondary(/*inout*/ color, /*in*/ origin, /*in*/ normal, /*in*/ albedo, 1.0/float(indirectSamples));
+				raytraceSecondary(/*in*/ origin, /*in*/ normal, /*in*/ albedo, 1.0/float(indirectSamples), color);
 				imageStore(colorOutput, coord, vec4(color, 0));
 			}
 		}
 		else
 		{
-			vec3 newColor;
 			vec3 normal;
 			vec3 albedo;
 			float depth;
-			raytracePrimSec(subpixelCoord, 1.0/float(indirectSamples), /*out*/ newColor,/*out*/ normal, /*out*/ albedo, /*out*/ depth);
+			vec3 newColor = raytracePrimSec(subpixelCoord, 1.0/float(indirectSamples),/*out*/ normal, /*out*/ albedo, /*out*/ depth);
 			float packedAlbedo = uintBitsToFloat(//unlit
 				uint(albedo.x*255)
 				|
