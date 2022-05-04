@@ -9,15 +9,15 @@ layout(rg32f, binding=2) uniform restrict image2D depthBuffer;
 void main()
 {
 	ivec2 coord = ivec2(gl_GlobalInvocationID.xy) + ivec2(CurrentChunk_x, CurrentChunk_y);
-	int sampleNum = floatBitsToInt(HQSettings_sampleNum);
-	int indirectSamples /*per every direct*/ = floatBitsToInt(Multisampling_indirect);
-	int directSampleNum = sampleNum / indirectSamples;
+	float sampleNum = HQSettings_sampleNum;
+	float indirectSamples /*per every direct*/ = Multisampling_indirect;
+	float directSampleNum = sampleNum / indirectSamples;
 	if(sampleNum == 0)
 	{
 		vec3 normal;
 		vec3 albedo;//We call the initial throughput "albedo" because it consists only of first object albedo
 		float depth;
-		vec3 color = raytracePrimSec(coord, 1.0/float(indirectSamples),/*out*/ normal, /*out*/ albedo, /*out*/ depth);
+		vec3 color = raytracePrimSec(coord, 1.0/indirectSamples,/*out*/ normal, /*out*/ albedo, /*out*/ depth);
 		float packedAlbedo = uintBitsToFloat(//unlit
 			uint(albedo.x*255)
 			|
@@ -32,7 +32,7 @@ void main()
 	else
 	{
 		vec2 subpixelCoord = getSubpixelCoords(coord, directSampleNum);
-		int indirectSampleNum = sampleNum % indirectSamples;
+		float indirectSampleNum = mod(sampleNum, indirectSamples);
 
 		vec3 color = imageLoad(colorOutput, coord).xyz;
 		if(indirectSampleNum > 0)
@@ -54,7 +54,7 @@ void main()
 
 				Ray cam = createCameraRay(subpixelCoord);
 				vec3 origin = cam.origin + depth * cam.direction;
-				raytraceSecondary(/*in*/ origin, /*in*/ normal, /*in*/ albedo, 1.0/float(indirectSamples), color);
+				raytraceSecondary(/*in*/ origin, /*in*/ normal, /*in*/ albedo, 1.0/indirectSamples, color);
 				imageStore(colorOutput, coord, vec4(color, 0));
 			}
 		}
@@ -63,7 +63,7 @@ void main()
 			vec3 normal;
 			vec3 albedo;
 			float depth;
-			vec3 newColor = raytracePrimSec(subpixelCoord, 1.0/float(indirectSamples),/*out*/ normal, /*out*/ albedo, /*out*/ depth);
+			vec3 newColor = raytracePrimSec(subpixelCoord, 1.0/indirectSamples,/*out*/ normal, /*out*/ albedo, /*out*/ depth);
 			float packedAlbedo = uintBitsToFloat(//unlit
 				uint(albedo.x*255)
 				|

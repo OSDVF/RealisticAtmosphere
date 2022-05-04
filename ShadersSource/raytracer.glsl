@@ -65,15 +65,15 @@ Ray createSecondaryRay(vec3 pos, vec3 normal)
     return ray_next;
 }
 
-vec2 getSubpixelCoords(vec2 fromPixel, int directSampleNum)
+vec2 getSubpixelCoords(vec2 fromPixel, float directSampleNum)
 {
     fromPixel+= 0.5;//Center the ray
-    int multisampling = floatBitsToInt(HQSettings_directSamples);
-    int x,y;
+    float multisampling = HQSettings_directSamples;
+    float x,y;
     switch(floatBitsToInt(Multisampling_type))
     {
     case 1:
-        x = directSampleNum % multisampling;
+        x = mod(directSampleNum, multisampling);
         y = directSampleNum / multisampling;
         if(directSampleNum == 0)
         {
@@ -88,7 +88,7 @@ vec2 getSubpixelCoords(vec2 fromPixel, int directSampleNum)
         }
     case 2:
         {
-            x = directSampleNum % multisampling;
+            x = mod(directSampleNum, multisampling);
             y = directSampleNum / multisampling;
             vec2 griddedOffset = vec2(x / (multisampling-1), y / (multisampling-1)) - 0.5;
             return fromPixel + griddedOffset;

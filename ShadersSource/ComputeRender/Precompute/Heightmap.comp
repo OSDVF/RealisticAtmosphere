@@ -13,7 +13,10 @@ void main()
 						),0,1);//Smoothen out the edges / make then round;
 	
     color = fbmTerrain(tc*10.0) / 1.43186 /*manually found maximum value*/;
-    color.yz = normalize(vec3(color.y * edgeFunction,1,color.z * edgeFunction)).xz*0.5 + 0.5;
+    color.yz = -normalize( // Normals ale flipped for some reason
+					vec3(color.y * edgeFunction,1,color.z * edgeFunction)
+				).xz
+				* 0.5 + 0.5;
 
 	color.x *= edgeFunction;
 

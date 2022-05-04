@@ -308,4 +308,18 @@ vec4 fbmTerrain (vec2 st) {
     return vec4(value, derivates.x, derivates.y, lastOctave);
 }
 
+//For reducing banding
+float debandingNoise(vec3 seed, float coef)
+{
+    return coef
+    *   mix(   //fBm construction
+            Value3D(seed*30)*0.5+
+            Value3D(seed*60)*0.25+
+            Value3D(seed*120)*0.125,
+
+            random(seed),
+            0.5
+        );
+}
+
 #endif

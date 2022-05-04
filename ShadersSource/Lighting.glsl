@@ -45,7 +45,7 @@ vec3 cloudsIlluminance(Planet planet, vec3 point)
     return cloudsIlluminance(planet, point, vec3(1));
 }
 
-vec3 planetIlluminance(Planet planet, vec3 p, vec3 normal, out bool shadowedByTerrain)
+vec3 planetIlluminance(Planet planet, Hit hit, out bool shadowedByTerrain)
 {
     shadowedByTerrain = false;
     vec3 totalLightColor = AMBIENT_LIGHT;// Initially the object is only lightened up by ambient light
@@ -53,7 +53,7 @@ vec3 planetIlluminance(Planet planet, vec3 p, vec3 normal, out bool shadowedByTe
 
     // Check for directional lights
     float lightIndexInTexture = planet.firstLightCoord;
-    vec3 planetRelativePos = p - planet.center;
+    vec3 planetRelativePos = hit.position - planet.center;
     float r = length(planetRelativePos);
     vec3 sphNormal = planetRelativePos / r;
     for(uint i = planet.firstLight; i <= planet.lastLight; i++,lightIndexInTexture++)
@@ -61,7 +61,7 @@ vec3 planetIlluminance(Planet planet, vec3 p, vec3 normal, out bool shadowedByTe
         DirectionalLight light = directionalLights[i];
         vec3 lDir = light.direction.xyz;
         bool inShadow = false;
-        Ray shadowRay = Ray(p, lDir);
+        Ray shadowRay = Ray(hit.position, lDir);
         for (int k = 0; k < objects.length(); ++k) {
             float t0 = 0, t1 = 0;
             if (materials[objects[k].materialIndex].albedo.a > 0 && raySphereIntersection(objects[k].position, objects[k].radius, shadowRay, t0, t1) && t1 > 0) {
@@ -69,11 +69,15 @@ vec3 planetIlluminance(Planet planet, vec3 p, vec3 normal, out bool shadowedByTe
                 break;
             }
         }
+        float softShadow = 1.0;
+
+        shadowRay.origin += LightSettings_secondaryOffset * hit.t * hit.normalAtHit;
         if(HQSettings_earthShadows && !inShadow)
         {
             for(int k = 0; k < planets.length();++k)
             {
-                if(raymarchTerrainD(planets[k], shadowRay, LightSettings_shadowNearPlane/*offset a bit to reduce self-shadowing*/, LightSettings_farPlane))
+                softShadow = raymarchTerrainD(planets[k], shadowRay, hit.t, LightSettings_farPlane);
+                if(softShadow == 0.0)
                 {
                     inShadow = true;
                     shadowedByTerrain = true;
@@ -84,12 +88,12 @@ vec3 planetIlluminance(Planet planet, vec3 p, vec3 normal, out bool shadowedByTe
 
         // Apply indirect lighting
         vec3 thisPlanetLightColor = HQSettings_indirectApprox /*use precomputed indirect lighting?*/ ? /*initially illuminated only by sky*/
-                            skyIndirect(planet, normal, sphNormal, r, mu_l, lightIndexInTexture) : vec3(0);
+                            skyIndirect(planet, hit.normalAtHit, sphNormal, r, mu_l, lightIndexInTexture) : vec3(0);
         if(!inShadow)
         {
-            thisPlanetLightColor += planetLightDirect(planet, light, r, mu_l, normal);
+            thisPlanetLightColor += planetLightDirect(planet, light, r, mu_l, hit.normalAtHit) * softShadow;
         }
-        totalLightColor += thisPlanetLightColor * light.intensity;
+        totalLightColor += thisPlanetLightColor;
     }
     return totalLightColor;
 }
@@ -128,11 +132,16 @@ vec3 objectIlluminance(Hit hit)
                 break;
             }
         }
+        float softShadow = 1.0;
+
+        // Prevent calculation from a point iside earth
+        shadowRay.origin += LightSettings_secondaryOffset * hit.t * hit.normalAtHit;
         if(HQSettings_earthShadows && !inShadow)
         {
             for(int k = 0; k < planets.length();++k)
             {
-                if(raymarchTerrainD(planets[k], shadowRay, LightSettings_shadowNearPlane, LightSettings_farPlane))
+                softShadow = raymarchTerrainD(planets[k], shadowRay,hit.t, LightSettings_farPlane);
+                if(softShadow == 0.0)
                 {
                     inShadow = true;
                 }
@@ -147,9 +156,9 @@ vec3 objectIlluminance(Hit hit)
                                 skyIndirect(planets[0], hit.normalAtHit, sphNormal, r, mu_l, lightIndexInTexture) : vec3(0);
             if(!inShadow)
             {
-                thisPlanetLightColor += planetLightDirect(planets[0], light, r, mu_l, hit.normalAtHit);      
+                thisPlanetLightColor += planetLightDirect(planets[0], light, r, mu_l, hit.normalAtHit) * softShadow;      
             }
-            totalLightColor = thisPlanetLightColor * light.intensity;
+            totalLightColor = thisPlanetLightColor;
             lightIndexInTexture+=1;
         }
         else

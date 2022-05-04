@@ -35,7 +35,7 @@ uniform vec4 QualitySettings;
 uniform vec4 PlanetMaterial;
 uniform vec4 RaymarchingSteps;
 uniform vec4 HQSettings;
-uniform vec4 LightSettings[3];
+uniform vec4 LightSettings[4];
 uniform vec4 SunRadianceToLuminance;
 uniform vec4 SkyRadianceToLuminance;
 uniform vec4 CloudsSettings[5];
@@ -47,25 +47,23 @@ vec4 Camera[] =
     vec4(0,1,0,0),//Up vector, fovY
     vec4(1,0,0,0)//Right vector, fovX
 };
-int perPixel = 1;
 int bounces = 0;
 int perAtmosphere = 64;
 int type = 0;
-vec4 MultisamplingSettings = {*(float*)&perPixel,*(float*)&bounces,*(float*)&perAtmosphere,*(float*)&type};
-vec4 QualitySettings = {5, 50, 63000, 0.4};
-int currentSample = 0;
-int directSamples = 1;//Direct samples per all samples
+vec4 MultisamplingSettings = {1, *(float*)&bounces,*(float*)&perAtmosphere,*(float*)&type};
+vec4 QualitySettings = {1.21, 50, 63000, 0.4};
 unsigned int flags = HQFlags_INDIRECT_APPROX | HQFlags_REDUCE_BANDING;
-vec4 HQSettings = {*(float*)&flags, *(float*)&currentSample, *(float*)&directSamples, 1};
+vec4 HQSettings = {*(float*)&flags, 0, 1, 1};
 int lightTerrainDetectSteps = 40;
 vec4 LightSettings[] = {
                             vec4(2000, 0.03, 0.4, -0.09),
                             vec4(0.5, *(float*)&lightTerrainDetectSteps, 3, 0.6),
-                            vec4(2000, 700, 5e-2, 60)
+                            vec4(2000, 500, 5e-2, 0.05),
+                            vec4(3, 0.1, 400)/*shadow hardness, de-banding coef, light shaft shadowed threshold*/
                         };
-vec4 PlanetMaterial = {1700, 2300, .4, .4};
+vec4 PlanetMaterial = {1700, 2300, 2, .4};
 int planetSteps = 152;
-vec4 RaymarchingSteps = {*(float*)&planetSteps, 400/*shadowedThres*/, 0.005, 0.5};
+vec4 RaymarchingSteps = {*(float*)&planetSteps, 0.005, 0.5, 5};
 vec4 SunRadianceToLuminance;
 vec4 SkyRadianceToLuminance;
 vec4 CloudsSettings[] = {
@@ -73,7 +71,7 @@ vec4 CloudsSettings[] = {
                             vec4(50,  5, 0.001, 0.98),//Terrain steps, cheap downsamle, cheap thres, powder ambient
                             vec4(1e-4, 0.1, -6e-3, 2),//sampling thres, aerosol amount, powder density, fade power
                             vec4(40, 110000, 2.6, 0.08),// light shafts steps, light shafts far plane, occlusion power, beer ambient
-                            vec4(500, 3, 50, 0.04)//light de-banding mult, light de-banding cone, occlusion max, occlusion density
+                            vec4(500, 3, 50, 0.04)//light optical depth de-banding mult, light de-banding cone, occlusion max, occlusion density
                         };
 #endif
 
@@ -82,7 +80,7 @@ vec4 CloudsSettings[] = {
 #define Multisampling_perAtmospherePixel MultisamplingSettings.z
 #define Multisampling_type MultisamplingSettings.w
 
-#define QualitySettings_lodPow QualitySettings.x
+#define QualitySettings_terrainNormals QualitySettings.x
 #define QualitySettings_minStepSize QualitySettings.y
 #define QualitySettings_farPlane QualitySettings.z
 #define QualitySettings_optimism QualitySettings.w
@@ -99,6 +97,14 @@ vec4 CloudsSettings[] = {
 #define LightSettings_deBanding LightSettings[2].y
 #define LightSettings_secondaryOffset LightSettings[2].z
 #define LightSettings_shadowNearPlane LightSettings[2].w
+#define LightSettings_shadowHardness LightSettings[3].x
+#define LightSettings_shadowDeBanding LightSettings[3].y
+#define LightSettings_rayAlsoShadowedThres LightSettings[3].z
+
+#define RaymarchingSteps_terrain RaymarchingSteps.x
+#define RaymarchingSteps_precision RaymarchingSteps.y
+#define RaymarchingSteps_lodA RaymarchingSteps.z
+#define RaymarchingSteps_lodB RaymarchingSteps.w
 
 #define HQSettings_flags HQSettings.x
 #define HQSettings_sampleNum HQSettings.y

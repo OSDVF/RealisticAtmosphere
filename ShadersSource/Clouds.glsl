@@ -131,21 +131,6 @@ float sampleCloudCheap(CloudLayer c, vec3 cloudSpacePos)
     return clamp(cloudsCheap(c, cloudSpacePos * c.sizeMultiplier),0,1);
 }
 
-//For reducing banding
-float ditheringNoise(Ray ray)
-{
-    return LightSettings_deBanding
-    *   mix(   //fBm construction
-            Value3D(ray.direction*30)*0.5+
-            Value3D(ray.direction*60)*0.25+
-            Value3D(ray.direction*120)*0.125,
-
-            random(ray.direction),
-            0.5
-        )
-    - (0.5 * LightSettings_deBanding);
-}
-
 float raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps, out vec3 transmittance, out vec3 luminance)
 {
     transmittance = vec3(1);
@@ -160,7 +145,7 @@ float raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps
     if(HQSettings_reduceBanding)
     //Reduce banding by offseting origin about random fraction
     {
-        ray.origin += ray.direction * ditheringNoise(ray);
+        ray.origin += ray.direction * debandingNoise(ray.direction + time.x * HQSettings_sampleNum, LightSettings_deBanding);
     }
 
     for(uint l = planet.firstLight; l <= planet.lastLight; l++)
@@ -224,9 +209,9 @@ float raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps
                             {
                                 //Light samples are scattered inside a cone
                                 vec3 stepWithDeBanding = vec3(
-                                    random(lCloudSamplePos.x),
-                                    random(lCloudSamplePos.y),
-                                    random(lCloudSamplePos.z)
+                                    random(lCloudSamplePos.x + time.x * HQSettings_sampleNum),
+                                    random(lCloudSamplePos.y + time.x * HQSettings_sampleNum),
+                                    random(lCloudSamplePos.z + time.x * HQSettings_sampleNum)
                                     ) * Clouds_deBanding * coneOffset + lightRayStep;
                                 coneOffset *= Clouds_cone;
                                 lCloudSamplePos += stepWithDeBanding;

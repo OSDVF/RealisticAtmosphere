@@ -99,9 +99,9 @@ void main()
             (
                 float
                 (
-                    (floatBitsToInt(HQSettings.y/*sampleNum*/)+1)
+                    (HQSettings.y/*sampleNum*/+1)
                     /
-                    floatBitsToInt(MultisamplingSettings.x)/*indirectSamples*/
+                    MultisamplingSettings.x/*indirectSamples*/
                 ),
                 1
             )

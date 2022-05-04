@@ -40,6 +40,7 @@ namespace DefaultScene
 	};
 
 	const float earthRadius = 6360000; // cit. E. Bruneton page 3
+	const float mountainRadius = earthRadius + 4000;
 	const float cloudsStart = earthRadius + 500;
 	const float cloudsEnd = earthRadius + 20000;
 	const float atmosphereRadius = 6420000;
@@ -95,17 +96,17 @@ namespace DefaultScene
 			7994,//Rayleigh scale height
 
 			vec3(0,0,0),//Absorption (ozone) extinction coefficients - will be assigned later
-			earthRadius + 4000, // Mountains radius
+			mountainRadius, // Mountains radius
 
+			mountainRadius - earthRadius, //Mountain height
 			atmosphereRadius - earthRadius, // Atmosphere thickness
 			25000,//Ozone peak height - height at which the ozone has maximum relative density
 			(1.0 / 15000.0),//Ozone troposphere density coefficient - for heights below ozonePeakHeight
-			-(2.0/3.0),//Ozone troposphere density constant
 
+			-(2.0/3.0),//Ozone troposphere density constant
 			-(1.0 / 15000.0),//Ozone stratosphere density coefficient - for heights above peak
 			(8.0 / 3.0),//Ozone stratosphere density constant
-			0,//First light index (sun = 0)
-			0,//Last light index (moon would be 1)
+			0,//First light index in precomputed textures
 			CloudLayer
 			{
 				{-110000, -2000, 0}, // position
@@ -125,8 +126,10 @@ namespace DefaultScene
 				{8e-5,16e-5,8e-5},//size
 				1.05 // sharpness
 			},
-			0,//First light index in precomputed textures
-			0,0,0//Padding
+			0,//First light index (sun = 0)
+			0,//Last light index (moon would be 1)
+			
+			0,0//Padding
 		},
 	};
 

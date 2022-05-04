@@ -47,7 +47,7 @@ struct DirectionalLight
     float angularRadius;
 
     vec3 irradiance;//Irradiance at atmosphere boundary
-    float intensity;
+    float padding;
 };
 
 struct SpotLight
@@ -90,23 +90,23 @@ struct Planet
 
     vec3 absorptionCoefficients; // Ozone layer
     float mountainsRadius;
-    
+
+    float mountainsHeight;
     float atmosphereThickness;// Should be precomputed as (atmosphereRadius - surfaceRadius)
     float ozonePeakHeight;
     float ozoneTroposphereCoef;
-    float ozoneTroposphereConst;
 
+    float ozoneTroposphereConst;
     float ozoneStratosphereCoef;
     float ozoneStratosphereConst;
-    uint firstLight;
-    uint lastLight;
-    
+    float firstLightCoord;
+
     CloudLayer clouds;
 
-    float firstLightCoord;
+    uint firstLight;
+    uint lastLight;
     float padding1;
     float padding2;
-    float padding3;
 };
 
 struct Hit

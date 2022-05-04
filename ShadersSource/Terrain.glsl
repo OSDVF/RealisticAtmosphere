@@ -33,7 +33,7 @@ vec3 triplanarSample(sampler2DArray sampl, vec4 pos, vec3 normal, float lod)
 	weights /= (weights.x + weights.y + weights.z);
 
 	vec4 color = texX * weights.x + texY * weights.y + texZ * weights.z;
-	return color.xyz;
+	return color.xyz * 0.9;//Terrain textures are too shiny to me
 }
 
 float terrainCoverage(vec2 uv)
@@ -56,7 +56,7 @@ float terrainCoverage(vec2 uv)
 vec3 terrainColor(Planet planet, float T, vec3 pos, vec3 normal, float elev)
 {
 	// Triplanar texture mapping in world space
-	float lod = pow(T, RaymarchingSteps.w) / QualitySettings_lodPow;
+	float lod = pow(T, RaymarchingSteps_lodA) / RaymarchingSteps_lodB;
 	vec4 gradParams = texture(heightmapTexture, mirrorTilingUV(pos.xz*5+100));
 	float gradHeight = PlanetMaterial.w;
 	float randomizedElev = elev * (gradParams.x+gradParams.w);
@@ -89,8 +89,7 @@ vec3 biLerp(vec3 a, vec3 b, vec3 c, vec3 d, float s, float t)
 vec3 terrainNormal(vec2 normalMap, vec3 sphNormal)
 {
 	// Compute normal in world space
-	vec2 map = (normalMap * 0.9) * 2 - 1;
-	map.x = -map.x;
+	vec2 map = (normalMap * 2 - 1) * QualitySettings_terrainNormals;
 	vec3 t = vec3(1,0,0);//sphereTangent(sphNormal);
 	vec3 bitangent = vec3(0,0,1);//sphNormal * t;
 	float normalZ = sqrt(1-dot(map.xy, map.xy));
@@ -139,10 +138,9 @@ float terrainSDF(Planet planet, float sampleHeight /*above sea level*/, vec2 uv,
 	bump.yz = mix(vec2(0.5), bump.yz, coverage);
 	#endif
 
-	double mountainHeight = double(planet.mountainsRadius) -  double(planet.surfaceRadius);
-	float surfaceHeight = bump.x * float(mountainHeight);
+	float surfaceHeight = bump.x * planet.mountainsHeight;
 	outNormalMap = bump.gb;
-	return float(sampleHeight - surfaceHeight);
+	return sampleHeight - surfaceHeight;
 }
 
 // Return parameters corresponding to one raymarching sample
@@ -180,14 +178,14 @@ bool raymarchTerrain(Planet planet, Ray ray, float fromDistance, inout float toD
 	float maxDistance = min(toDistance, QualitySettings_farPlane);
 	float terrainDistance = POSITIVE_INFINITY;
 
-	for(int i = 0; i < floatBitsToInt(RaymarchingSteps.x);i++)
+	for(int i = 0; i < floatBitsToInt(RaymarchingSteps_terrain);i++)
 	{
 		if(currentT <= maxDistance)
 		{
 			sampleHeight = getSampleParametersH(planet, ray, currentT, /*out*/sphNormal, /*out*/worldSamplePos);
 			terrainDistance = terrainSDF(planet, sampleHeight, worldSamplePos.xz, /*out*/ normalMap);
 
-			float currentPrecision = RaymarchingSteps.z * currentT; // Creates lower level of detail for further points
+			float currentPrecision = RaymarchingSteps_precision * currentT; // Creates lower level of detail for further points
 			if(abs(terrainDistance) < currentPrecision || terrainDistance < -50)
 			{
 				// Sufficient distance to claim as "hit"
@@ -247,19 +245,25 @@ bool raymarchTerrainL(Planet planet, Ray ray, float fromDistance, float toDistan
 	return false;
 }
 
-// "Dynamic" cascaded version
-bool raymarchTerrainD(Planet planet, Ray ray, float fromDistance, float toDistance)
+// "Dynamic" cascaded version that also returns a float - soft shadow factor
+float raymarchTerrainD(Planet planet, Ray ray, float camDistance, float toDistance)
 {
-	float currentT = fromDistance;
+	float currentT = (LightSettings_shadowNearPlane 
+						+ debandingNoise(ray.origin + time.x * HQSettings_sampleNum, LightSettings_shadowDeBanding)
+					 ) * camDistance;
 	toDistance = min(toDistance, LightSettings_farPlane);
 
 	vec3 worldSamplePos = Camera_position;
+	float res = 1.0;
+	float terrainDistance = POSITIVE_INFINITY;
+    float previousDistance = 1e20; // Has to be not so infinite
 	for(int i = 0; i < floatBitsToInt(LightSettings_shadowSteps);i++)
 	{
 		vec2 normalMap;
 		vec3 sphNormal;
 		float sampleHeight;
-		if(distance(worldSamplePos, Camera_position) > LightSettings_shadowCascade)
+
+		if(camDistance > LightSettings_shadowCascade)
 		{
 			sampleHeight = getSampleParameters(planet, ray, currentT, /*out*/sphNormal, /*out*/worldSamplePos);
 		}
@@ -267,18 +271,34 @@ bool raymarchTerrainD(Planet planet, Ray ray, float fromDistance, float toDistan
 		{
 			sampleHeight = getSampleParametersH(planet, ray, currentT, /*out*/sphNormal, /*out*/worldSamplePos);
 		}
+		float precis = currentT * LightSettings_precision;
 		
-		float terrainDistance = terrainSDF(planet, sampleHeight, worldSamplePos.xz, /*out*/ normalMap);
-		if(terrainDistance < LightSettings_precision * currentT)
+		terrainDistance = terrainSDF(planet, sampleHeight, worldSamplePos.xz, /*out*/ normalMap);
+		if(abs(terrainDistance) < precis || terrainDistance < -50)
 		{
-			// Sufficient distance to claim as "hit"
-			return true;
+			// Sufficient distance to claim as "full hit"
+			return 0.0;
 		}
-		if(terrainDistance > toDistance)
-			return false;
+		float distSquared = terrainDistance*terrainDistance;
+		float y = distSquared/(2.0*previousDistance);
+        float d = sqrt(distSquared-y*y);
+        res = min( res, LightSettings_shadowHardness*d/max(0.0,currentT-y) );
+        previousDistance = terrainDistance;
 
-		currentT += QualitySettings_optimism * terrainDistance;
+		if(terrainDistance > toDistance)
+			return res;
+
+
+		float optimisticStep = QualitySettings_optimism * terrainDistance;
+		if(optimisticStep > 0)
+		{
+			currentT += max(optimisticStep, precis);
+		}
+		else
+		{
+			currentT += optimisticStep;
+		}
 	}
-	return false;
+	return res;
 }
 #endif

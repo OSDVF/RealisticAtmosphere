@@ -92,7 +92,7 @@ float raymarchOcclusion(Planet planet, Ray ray, float fromT, float toT, bool vie
 		{
 			if(viewTerrainHit)
 			{
-				if(mu_s < LightSettings_viewThres || (shadowed && toT - t < RaymarchingSteps.y ))
+				if(mu_s < LightSettings_viewThres || (shadowed && toT - t < LightSettings_rayAlsoShadowedThres))
 				{
 					shadowLength += dx;
 					continue;//No light when sun is under the horizon
@@ -198,12 +198,14 @@ bool terrainColorAndHit(Planet p, Ray ray, float fromDistance, inout float toDis
 					normalMap, sphNormal, worldSamplePos, sampleHeight ))
 	{
 		vec3 worldNormal = terrainNormal(normalMap, sphNormal);
+		terrainHit = Hit(worldSamplePos, worldNormal, UINT_MAX, toDistance);
+
 		vec3 planetAlbedo = terrainColor(p, toDistance, worldSamplePos, worldNormal, sampleHeight);
 		vec3 cloudsTrans, cloudsLum;
 		float cloudsDistance = cloudsForPlanet(p,ray,fromDistance,toDistance,Clouds_terrainSteps,cloudsTrans,cloudsLum);
 
 		bool shadowedByTerrain;
-		vec3 light = planetIlluminance(p, worldSamplePos, worldNormal, /*out*/ shadowedByTerrain);
+		vec3 light = planetIlluminance(p, terrainHit, /*out*/ shadowedByTerrain);
 		if(!DEBUG_ATMO_OFF)
 		{
 			//Compute atmosphere contribution between terrain and camera
@@ -235,7 +237,6 @@ bool terrainColorAndHit(Planet p, Ray ray, float fromDistance, inout float toDis
 		}
 		luminance += planetAlbedo * light * throughput;
 		throughput *= planetAlbedo;
-		terrainHit = Hit(worldSamplePos, worldNormal, UINT_MAX, toDistance);
 		return true;
 	}
 	terrainHit.t = POSITIVE_INFINITY;
@@ -382,7 +383,7 @@ float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDis
 				bool noSureIfEclipse = true;
 				if(terrainWasHit)
 				{
-					if(sunToNormalCos < LightSettings_viewThres || (shadowed && maxDistance - currentDistance < RaymarchingSteps.y ))
+					if(sunToNormalCos < LightSettings_viewThres || (shadowed && maxDistance - currentDistance < LightSettings_rayAlsoShadowedThres))
 					{
 						continue;//No light when sun is under the horizon
 					}

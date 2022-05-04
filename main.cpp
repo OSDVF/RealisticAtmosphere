@@ -42,7 +42,6 @@
 #define SCREENSHOT_AFTER_RENDER SCREENSHOT_NEVER - 1
 #define SCREENSHOT_AFTER_RENDER_PENDING SCREENSHOT_AFTER_RENDER - 1
 
-#define DIRECT_SAMPLES_COUNT (*(int*)&HQSettings_directSamples)
 #define SHADER_LOCAL_GROUP_COUNT 16
 
 namespace RealisticAtmosphere
@@ -63,6 +62,7 @@ namespace RealisticAtmosphere
 		float _renderTime = 0;
 		uint64_t _renderStartedAt = 0;
 		uint32_t _frame = 0;
+		float _currentSample = 0;
 		int _slicesCount = 3;
 		int _currentChunk = 0;
 		Uint64 _lastTicks = 0;
@@ -198,7 +198,7 @@ namespace RealisticAtmosphere
 				*(uint32_t*)&HQSettings_flags |= HQFlags_EARTH_SHADOWS | HQFlags_ATMO_COMPUTE | HQFlags_LIGHT_SHAFTS;
 
 				// 300 planet raymarching steps
-				*(int*)&RaymarchingSteps.x = 300;
+				*(int*)&RaymarchingSteps_terrain = 300;
 				// 200 cloud raymarching steps
 				Clouds_iter = 200;
 				Clouds_terrainSteps = 80;
@@ -464,7 +464,7 @@ namespace RealisticAtmosphere
 				bgfx::TextureFormat::RG32F,
 				BGFX_TEXTURE_COMPUTE_WRITE | BGFX_SAMPLER_UVW_CLAMP);
 
-			currentSample = 0;//Reset sample counter - otherwise path tracing would continue with previous samples
+			_currentSample = 0;//Reset sample counter - otherwise path tracing would continue with previous samples
 		}
 
 		void updateVirtualCameraPerspective()
@@ -615,7 +615,7 @@ namespace RealisticAtmosphere
 				setDisplaySettings();
 				bgfx::submit(0, _displayingShaderProgram);
 
-				int maxSamples = DIRECT_SAMPLES_COUNT * *(int*)&Multisampling_indirect;
+				int maxSamples = HQSettings_directSamples * Multisampling_indirect;
 
 				//
 				// GUI Actions
@@ -634,7 +634,7 @@ namespace RealisticAtmosphere
 						asciiKey
 					);
 #ifdef DRAW_RENDERING_PROGRESS
-					if (_pathTracingMode && currentSample < maxSamples)
+					if (_pathTracingMode && _currentSample < maxSamples)
 					{
 						ImDrawList* list = ImGui::GetBackgroundDrawList();
 						ImVec2 center = { (float)_windowWidth / 2, (float)_windowHeight / 2 };
@@ -660,24 +660,24 @@ namespace RealisticAtmosphere
 
 				bool tracingComplete;
 				auto stats = bgfx::getStats();
-				if (currentSample == 0 || !_pathTracingMode && _currentChunk == 0)
+				if (_currentSample == 0 || !_pathTracingMode && _currentChunk == 0)
 				{
 					_renderStartedAt = stats->gpuTimeBegin;
 				}
-				if (tracingComplete = (currentSample >= maxSamples))
+				if (tracingComplete = (_currentSample >= maxSamples))
 				{
 					if (!_pathTracingMode)
 					{
-						currentSample = 0;
+						_currentSample = 0;
 						renderScene();
 						_renderTime = (stats->gpuTimeEnd - _renderStartedAt) * 1000 / (float)stats->gpuTimerFreq;
 						updateScene();
 					}
-					else if (currentSample == maxSamples)/*add last frame latency*/
+					else if (_currentSample == maxSamples)/*add last frame latency*/
 					{
 						// Rendering complete
 						_renderTime = (stats->gpuTimeEnd - _renderStartedAt) * 1000 / (float)stats->gpuTimerFreq;
-						currentSample = INT_MAX;//Do not render further in any case! :)
+						_currentSample = INFINITY;//Do not render further in any case! :)
 					}
 				}
 				else
@@ -748,7 +748,7 @@ namespace RealisticAtmosphere
 				{
 					// Reset back to window dimensions
 					cleanRenderedBuffers(_windowWidth, _windowHeight);
-					currentSample = INT_MAX;//Do not render again
+					_currentSample = INFINITY;//Do not render again
 					bgfx::reset(_windowWidth, _windowHeight);
 				}
 				// Return to normal rendering
@@ -800,7 +800,7 @@ namespace RealisticAtmosphere
 			if (_currentChunk >= _slicesCount * _slicesCount)
 			{
 				_currentChunk = 0;
-				currentSample++;
+				_currentSample++;
 			}
 		}
 
@@ -847,8 +847,8 @@ namespace RealisticAtmosphere
 			bgfx::setBuffer(4, _atmosphereBufferHandle, bgfx::Access::Read);
 			bgfx::setBuffer(5, _materialBufferHandle, bgfx::Access::Read);
 			bgfx::setBuffer(6, _directionalLightBufferHandle, bgfx::Access::Read);
-			vec4 timeWrapper = vec4(_frame, 0, 0, 0);
-			HQSettings_sampleNum = *(float*)&currentSample;
+			vec4 timeWrapper = vec4(_frame, 0, 0, 0);/*It is more frame number thant real time*/
+			HQSettings_sampleNum = _currentSample;
 			bgfx::setUniform(_timeHandle, &timeWrapper);
 			bgfx::setUniform(_multisamplingSettingsHandle, &MultisamplingSettings);
 			bgfx::setUniform(_qualitySettingsHandle, &QualitySettings);
@@ -949,7 +949,7 @@ namespace RealisticAtmosphere
 				}
 				if (reduceBanding)
 				{
-					ImGui::PushItemWidth(100);
+					ImGui::PushItemWidth(95);
 					ImGui::InputFloat("Primary factor", &LightSettings_deBanding);
 					ImGui::InputFloat("Light factor", &Clouds_deBanding);
 					ImGui::InputFloat("Cone width", &Clouds_cone);
@@ -973,11 +973,21 @@ namespace RealisticAtmosphere
 				ImGui::Checkbox("Terrain shadows", &earthShadows);
 				if (earthShadows)
 				{
+					ImGui::TreePush();
+					ImGui::PushItemWidth(95);
 					ImGui::InputFloat("Cascade distance", &LightSettings_shadowCascade);
 					if (ImGui::IsItemHovered())
 					{
 						ImGui::SetTooltip("First cascade of shadows is more precise, second has lower quality (quite blocky)");
 					}
+					ImGui::InputFloat("Hardness", &LightSettings_shadowHardness);
+					ImGui::InputFloat("de-Banding coef", &LightSettings_shadowDeBanding);
+					if (ImGui::IsItemHovered())
+					{
+						ImGui::SetTooltip("Reduces blocky shadows. Makes them noisy instead ;)");
+					}
+					ImGui::PopItemWidth();
+					ImGui::TreePop();
 					flags |= HQFlags_EARTH_SHADOWS;
 				}
 				else
@@ -999,12 +1009,7 @@ namespace RealisticAtmosphere
 			if (ImGui::TreeNode("Debug"))
 			{
 				ImGui::Checkbox("Debug Normals", &_debugNormals);
-				ImGui::Checkbox("Debug RayMarch", &_debugRm);
 				ImGui::Checkbox("Hide atmosphere", &_debugAtmoOff);
-
-				ImGui::PushItemWidth(90);
-				ImGui::InputInt("Realtime multisampling", (int*)&HQSettings_directSamples);
-				ImGui::PopItemWidth();
 				ImGui::TreePop();
 			}
 		}
@@ -1137,7 +1142,6 @@ namespace RealisticAtmosphere
 						ImGui::InputFloat("O.Strat Const", &singlePlanet.ozoneStratosphereConst);
 						ImGui::TreePop();
 					}
-					ImGui::InputFloat("Sun Intensity", &DefaultScene::directionalLightBuffer[0].intensity);
 					ImGui::PopItemWidth();
 					ImGui::PopItemWidth();
 					ImGui::InputFloat3("SunRadToLum", &SunRadianceToLuminance.x, "%.2f");
@@ -1227,19 +1231,19 @@ namespace RealisticAtmosphere
 					static float prevNoRayThres = 0.4;
 					static float prevViewThres = -1;
 					static float prevCutoffDist = 0;
-					bool empiricOptimizations = RaymarchingSteps.y != 0;
+					bool empiricOptimizations = LightSettings_rayAlsoShadowedThres != 0;
 					if (ImGui::Checkbox("Empiric optimizations", &empiricOptimizations))
 					{
-						swap(prevShadowedThreshold, RaymarchingSteps.y);
+						swap(prevShadowedThreshold, LightSettings_rayAlsoShadowedThres);
 						swap(prevNoRayThres, LightSettings_noRayThres);
 						swap(prevViewThres, LightSettings_viewThres);
 						swap(prevCutoffDist, LightSettings_cutoffDist);
 					}
 					if (empiricOptimizations)
 					{
-						ImGui::InputFloat("ShadowedThres", &RaymarchingSteps.y);
-						if (RaymarchingSteps.y < 1.0f)
-							RaymarchingSteps.y = 1.0f;
+						ImGui::InputFloat("ShadowedThres", &LightSettings_rayAlsoShadowedThres);
+						if (LightSettings_rayAlsoShadowedThres < 1.0f)
+							LightSettings_rayAlsoShadowedThres = 1.0f;//Prevent user to get to value below 1. This would break our "prevShadowedThreshold" swap trick
 						ImGui::InputFloat("NoRayThres", &LightSettings_noRayThres);
 						ImGui::InputFloat("ViewThres", &LightSettings_viewThres);
 						ImGui::InputFloat("Gradient", &LightSettings_gradient);
@@ -1256,36 +1260,40 @@ namespace RealisticAtmosphere
 		{
 			if (ImGui::TreeNode("Terrain"))
 			{
-				bool enabled = RaymarchingSteps.x != 0;
+				bool enabled = RaymarchingSteps_terrain != 0;
 				ImGui::PushItemWidth(120);
 				if (ImGui::Checkbox("Enabled", &enabled))
 				{
 					if (enabled)
 					{
-						RaymarchingSteps.x = prevTerrainSteps;
+						RaymarchingSteps_terrain = prevTerrainSteps;
 						LightSettings_shadowSteps = prevLightSteps;
 					}
 					else
 					{
 						prevLightSteps = LightSettings_shadowSteps;
-						prevTerrainSteps = RaymarchingSteps.x;
-						RaymarchingSteps.x = 0;
+						prevTerrainSteps = RaymarchingSteps_terrain;
+						RaymarchingSteps_terrain = 0;
 						LightSettings_shadowSteps = 0;
 					}
 				}
 				ImGui::InputFloat("Optimism", &QualitySettings_optimism, 0, 1);
 				ImGui::InputFloat("Far Plane", &QualitySettings_farPlane);
 				ImGui::InputFloat("MinStepSize", &QualitySettings_minStepSize);
-				ImGui::InputInt("Planet Steps", (int*)&RaymarchingSteps.x);
-				ImGui::InputFloat("Precision", &RaymarchingSteps.z, 0, 0, "%e");
-				ImGui::InputFloat("LOD Div", &QualitySettings_lodPow);
-				ImGui::InputFloat("LOD Bias", &RaymarchingSteps.w);
-				ImGui::InputFloat("Normals", &PlanetMaterial.z);
+				ImGui::InputInt("Planet Steps", (int*)&RaymarchingSteps_terrain);
+				if (*(int*)&RaymarchingSteps_terrain < 1.0f)
+					*(int*)&RaymarchingSteps_terrain = 1.0f;//Prevent user to go below 1. This would break our "prevTerrainSteps" swap trick
+
+				ImGui::InputFloat("Precision", &RaymarchingSteps_precision, 0, 0, "%e");
+				ImGui::InputFloat("LOD A", &RaymarchingSteps_lodA);
+				ImGui::InputFloat("LOD B", &RaymarchingSteps_lodA);
+				ImGui::InputFloat("Normals",&QualitySettings_terrainNormals);
 				if (ImGui::TreeNode("Materials"))
 				{
 					ImGui::InputFloat("1", &PlanetMaterial.x);
 					ImGui::InputFloat("2", &PlanetMaterial.y);
-					ImGui::InputFloat("Gradient", &PlanetMaterial.w);
+					ImGui::InputFloat("Gradient A", &PlanetMaterial.z);
+					ImGui::InputFloat("Gradient B", &PlanetMaterial.w);
 					ImGui::TreePop();
 				}
 				ImGui::PopItemWidth();
@@ -1298,131 +1306,150 @@ namespace RealisticAtmosphere
 			if (ImGui::TreeNode("Clouds"))
 			{
 				CloudLayer& cloudsLayer = DefaultScene::planetBuffer[0].clouds;
-				ImGui::InputFloat3("Size", &cloudsLayer.sizeMultiplier.x, "%.1e");
-				ImGui::InputFloat3("Pos", &cloudsLayer.position.x);
-				ImGui::PushItemWidth(100);
-				if (ImGui::TreeNode("Settings"))
+				static float prevCloudsIter = 0.0f;
+				static float prevCloudsTerrIter = 0.0f;
+				bool enableClouds = Clouds_iter != 0.0f;
+				if (ImGui::Checkbox("Enable Cl.", &enableClouds))
 				{
+					swap(prevCloudsIter, Clouds_iter);
+					swap(prevCloudsTerrIter, Clouds_terrainSteps);
+				}
+				if (enableClouds)
+				{
+					ImGui::PushItemWidth(200);
+					ImGui::InputFloat3("Size", &cloudsLayer.sizeMultiplier.x, "%.1e");
+					ImGui::InputFloat3("Pos", &cloudsLayer.position.x);
+					ImGui::PopItemWidth();
+					ImGui::PushItemWidth(100);
 					ImGui::Checkbox("Wind", &_moveClouds);
 					if (_moveClouds)
 					{
 						ImGui::InputFloat3("Speed", &_cloudsWind.x, "%e");
 					}
-					ImGui::InputFloat("Steps", &Clouds_iter, 1, 1, "%.0f");
-					ImGui::InputFloat("TerrainSteps", &Clouds_terrainSteps, 1, 1, "%.0f");
-					ImGui::InputFloat("Render Distance", &Clouds_farPlane);
-					if (ImGui::TreeNode("Cl. Lighting"))
+					if (ImGui::TreeNode("Settings"))
 					{
-						ImGui::InputFloat("LightSteps", &Clouds_lightSteps, 1, 1, "%.0f");
-						ImGui::InputFloat("LightFarPlane", &Clouds_lightFarPlane);
-						ImGui::InputFloat("OcclusionSteps", &Clouds_occlusionSteps, 1, 1, "%.0f");
-						ImGui::InputFloat("OcclusionPower", &Clouds_occlusionPower);
-						ImGui::InputFloat("OcclusionMax", &Clouds_occlusionMax);
-						ImGui::InputFloat("OcclusionDensity", &Clouds_occlusionDensity);
-						ImGui::InputFloat("OcclusionFarPlane", &Clouds_occlusionFarPlane);
-						if (flags & HQFlags_REDUCE_BANDING)
+						ImGui::InputFloat("Steps", &Clouds_iter, 1, 1, "%.0f");
+						if (Clouds_iter < 1.0f)
 						{
-							ImGui::Text("de-Banding enabled");
-							ImGui::PushItemWidth(100);
-							ImGui::InputFloat("Primary factor", &LightSettings_deBanding);
-							ImGui::InputFloat("Light factor", &Clouds_deBanding);
-							ImGui::InputFloat("Cone", &Clouds_cone);
-							ImGui::PopItemWidth();
+							Clouds_iter = 1.0f;
+							//Prevent user to manually set something lower than one.
+							//That would break the "enabled when greater than 1" mechanism
 						}
-						else
+						ImGui::InputFloat("TerrainSteps", &Clouds_terrainSteps, 1, 1, "%.0f");
+						ImGui::InputFloat("Render Distance", &Clouds_farPlane);
+						if (ImGui::TreeNode("Cl. Lighting"))
 						{
-							ImGui::Text("de-Banding can be enabled\nin the Performance section.");
+							ImGui::InputFloat("LightSteps", &Clouds_lightSteps, 1, 1, "%.0f");
+							ImGui::InputFloat("LightFarPlane", &Clouds_lightFarPlane);
+							ImGui::InputFloat("OcclusionSteps", &Clouds_occlusionSteps, 1, 1, "%.0f");
+							ImGui::InputFloat("OcclusionPower", &Clouds_occlusionPower);
+							ImGui::InputFloat("OcclusionMax", &Clouds_occlusionMax);
+							ImGui::InputFloat("OcclusionDensity", &Clouds_occlusionDensity);
+							ImGui::InputFloat("OcclusionFarPlane", &Clouds_occlusionFarPlane);
+							if (flags & HQFlags_REDUCE_BANDING)
+							{
+								ImGui::Text("de-Banding enabled");
+								ImGui::PushItemWidth(100);
+								ImGui::InputFloat("Primary factor", &LightSettings_deBanding);
+								ImGui::InputFloat("Light factor", &Clouds_deBanding);
+								ImGui::InputFloat("Cone", &Clouds_cone);
+								ImGui::PopItemWidth();
+							}
+							else
+							{
+								ImGui::Text("de-Banding can be enabled\nin the Performance section.");
+							}
+							ImGui::TreePop();
 						}
+
+						ImGui::InputFloat("Coverage", &cloudsLayer.coverage);
+
+						if (ImGui::TreeNode("Downsampling"))
+						{
+							ImGui::InputFloat("Amount", &Clouds_cheapDownsample);
+							ImGui::InputFloat("Threshold", &Clouds_cheapThreshold);
+							ImGui::TreePop();
+						}
+
+						ImGui::InputFloat("Sample thres", &Clouds_sampleThres, 0, 0, "%e");
+						ImGui::InputFloat("Layer start", &cloudsLayer.startRadius);
+						ImGui::InputFloat("Layer end", &cloudsLayer.endRadius);
+						cloudsLayer.layerThickness = cloudsLayer.endRadius - cloudsLayer.startRadius;
 						ImGui::TreePop();
 					}
-
-					ImGui::InputFloat("Coverage", &cloudsLayer.coverage);
-
-					if (ImGui::TreeNode("Downsampling"))
+					if (ImGui::TreeNode("Scattering"))
 					{
-						ImGui::InputFloat("Amount", &Clouds_cheapDownsample);
-						ImGui::InputFloat("Threshold", &Clouds_cheapThreshold);
-						ImGui::TreePop();
-					}
-
-					ImGui::InputFloat("Sample thres", &Clouds_sampleThres, 0, 0, "%e");
-					ImGui::InputFloat("Layer start", &cloudsLayer.startRadius);
-					ImGui::InputFloat("Layer end", &cloudsLayer.endRadius);
-					cloudsLayer.layerThickness = cloudsLayer.endRadius - cloudsLayer.startRadius;
-					ImGui::TreePop();
-				}
-				if (ImGui::TreeNode("Scattering"))
-				{
-					int currentDSDItem = _cloudsDSDUniformNotDisperse ? 0 : 1;
-					const char* const items[] = { "Uniform", "Disperse" };
-					if (ImGui::Combo("DSD", &currentDSDItem, (const char* const*)items, 2))
-					{
-						_cloudsDSDUniformNotDisperse = !_cloudsDSDUniformNotDisperse;
-						if (_cloudsDSDUniformNotDisperse)
+						int currentDSDItem = _cloudsDSDUniformNotDisperse ? 0 : 1;
+						const char* const items[] = { "Uniform", "Disperse" };
+						if (ImGui::Combo("DSD", &currentDSDItem, (const char* const*)items, 2))
 						{
-							Clouds_aerosols *= 5;//Because uniform is too much uniform and we must add some aerosols to preserver realism
+							_cloudsDSDUniformNotDisperse = !_cloudsDSDUniformNotDisperse;
+							if (_cloudsDSDUniformNotDisperse)
+							{
+								Clouds_aerosols *= 5;//Because uniform is too much uniform and we must add some aerosols to preserver realism
+							}
+							else
+							{
+								Clouds_aerosols *= (1.0 / 5.0);
+							}
+							cloudsMiePhaseFunction();
 						}
-						else
-						{
-							Clouds_aerosols *= (1.0 / 5.0);
-						}
-						cloudsMiePhaseFunction();
-					}
-					if (ImGui::IsItemHovered())
-					{
-						ImGui::SetTooltip("Water Droplet Size Distribution.\nUniform creates Brocken spectre and corona halos\nDisperse creates fogbow and glory");
-					}
-					ImGui::PushItemWidth(120);
-					ImGui::InputFloat("Density", &cloudsLayer.density, 0, 0, "%e");
-
-					bool useMultScattApprox = Clouds_beerAmbient != 0;
-					static float prevBeerAmbient = 0.f;
-					static float prevPowderDensity = 0.f;
-					static float prevPowderAmbient = 1.f;
-					if (ImGui::Checkbox("Multiple scat. approx", &useMultScattApprox))
-					{
-						swap(prevBeerAmbient, Clouds_beerAmbient);
-						swap(prevPowderDensity, Clouds_powderDensity);
-						swap(prevPowderAmbient, Clouds_powderAmbient);
-					}
-					if(useMultScattApprox)
-					{
-						ImGui::TreePush();
-						ImGui::InputFloat("Ambient", &Clouds_beerAmbient);
-						ImGui::PushItemWidth(90);
-						ImGui::InputFloat("Powder density", &Clouds_powderDensity, 0, 0, "%e");
 						if (ImGui::IsItemHovered())
 						{
-							ImGui::SetTooltip("Simulates multiple scattering in the form of \"powder\" effect.");
+							ImGui::SetTooltip("Water Droplet Size Distribution.\nUniform creates Brocken spectre and corona halos\nDisperse creates fogbow and glory");
 						}
-						ImGui::InputFloat("Powder ambient", &Clouds_powderAmbient);
+						ImGui::PushItemWidth(120);
+						ImGui::InputFloat("Density", &cloudsLayer.density, 0, 0, "%e");
+
+						bool useMultScattApprox = Clouds_beerAmbient != 0;
+						static float prevBeerAmbient = 0.f;
+						static float prevPowderDensity = 0.f;
+						static float prevPowderAmbient = 1.f;
+						if (ImGui::Checkbox("Multiple scat. approx", &useMultScattApprox))
+						{
+							swap(prevBeerAmbient, Clouds_beerAmbient);
+							swap(prevPowderDensity, Clouds_powderDensity);
+							swap(prevPowderAmbient, Clouds_powderAmbient);
+						}
+						if (useMultScattApprox)
+						{
+							ImGui::TreePush();
+							ImGui::InputFloat("Ambient", &Clouds_beerAmbient);
+							ImGui::PushItemWidth(90);
+							ImGui::InputFloat("Powder density", &Clouds_powderDensity, 0, 0, "%e");
+							if (ImGui::IsItemHovered())
+							{
+								ImGui::SetTooltip("Simulates multiple scattering in the form of \"powder\" effect.");
+							}
+							ImGui::InputFloat("Powder ambient", &Clouds_powderAmbient);
+							ImGui::PopItemWidth();
+							ImGui::TreePop();
+						}
+						ImGui::InputFloat("Sharpness", &cloudsLayer.sharpness);
+						ImGui::InputFloat("Lower gradient", &cloudsLayer.lowerGradient);
+						ImGui::InputFloat("Upper gradient", &cloudsLayer.upperGradient);
+						ImGui::InputFloat("Gradient power", &Clouds_fadePower);
+						ImGui::InputFloat("Scattering", &cloudsLayer.scatteringCoef, 0, 0, "%e");
+						ImGui::InputFloat("Extinction", &cloudsLayer.extinctionCoef, 0, 0, "%e");
+						ImGui::InputFloat("Aerosols", &Clouds_aerosols, 0.05, .1);
+						if (Clouds_aerosols < 0)
+						{
+							Clouds_aerosols = 0;
+						}
+						else if (Clouds_aerosols > 1)
+						{
+							Clouds_aerosols = 1;
+						}
+						if (ImGui::IsItemHovered())
+						{
+							ImGui::SetTooltip("Fractional amount of aerosols which differ from overall DSD. Increasing it makes the atomospheric phenomena appear less noticeable."
+								"\nNote: When switching between Uniform and Disperse DSD, this number gets divided by 5 automatically to reflect the way how aerosols are actually present in clouds");
+						}
 						ImGui::PopItemWidth();
 						ImGui::TreePop();
 					}
-					ImGui::InputFloat("Sharpness", &cloudsLayer.sharpness);
-					ImGui::InputFloat("Lower gradient", &cloudsLayer.lowerGradient);
-					ImGui::InputFloat("Upper gradient", &cloudsLayer.upperGradient);
-					ImGui::InputFloat("Gradient power", &Clouds_fadePower);
-					ImGui::InputFloat("Scattering", &cloudsLayer.scatteringCoef, 0, 0, "%e");
-					ImGui::InputFloat("Extinction", &cloudsLayer.extinctionCoef, 0, 0, "%e");
-					ImGui::InputFloat("Aerosols", &Clouds_aerosols, 0.05, .1);
-					if (Clouds_aerosols < 0)
-					{
-						Clouds_aerosols = 0;
-					}
-					else if (Clouds_aerosols > 1)
-					{
-						Clouds_aerosols = 1;
-					}
-					if (ImGui::IsItemHovered())
-					{
-						ImGui::SetTooltip("Fractional amount of aerosols which differ from overall DSD. Increasing it makes the atomospheric phenomena appear less noticeable."
-							"\nNote: When switching between Uniform and Disperse DSD, this number gets divided by 5 automatically to reflect the way how aerosols are actually present in clouds");
-					}
 					ImGui::PopItemWidth();
-					ImGui::TreePop();
 				}
-				ImGui::PopItemWidth();
 				ImGui::TreePop();
 			}
 		}
@@ -1434,25 +1461,25 @@ namespace RealisticAtmosphere
 			{
 				swapSettingsBackup();
 				_renderImageSize = { (uint16_t)_windowWidth, (uint16_t)_windowHeight };
-				currentSample = 0;
+				_currentSample = 0;
 				_customScreenshotSize = false;
 				_pathTracingMode = false;
 			}
 			ImGui::SameLine();
-			auto maxSamples = DIRECT_SAMPLES_COUNT * *(int*)&Multisampling_indirect;
+			auto maxSamples = HQSettings_directSamples * Multisampling_indirect;
 			if (ImGui::Button("Re-render"))
 			{
 				lastScreenshotFilename.clear();
 				_renderImageSize = { (uint16_t)_windowWidth, (uint16_t)_windowHeight };
-				currentSample = 0;
+				_currentSample = 0;
 				updateScene();
 			}
-			if (currentSample < maxSamples)
+			if (_currentSample < maxSamples)
 			{
 				ImGui::SameLine();
 				if (ImGui::SmallButton("Stop"))
 				{
-					currentSample = INT_MAX;
+					_currentSample = INFINITY;
 					_currentChunk = 0;
 				}
 			}
@@ -1471,7 +1498,7 @@ namespace RealisticAtmosphere
 				_renderImageSize = { (uint16_t)_windowWidth, (uint16_t)_windowHeight };
 			}
 
-			if (currentSample >= maxSamples)
+			if (_currentSample >= maxSamples)
 			{
 				if (lastScreenshotFilename.length() > 0)
 				{
@@ -1484,19 +1511,19 @@ namespace RealisticAtmosphere
 			}
 			else
 			{
-				ImGui::Text("%d sampled", currentSample);
+				ImGui::Text("%d sampled", _currentSample);
 			}
 			ImGui::PushItemWidth(90);
 
-			ImGui::InputInt("Primary rays", (int*)&HQSettings_directSamples);
-			*(int*)&HQSettings_directSamples = bx::max(*(int*)&HQSettings_directSamples, 1);
+			ImGui::InputFloat("Primary rays", &HQSettings_directSamples, 1,1,"%.0f");
+			HQSettings_directSamples = bx::max(HQSettings_directSamples, 1.0f);
 			if (ImGui::IsItemHovered())
 				ImGui::SetTooltip("Number of rays cast from one pixel");
 
-			int secondary = *(int*)&Multisampling_indirect - 1;
+			int secondary = Multisampling_indirect - 1;
 			ImGui::InputInt("Secondary rays", &secondary);
 			secondary = bx::max(secondary, 0);
-			*(int*)&Multisampling_indirect = secondary + 1;
+			Multisampling_indirect = secondary + 1;
 			if (ImGui::IsItemHovered())
 				ImGui::SetTooltip("Number of rays cast per one surface hit point\nTotal rays per pixel = primary * (1 + secondary)");
 
@@ -1532,7 +1559,7 @@ namespace RealisticAtmosphere
 			if (ImGui::SmallButton(text))
 			{
 				applyPreset(presetNum);
-				currentSample = 0;
+				_currentSample = 0;
 				_currentChunk = -1;
 			}
 		}
@@ -1574,14 +1601,13 @@ namespace RealisticAtmosphere
 				float* converted = new float[_renderImageSize.width * _renderImageSize.height];
 				for (int x = 0; x < _renderImageSize.width * _renderImageSize.height * sizeof(float); x += sizeof(float))
 				{
-					auto dirSamp = DIRECT_SAMPLES_COUNT;
 					//Tonemapping
 					glm::vec3 tonemapped;
 					//Convert RGB16F to 32bit float
 					glm::vec3 rgb(
-						bx::halfToFloat(_readedTexture[x]) / dirSamp,
-						bx::halfToFloat(_readedTexture[x + 1]) / dirSamp,
-						bx::halfToFloat(_readedTexture[x + 2]) / dirSamp);
+						bx::halfToFloat(_readedTexture[x]) / HQSettings_directSamples,
+						bx::halfToFloat(_readedTexture[x + 1]) / HQSettings_directSamples,
+						bx::halfToFloat(_readedTexture[x + 2]) / HQSettings_directSamples);
 					tonemapped = Tonemapping::tmFunc(rgb, _tonemappingType);
 
 					_readedTexture[x] = bx::halfFromFloat(tonemapped.r);
