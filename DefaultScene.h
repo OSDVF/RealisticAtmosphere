@@ -133,6 +133,7 @@ namespace DefaultScene
 		},
 	};
 
+	// Sun and camera position and rotation preset
 	struct Preset {
 		glm::vec3 camera;
 		glm::vec3 rotation;

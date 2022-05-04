@@ -79,6 +79,7 @@ namespace RealisticAtmosphere
 		uint32_t _resetFlags = 0;
 		int _tonemappingType = 0;
 		bool _showFlare = true;
+		bool _preserveSunPreset = false;
 		float _flareVisibility = 1.0f;
 		int _flareOcclusionSamples = 40;
 		entry::MouseState _mouseState;
@@ -1042,7 +1043,7 @@ namespace RealisticAtmosphere
 					"Move: WASD\n"
 					"Sprint: Shift\n"
 					"GUI: F-Hide, G-Show\n"
-					"Presets: Ctrl + 1-5\n"
+					"Presets: Ctrl + 1-9\n"
 					"Place sphere: R"
 				);
 				ImGui::TreePop();
@@ -1277,24 +1278,27 @@ namespace RealisticAtmosphere
 						LightSettings_shadowSteps = 0;
 					}
 				}
-				ImGui::InputFloat("Optimism", &QualitySettings_optimism, 0, 1);
-				ImGui::InputFloat("Far Plane", &QualitySettings_farPlane);
-				ImGui::InputFloat("MinStepSize", &QualitySettings_minStepSize);
-				ImGui::InputInt("Planet Steps", (int*)&RaymarchingSteps_terrain);
-				if (*(int*)&RaymarchingSteps_terrain < 1.0f)
-					*(int*)&RaymarchingSteps_terrain = 1.0f;//Prevent user to go below 1. This would break our "prevTerrainSteps" swap trick
-
-				ImGui::InputFloat("Precision", &RaymarchingSteps_precision, 0, 0, "%e");
-				ImGui::InputFloat("LOD A", &RaymarchingSteps_lodA);
-				ImGui::InputFloat("LOD B", &RaymarchingSteps_lodA);
-				ImGui::InputFloat("Normals",&QualitySettings_terrainNormals);
-				if (ImGui::TreeNode("Materials"))
+				if (enabled)
 				{
-					ImGui::InputFloat("1", &PlanetMaterial.x);
-					ImGui::InputFloat("2", &PlanetMaterial.y);
-					ImGui::InputFloat("Gradient A", &PlanetMaterial.z);
-					ImGui::InputFloat("Gradient B", &PlanetMaterial.w);
-					ImGui::TreePop();
+					ImGui::InputFloat("Optimism", &QualitySettings_optimism, 0, 1);
+					ImGui::InputFloat("Far Plane", &QualitySettings_farPlane);
+					ImGui::InputFloat("MinStepSize", &QualitySettings_minStepSize);
+					ImGui::InputInt("Planet Steps", (int*)&RaymarchingSteps_terrain);
+					if (*(int*)&RaymarchingSteps_terrain < 1.0f)
+						*(int*)&RaymarchingSteps_terrain = 1.0f;//Prevent user to go below 1. This would break our "prevTerrainSteps" swap trick
+
+					ImGui::InputFloat("Precision", &RaymarchingSteps_precision, 0, 0, "%e");
+					ImGui::InputFloat("LOD A", &RaymarchingSteps_lodA);
+					ImGui::InputFloat("LOD B", &RaymarchingSteps_lodA);
+					ImGui::InputFloat("Normals", &QualitySettings_terrainNormals);
+					if (ImGui::TreeNode("Materials"))
+					{
+						ImGui::InputFloat("1", &PlanetMaterial.x);
+						ImGui::InputFloat("2", &PlanetMaterial.y);
+						ImGui::InputFloat("Gradient A", &PlanetMaterial.z);
+						ImGui::InputFloat("Gradient B", &PlanetMaterial.w);
+						ImGui::TreePop();
+					}
 				}
 				ImGui::PopItemWidth();
 				ImGui::TreePop();
@@ -1534,17 +1538,14 @@ namespace RealisticAtmosphere
 
 			inputSlicesCount();
 			ImGui::PopItemWidth();
-			drawPresetButton("1", 0);
-			ImGui::SameLine();
-			drawPresetButton("2", 1);
-			ImGui::SameLine();
-			drawPresetButton("3", 2);
-			ImGui::SameLine();
-			drawPresetButton("4", 3);
-			ImGui::SameLine();
-			drawPresetButton("5", 4);
-			ImGui::SameLine();
-			ImGui::Text("Predefined views");
+			for (int i = 0; i < sizeof(DefaultScene::presets) / sizeof(DefaultScene::Preset); i++)
+			{
+				drawPresetButton(i);
+				ImGui::SameLine();
+			}
+
+			ImGui::Text("View presets");
+			ImGui::Checkbox("Do not change sun angle", &_preserveSunPreset);
 			drawPlanetGUI();
 
 			drawTerrainGUI();
@@ -1554,13 +1555,16 @@ namespace RealisticAtmosphere
 			ImGui::End();
 		}
 
-		void drawPresetButton(const char* text, int presetNum)
+		void drawPresetButton(int presetNum)
 		{
+			char text[] = "1";
+			text[0] += presetNum;
 			if (ImGui::SmallButton(text))
 			{
 				applyPreset(presetNum);
 				_currentSample = 0;
 				_currentChunk = -1;
+				updateScene();
 			}
 		}
 
@@ -1569,8 +1573,11 @@ namespace RealisticAtmosphere
 			auto presetObj = DefaultScene::presets[preset];
 			_person.Camera.SetPosition(presetObj.camera);
 			_person.Camera.SetRotation(presetObj.rotation);
-			_sunAngle = presetObj.sun.y;
-			_secondSunAngle = presetObj.sun.x;
+			if (!_preserveSunPreset)
+			{
+				_sunAngle = presetObj.sun.y;
+				_secondSunAngle = presetObj.sun.x;
+			}
 			Clouds_farPlane = presetObj.cloudsFarPlane;
 		}
 
