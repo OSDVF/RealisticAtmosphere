@@ -337,5 +337,6 @@ float cloudsForPlanet(Planet p, Ray ray, float fromDistance, float toDistance, f
         }
 		return raymarchClouds(p, ray, fromDistance, toDistance, steps, transmittance, luminance);
 	}
+    return 0;
 }
 #endif

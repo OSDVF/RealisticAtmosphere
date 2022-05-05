@@ -17,6 +17,7 @@ vec3 GetSkyRadiance(
   float rmu = dot(camera, view_ray);
   float distance_to_top_atmosphere_boundary = -rmu -
       sqrt(rmu * rmu - r * r + planet.atmosphereRadius * planet.atmosphereRadius);
+
   // If the viewer is in space and the view ray intersects the atmosphere, move
   // the viewer to the top atmosphere boundary (along the view ray):
   if (distance_to_top_atmosphere_boundary > 0.0) {
@@ -216,7 +217,10 @@ bool terrainColorAndHit(Planet p, Ray ray, float fromDistance, inout float toDis
 					raymarchAtmosphere(p, ray, fromDistance, toDistance, cloudsDistance, true, shadowedByTerrain, /*inout*/ luminance, /*inout*/ throughput);
 					luminance += cloudsLum * throughput;
 					throughput *= cloudsTrans;
-					raymarchAtmosphere(p, ray, cloudsDistance, toDistance, toDistance, true, shadowedByTerrain, /*inout*/ luminance, /*inout*/ throughput);
+					if(throughput.r > 0.001 || throughput.g > 0.001 || throughput.b > 0.001)
+					{
+						raymarchAtmosphere(p, ray, cloudsDistance, toDistance, toDistance, true, shadowedByTerrain, /*inout*/ luminance, /*inout*/ throughput);
+					}
 				}
 				else
 				{
@@ -230,9 +234,14 @@ bool terrainColorAndHit(Planet p, Ray ray, float fromDistance, inout float toDis
 					precomputedAtmosphere(p, ray, cloudsDistance, true, shadowedByTerrain, luminance, throughput);
 					luminance += cloudsLum * throughput;
 					throughput *= cloudsTrans;
+
+					ray.origin += ray.direction * cloudsDistance;
+					toDistance=- cloudsDistance;
 				}
-				ray.origin += ray.direction * cloudsDistance;
-				precomputedAtmosphere(p, ray, toDistance - cloudsDistance, true, shadowedByTerrain, luminance, throughput);
+				if(throughput.r > 0.001 || throughput.g > 0.001 || throughput.b > 0.001)
+				{
+					precomputedAtmosphere(p, ray, toDistance, true, shadowedByTerrain, luminance, throughput);
+				}
 			}
 		}
 		luminance += planetAlbedo * light * throughput;
@@ -262,7 +271,6 @@ bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out vec
 		{
 			return false;
 		}
-		float atmoDistance = toDistance;
         float surfaceDistance, t1; 
 		bool surfaceIntersection;
         if (surfaceIntersection = raySphereIntersection(p.center, p.surfaceRadius, ray, surfaceDistance, t1) && t1 > 0) 
@@ -270,6 +278,7 @@ bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out vec
 			planetHit.t = surfaceDistance;
 			tMax = min(tMax, max(0, surfaceDistance));//Limit by planet surface or "some object" distance
         }
+
 		//Limit the computation bounds according to the Hit
 		toDistance = min(tMax, toDistance);
 		//Limit the srating point to the screen
@@ -308,8 +317,11 @@ bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out vec
 					luminance += cloudLum * throughput;
 					throughput *= cloudTrans;
 				}
-				ray.origin += ray.direction * cloudsDistance;
-				precomputedAtmosphere(p, ray, toDistance - cloudsDistance, false, false, luminance, throughput);
+				if(throughput.r > 0.001 || throughput.g > 0.001 || throughput.b > 0.001)
+				{
+					ray.origin += ray.direction * cloudsDistance;
+					precomputedAtmosphere(p, ray, toDistance - cloudsDistance, false, false, luminance, throughput);
+				}
 			}
 		}
 		else
@@ -338,9 +350,9 @@ float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDis
 	float opticalDepthR = 0, opticalDepthM = 0, opticalDepthO = 0; 
 
 	float currentDistance;
-	float i = 0.0;
+	float i = 0.0;//float iterator
 	int iter = 0;
-	int toCloudsIterations = int(cloudsDistance / segmentLength);
+	int toCloudsIterations = max(int(ceil((cloudsDistance - minDistance) / segmentLength)),1);
 
 	for(currentDistance = minDistance; iter < toCloudsIterations; currentDistance += segmentLength, iter++, i++)
 	{
