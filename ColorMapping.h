@@ -199,6 +199,16 @@ namespace ColorMapping {
 	// the ozone density profile defined below, which is equal to 15km).
 	constexpr double kMaxOzoneNumberDensity = 300.0 * kDobsonUnit / 15000.0;
 
-	void FillSpectrum(vec4& SkyRadianceToLuminance, vec4& SunRadianceToLuminance, Planet& planet, DirectionalLight& sun);
+	void FillSpectrum(vec4& SkyRadianceToLuminance, vec4& SunRadianceToLuminance, Planet& planet, DirectionalLight& sun, vec4& whitePoint);
+
+	// Utility method to convert a function of the wavelength to linear sRGB.
+	// 'wavelengths' and 'spectrum' must have the same size. The integral of
+	// 'spectrum' times each CIE_2_DEG_COLOR_MATCHING_FUNCTIONS (and times
+	// MAX_LUMINOUS_EFFICACY) is computed to get XYZ values, which are then
+	// converted to linear sRGB with the XYZ_TO_SRGB matrix.
+	static void ConvertSpectrumToLinearSrgb(
+		const std::vector<double>& wavelengths,
+		const std::vector<double>& spectrum,
+		float* r, float* g, float* b);
 };
 

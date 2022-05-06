@@ -6,6 +6,7 @@ uniform sampler2D colorOutput;
 uniform sampler2D normalsBuffer;
 uniform sampler2D depthBuffer;
 uniform vec4 DisplaySettings;
+uniform vec4 WhiteBalance;
 layout(location = 0) out vec4 fragColor;
 uniform vec4 u_viewRect;
 uniform vec4 HQSettings;
@@ -92,7 +93,7 @@ void main()
     {
         fragColor.xyz = tonemapping(
             (
-                texelFetch(colorOutput, ivec2(texCoord * textureSize(colorOutput, 0)), 0).xyz
+                texelFetch(colorOutput, ivec2(texCoord * textureSize(colorOutput, 0)), 0).xyz / WhiteBalance.xyz
             )
             /
             max

@@ -78,13 +78,19 @@ namespace DefaultScene
 			{0,0,0},//Direction will be assigned
 			float(sunAngularRadius),
 			{1,1,1},//irradiance will be assigned
-			0.3
-		}
+			0
+		},
+		DirectionalLight{//Moon - disabled
+			{0,0,0},
+			0,
+			{0,0,0},
+			0
+		},
 	};
 
 	std::array<Planet, 1> planetBuffer = {
 		Planet
-		{
+		{//Aligned to vec4 multiplies
 			vec3(0, -earthRadius, 0),//center
 			earthRadius,//start radius
 
@@ -92,6 +98,7 @@ namespace DefaultScene
 			0,//κˢₘ Will be assigned later
 			0.8,//Mie asymmetry factor
 			1200,//Mie scale height
+
 			vec3(0,0,0),//κˢᵣ Will be assigned later
 			7994,//Rayleigh scale height
 
@@ -107,6 +114,12 @@ namespace DefaultScene
 			-(1.0 / 15000.0),//Ozone stratosphere density coefficient - for heights above peak
 			(8.0 / 3.0),//Ozone stratosphere density constant
 			0,//First light index in precomputed textures
+
+			0,//First light index (sun = 0)
+			0,//Last light index (moon would be 1)
+
+			-0.2,//mu_s_min
+			0,//padding
 			CloudLayer
 			{
 				{-110000, -2000, 0}, // position
@@ -116,8 +129,8 @@ namespace DefaultScene
 				cloudsStart, // Clouds start radius
 				cloudsEnd, // Clouds end radius
 				cloudsEnd - cloudsStart, // Clouds layer thickness
-
 				1,//Density
+
 				5000,//Thickness of clouds fade gradient above terrain
 				5000, //Thickness of clouds gradient below stratosphere
 				10.354e-3 * 0.9512,// Scattering coefficient = ext. coef * single scat.albedo
@@ -126,10 +139,6 @@ namespace DefaultScene
 				{8e-5,16e-5,8e-5},//size
 				1.05 // sharpness
 			},
-			0,//First light index (sun = 0)
-			0,//Last light index (moon would be 1)
-			
-			0,0//Padding
 		},
 	};
 

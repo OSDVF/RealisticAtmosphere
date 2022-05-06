@@ -78,6 +78,8 @@ namespace RealisticAtmosphere
 		uint32_t _debugFlags = 0;
 		uint32_t _resetFlags = 0;
 		int _tonemappingType = 0;
+		bool _whiteBalance = true;
+		vec4 _whitePoint;
 		bool _showFlare = true;
 		bool _preserveSunPreset = false;
 		float _flareVisibility = 1.0f;
@@ -123,6 +125,7 @@ namespace RealisticAtmosphere
 #pragma region Settings_Uniforms
 		bgfx::UniformHandle _timeHandle = BGFX_INVALID_HANDLE;
 		bgfx::UniformHandle _displaySettingsHandle = BGFX_INVALID_HANDLE;
+		bgfx::UniformHandle _whiteBalanceHandle = BGFX_INVALID_HANDLE;
 		bgfx::UniformHandle _multisamplingSettingsHandle = BGFX_INVALID_HANDLE;
 		bgfx::UniformHandle _qualitySettingsHandle = BGFX_INVALID_HANDLE;
 		bgfx::TextureHandle _raytracerColorOutput = BGFX_INVALID_HANDLE;
@@ -249,6 +252,7 @@ namespace RealisticAtmosphere
 			// Setup Resources
 			//
 			_displaySettingsHandle = bgfx::createUniform("DisplaySettings", bgfx::UniformType::Vec4);
+			_whiteBalanceHandle = bgfx::createUniform("WhiteBalance", bgfx::UniformType::Vec4);
 			_cameraHandle = bgfx::createUniform("Camera", bgfx::UniformType::Vec4, 4);//It is an array of 4 vec4
 			_sunRadToLumHandle = bgfx::createUniform("SunRadianceToLuminance", bgfx::UniformType::Vec4);
 			_skyRadToLumHandle = bgfx::createUniform("SkyRadianceToLuminance", bgfx::UniformType::Vec4);
@@ -303,7 +307,7 @@ namespace RealisticAtmosphere
 			cloudsMiePhaseFunction();
 
 			// Compute spectrum mapping functions
-			ColorMapping::FillSpectrum(SkyRadianceToLuminance, SunRadianceToLuminance, DefaultScene::planetBuffer[0], DefaultScene::directionalLightBuffer[0]);
+			ColorMapping::FillSpectrum(SkyRadianceToLuminance, SunRadianceToLuminance, DefaultScene::planetBuffer[0], DefaultScene::directionalLightBuffer[0], _whitePoint);
 			DefaultScene::materialBuffer[0].emission = /*sun emission calcualation from its angular radius*/
 				bx::div(
 					DefaultScene::directionalLightBuffer[0].irradiance,
@@ -718,6 +722,15 @@ namespace RealisticAtmosphere
 				screenSpaceSun.x, screenSpaceSun.y
 			);
 			bgfx::setUniform(_displaySettingsHandle, &displaySettValue);
+			if (_whiteBalance)
+			{
+				bgfx::setUniform(_whiteBalanceHandle, &_whitePoint);
+			}
+			else
+			{
+				const vec4 white{ 1, 1, 1, 0 };
+				bgfx::setUniform(_whiteBalanceHandle, &white);
+			}
 			bgfx::setUniform(_hqSettingsHandle, &HQSettings);
 		}
 
@@ -1165,6 +1178,7 @@ namespace RealisticAtmosphere
 			if (ImGui::TreeNode("Light"))
 			{
 				ImGui::PushItemWidth(100);
+				ImGui::Checkbox("White balance", &_whiteBalance);
 				const char* const tmTypes[] = { "Exposure", "Reinhard", "Custom Reinhard", "ACES", "Uneral", "Uchimura", "Lottes", "No Tonemapping" };
 				ImGui::Combo("Tonemapping", &_tonemappingType, tmTypes, sizeof(tmTypes) / sizeof(const char*));
 				switch (_tonemappingType)

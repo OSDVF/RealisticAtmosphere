@@ -4,8 +4,6 @@
 #include "Structures.glsl"
 #include "Math.glsl"
 
-#define MU_S_MIN -0.2
-
 float ClampCosine(float mu) {
   return clamp(mu, -1.0, 1.0);
 }
@@ -204,7 +202,7 @@ void GetRMuMuSNuFromScatteringTextureUvwz(Planet planet,
   float d_min = planet.atmosphereRadius - planet.surfaceRadius;
   float d_max = H;
   float D = DistanceToTopAtmosphereBoundary(
-      planet, planet.surfaceRadius, MU_S_MIN);
+      planet, planet.surfaceRadius, planet.mu_s_min);
   float A = (D - d_min) / (d_max - d_min);
   float a = (A - x_mu_s * A) / (1.0 + x_mu_s * A);
   float d = d_min + min(a, A) * (d_max - d_min);
@@ -263,7 +261,7 @@ vec4 GetScatteringTextureUvwzFromRMuMuSNu(Planet planet,
   float d_max = H;
   float a = (d - d_min) / (d_max - d_min);
   float D = DistanceToTopAtmosphereBoundary(
-      planet, planet.surfaceRadius, MU_S_MIN);
+      planet, planet.surfaceRadius, planet.mu_s_min);
   float A = (D - d_min) / (d_max - d_min);
   // An ad-hoc function equal to 0 for mu_s = mu_s_min (because then d = D and
   // thus a = A), equal to 1 for mu_s = 1 (because then d = d_min and thus

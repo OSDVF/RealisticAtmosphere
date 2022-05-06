@@ -175,7 +175,7 @@ void precomputedAtmosphere(Planet p, Ray ray, float toT, bool terrainWasHit, boo
 	for(uint l = p.firstLight; l <= p.lastLight; l++)
 	{
 		DirectionalLight light = directionalLights[l];
-		float shadow = HQSettings_lightShafts ? raymarchOcclusion(p, ray, 0, toT, terrainWasHit, terrainShadowed, light) : 0.0;
+		float shadow = 0.0;//HQSettings_lightShafts ? raymarchOcclusion(p, ray, 0, toT, terrainWasHit, terrainShadowed, light) : 0.0;
 		luminance += GetSkyRadianceToPoint(p, transmittanceTable, singleScatteringTable,
 											planetSpaceCam, toT, ray.direction, shadow, 
 											light.direction, lightIndex, /*out*/ atmoTransmittance)
@@ -316,17 +316,11 @@ bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out vec
 					precomputedAtmosphere(p, ray, cloudsDistance, false, false, luminance, throughput);
 					luminance += cloudLum * throughput;
 					throughput *= cloudTrans;
-				}
-				if(throughput.r > 0.001 || throughput.g > 0.001 || throughput.b > 0.001)
-				{
 					ray.origin += ray.direction * cloudsDistance;
-					precomputedAtmosphere(p, ray, toDistance - cloudsDistance, false, false, luminance, throughput);
+					toDistance -= cloudsDistance;
 				}
+				precomputedAtmosphere(p, ray, toDistance, false, false, luminance, throughput);
 			}
-		}
-		else
-		{
-			luminance = vec3(cloudsDistance);
 		}
 		
 		vec3 worldHitPos = ray.origin + ray.direction * toDistance;

@@ -4,7 +4,7 @@
 #define STRUCTURES_H
 
 // Defining constants common for C++ and GLSL code
-#define SCATTERING_LIGHT_COUNT 1
+#define SCATTERING_LIGHT_COUNT 2
 
 #if SCATTERING_LIGHT_COUNT > 1
 #define IRRADIANCE_COORD_TYPE vec3
@@ -20,7 +20,7 @@ const int SCATTERING_TEXTURE_MU_SIZE = 128;
 const int SCATTERING_TEXTURE_MU_S_SIZE = 32;
 const int SCATTERING_TEXTURE_NU_SIZE = 8;
 
-const int SCATTERING_TEXTURE_HEIGHT = SCATTERING_TEXTURE_MU_SIZE * int(SCATTERING_LIGHT_COUNT);
+const int SCATTERING_TEXTURE_HEIGHT = SCATTERING_TEXTURE_MU_SIZE * SCATTERING_LIGHT_COUNT;
 
 struct CloudLayer
 {
@@ -101,12 +101,13 @@ struct Planet
     float ozoneStratosphereConst;
     float firstLightCoord;
 
-    CloudLayer clouds;
-
     uint firstLight;
     uint lastLight;
-    float padding1;
-    float padding2;
+    float mu_s_min;
+    float padding;
+
+    CloudLayer clouds;
+
 };
 
 struct Hit

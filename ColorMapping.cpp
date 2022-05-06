@@ -90,7 +90,29 @@ namespace ColorMapping {
         *k_b *= dlambda * MAX_LUMINOUS_EFFICACY;
     }
 
-    void FillSpectrum(vec4& SkyRadianceToLuminance, vec4& SunRadianceToLuminance, Planet& planet, DirectionalLight& sun)
+    void ConvertSpectrumToLinearSrgb(
+        const std::vector<double>& wavelengths,
+        const std::vector<double>& spectrum,
+        float* r, float* g, float* b) {
+        double x = 0.0;
+        double y = 0.0;
+        double z = 0.0;
+        const int dlambda = 1;
+        for (int lambda = kLambdaMin; lambda < kLambdaMax; lambda += dlambda) {
+            double value = Interpolate(wavelengths, spectrum, lambda);
+            x += CieColorMatchingFunctionTableValue(lambda, 1) * value;
+            y += CieColorMatchingFunctionTableValue(lambda, 2) * value;
+            z += CieColorMatchingFunctionTableValue(lambda, 3) * value;
+        }
+        *r = MAX_LUMINOUS_EFFICACY *
+            (XYZ_TO_SRGB[0] * x + XYZ_TO_SRGB[1] * y + XYZ_TO_SRGB[2] * z) * dlambda;
+        *g = MAX_LUMINOUS_EFFICACY *
+            (XYZ_TO_SRGB[3] * x + XYZ_TO_SRGB[4] * y + XYZ_TO_SRGB[5] * z) * dlambda;
+        *b = MAX_LUMINOUS_EFFICACY *
+            (XYZ_TO_SRGB[6] * x + XYZ_TO_SRGB[7] * y + XYZ_TO_SRGB[8] * z) * dlambda;
+    }
+
+    void FillSpectrum(vec4& SkyRadianceToLuminance, vec4& SunRadianceToLuminance, Planet& planet, DirectionalLight& sun, vec4& whitePoint)
     {
         std::vector<double> wavelengths;
         std::vector<double> solar_irradiance;
@@ -134,5 +156,11 @@ namespace ColorMapping {
         planet.rayleighCoefficients = GetValuesForRGBSpectrum(wavelengths, rayleigh_scattering);
         vec3 mie = GetValuesForRGBSpectrum(wavelengths, mie_scattering);
         planet.mieCoefficient = (mie.x + mie.y + mie.z) / 3.0;
+
+        ConvertSpectrumToLinearSrgb(wavelengths, solar_irradiance, &whitePoint.x, &whitePoint.y, &whitePoint.z);
+        double meanWhitePoint = (whitePoint.x + whitePoint.y + whitePoint.z) / 3.0;
+        whitePoint.x /= meanWhitePoint;
+        whitePoint.y /= meanWhitePoint;
+        whitePoint.z /= meanWhitePoint;
     }
 };
