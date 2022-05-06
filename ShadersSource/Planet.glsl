@@ -229,6 +229,9 @@ bool terrainColorAndHit(Planet p, Ray ray, float fromDistance, inout float toDis
 			}
 			else
 			{
+				ray.origin += ray.direction * fromDistance;
+				cloudsDistance -= fromDistance;
+				toDistance -= fromDistance;
 				if(cloudsDistance > 0)
 				{
 					precomputedAtmosphere(p, ray, cloudsDistance, true, shadowedByTerrain, luminance, throughput);
@@ -243,6 +246,11 @@ bool terrainColorAndHit(Planet p, Ray ray, float fromDistance, inout float toDis
 					precomputedAtmosphere(p, ray, toDistance, true, shadowedByTerrain, luminance, throughput);
 				}
 			}
+		}
+		else
+		{
+			luminance += cloudsLum * throughput;
+			throughput *= cloudsTrans;
 		}
 		luminance += planetAlbedo * light * throughput;
 		throughput *= planetAlbedo;
@@ -311,6 +319,9 @@ bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out vec
 			}
 			else
 			{
+				ray.origin += ray.direction * fromDistance;
+				cloudsDistance -= fromDistance;
+				toDistance -= fromDistance;
 				if(cloudsDistance > 0)
 				{
 					precomputedAtmosphere(p, ray, cloudsDistance, false, false, luminance, throughput);
@@ -321,6 +332,11 @@ bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out vec
 				}
 				precomputedAtmosphere(p, ray, toDistance, false, false, luminance, throughput);
 			}
+		}
+		else
+		{
+			luminance += cloudLum * throughput;
+			throughput *= cloudTrans;
 		}
 		
 		vec3 worldHitPos = ray.origin + ray.direction * toDistance;

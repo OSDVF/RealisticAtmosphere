@@ -91,22 +91,23 @@ void main()
     }
     else
     {
-        fragColor.xyz = tonemapping(
-            (
-                texelFetch(colorOutput, ivec2(texCoord * textureSize(colorOutput, 0)), 0).xyz / WhiteBalance.xyz
-            )
-            /
-            max
-            (
-                float
-                (
-                    (HQSettings.y/*sampleNum*/+1)
-                    /
-                    MultisamplingSettings.x/*indirectSamples*/
-                ),
-                1
-            )
-        );
+		vec3 whiteBalanced = 
+			max(
+				texelFetch(colorOutput, ivec2(texCoord * textureSize(colorOutput, 0)), 0).xyz / WhiteBalance.xyz,
+				vec3(0.0)
+			);
+        fragColor.xyz =
+			tonemapping(
+				whiteBalanced
+				/
+				max(
+					(HQSettings.y/*sampleNum*/+1)
+					/
+					MultisamplingSettings.x/*indirectSamples*/
+					,
+					1
+				)
+			);
 
 
 		//

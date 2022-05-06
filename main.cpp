@@ -386,7 +386,9 @@ namespace RealisticAtmosphere
 			bgfx::ProgramHandle opticalProgram = bgfx::createProgram(precomputeOptical);
 			if (!bgfx::isValid(_opticalDepthTable))
 			{
-				_opticalDepthTable = bgfx::createTexture2D(128, 64, false, 1, bgfx::TextureFormat::RGBA32F, BGFX_TEXTURE_COMPUTE_WRITE | BGFX_SAMPLER_UVW_CLAMP);
+				_opticalDepthTable = bgfx::createTexture2D(128, 64, false, 1, bgfx::TextureFormat::RGBA32F,
+					BGFX_TEXTURE_COMPUTE_WRITE | BGFX_SAMPLER_UVW_CLAMP
+				);
 			}
 
 			updateBuffers();// Planet buffer will be needed in the shaders below
@@ -399,7 +401,9 @@ namespace RealisticAtmosphere
 			bgfx::ProgramHandle transmittanceProgram = bgfx::createProgram(precomputeTransmittance);
 			if (!bgfx::isValid(_transmittanceTable))
 			{
-				_transmittanceTable = bgfx::createTexture2D(256, 64, false, 1, bgfx::TextureFormat::RGBA32F, BGFX_TEXTURE_COMPUTE_WRITE | BGFX_SAMPLER_UVW_CLAMP);
+				_transmittanceTable = bgfx::createTexture2D(256, 64, false, 1, bgfx::TextureFormat::RGBA32F,
+					BGFX_TEXTURE_COMPUTE_WRITE | BGFX_SAMPLER_UVW_CLAMP
+				);
 			}
 			bgfx::setImage(0, _transmittanceTable, 0, bgfx::Access::Write, bgfx::TextureFormat::RGBA32F);
 			bgfx::setBuffer(1, _atmosphereBufferHandle, bgfx::Access::Read);
@@ -413,7 +417,9 @@ namespace RealisticAtmosphere
 			constexpr int SCATTERING_TEXTURE_DEPTH = SCATTERING_TEXTURE_R_SIZE;
 			if (!bgfx::isValid(_singleScatteringTable))
 			{
-				_singleScatteringTable = bgfx::createTexture3D(SCATTERING_TEXTURE_WIDTH, SCATTERING_TEXTURE_HEIGHT, SCATTERING_TEXTURE_DEPTH, false, bgfx::TextureFormat::RGBA16F, BGFX_TEXTURE_COMPUTE_WRITE | BGFX_SAMPLER_UVW_CLAMP);
+				_singleScatteringTable = bgfx::createTexture3D(SCATTERING_TEXTURE_WIDTH, SCATTERING_TEXTURE_HEIGHT, SCATTERING_TEXTURE_DEPTH, false, bgfx::TextureFormat::RGBA16F,
+					BGFX_TEXTURE_COMPUTE_WRITE | BGFX_SAMPLER_UVW_CLAMP
+				);
 			}
 			bgfx::setImage(0, _singleScatteringTable, 0, bgfx::Access::Write, bgfx::TextureFormat::RGBA16F);
 			setBuffersAndUniforms();
@@ -424,7 +430,9 @@ namespace RealisticAtmosphere
 			bgfx::ProgramHandle irradianceProgram = bgfx::createProgram(precomputeIrradiance);
 			if (!bgfx::isValid(_irradianceTable))
 			{
-				_irradianceTable = bgfx::createTexture2D(64, 16, false, SCATTERING_LIGHT_COUNT, bgfx::TextureFormat::RGBA16F, BGFX_TEXTURE_COMPUTE_WRITE);
+				_irradianceTable = bgfx::createTexture2D(64, 16, false, SCATTERING_LIGHT_COUNT, bgfx::TextureFormat::RGBA16F,
+					BGFX_TEXTURE_COMPUTE_WRITE | BGFX_SAMPLER_UVW_CLAMP
+				);
 			}
 			bgfx::setImage(0, _irradianceTable, 0, bgfx::Access::Write, bgfx::TextureFormat::RGBA16F);
 			bgfx::setBuffer(1, _atmosphereBufferHandle, bgfx::Access::Read);

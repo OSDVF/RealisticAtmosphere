@@ -3,8 +3,8 @@
 #ifndef STRUCTURES_H
 #define STRUCTURES_H
 
-// Defining constants common for C++ and GLSL code
-#define SCATTERING_LIGHT_COUNT 2
+// Definition of common constants for C++ and GLSL code
+#define SCATTERING_LIGHT_COUNT 1
 
 #if SCATTERING_LIGHT_COUNT > 1
 #define IRRADIANCE_COORD_TYPE vec3

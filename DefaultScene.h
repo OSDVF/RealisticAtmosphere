@@ -80,12 +80,14 @@ namespace DefaultScene
 			{1,1,1},//irradiance will be assigned
 			0
 		},
+#if SCATTERING_LIGHT_COUNT == 2
 		DirectionalLight{//Moon - disabled
 			{0,0,0},
 			0,
 			{0,0,0},
 			0
 		},
+#endif
 	};
 
 	std::array<Planet, 1> planetBuffer = {
