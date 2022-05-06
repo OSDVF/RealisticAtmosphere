@@ -80,6 +80,7 @@ namespace RealisticAtmosphere
 		int _tonemappingType = 0;
 		bool _whiteBalance = true;
 		vec4 _whitePoint;
+		int _cameraType = 0;
 		bool _showFlare = true;
 		bool _preserveSunPreset = false;
 		float _flareVisibility = 1.0f;
@@ -698,30 +699,7 @@ namespace RealisticAtmosphere
 
 		void setDisplaySettings()
 		{
-			auto sunPos = DefaultScene::objectBuffer[0].position;
-			glm::vec3 screenSpaceSun;
-			_person.Camera.ProjectWorldToScreen(glm::vec3(sunPos.x, sunPos.y, sunPos.z), glm::vec4(0, 0, _renderImageSize.width, _renderImageSize.height),/*out*/ screenSpaceSun);
-			auto aspectRatio = (float(_renderImageSize.width) / (float)_renderImageSize.height);
-			screenSpaceSun.x = (-screenSpaceSun.x / (screenSpaceSun.z * _renderImageSize.width) + 0.5) * aspectRatio;
-			screenSpaceSun.y = screenSpaceSun.y / (screenSpaceSun.z * _renderImageSize.height) - 0.5;
-
-			float flareBrightness = 0;
-			if (screenSpaceSun.z > 0 && _showFlare)
-			{
-				// If the sun is not behind the camera
-				flareBrightness = std::fmax(
-					bx::dot(Camera[1].toVec3(), DefaultScene::directionalLightBuffer[0].direction) * _flareVisibility,
-					0);
-			}
-
-			uint32_t packedTonemappingAndOcclusion =
-				(_tonemappingType & 0xFFFF //lower 16 bits*
-					| _flareOcclusionSamples << 16); //higher 16 bits
-			vec4 displaySettValue(
-				*(float*)&packedTonemappingAndOcclusion, flareBrightness,
-				screenSpaceSun.x, screenSpaceSun.y
-			);
-			bgfx::setUniform(_displaySettingsHandle, &displaySettValue);
+			updateLensFlare();
 			if (_whiteBalance)
 			{
 				bgfx::setUniform(_whiteBalanceHandle, &_whitePoint);
@@ -732,6 +710,43 @@ namespace RealisticAtmosphere
 				bgfx::setUniform(_whiteBalanceHandle, &white);
 			}
 			bgfx::setUniform(_hqSettingsHandle, &HQSettings);
+		}
+
+		void updateLensFlare()
+		{
+			vec4 displaySettValue;
+			if (_cameraType == 0 && _showFlare)
+			{
+				auto sunPos = DefaultScene::objectBuffer[0].position;
+				glm::vec3 screenSpaceSun;
+				_person.Camera.ProjectWorldToScreen(glm::vec3(sunPos.x, sunPos.y, sunPos.z), glm::vec4(0, 0, _renderImageSize.width, _renderImageSize.height),/*out*/ screenSpaceSun);
+				auto aspectRatio = (float(_renderImageSize.width) / (float)_renderImageSize.height);
+				screenSpaceSun.x = (-screenSpaceSun.x / (screenSpaceSun.z * _renderImageSize.width) + 0.5) * aspectRatio;
+				screenSpaceSun.y = screenSpaceSun.y / (screenSpaceSun.z * _renderImageSize.height) - 0.5;
+
+				float flareBrightness = 0;
+				if (screenSpaceSun.z > 0)
+				{
+					// If the sun is not behind the camera
+					flareBrightness = std::fmax(
+						bx::dot(Camera[1].toVec3(), DefaultScene::directionalLightBuffer[0].direction) * _flareVisibility,
+						0);
+				}
+
+				uint32_t packedTonemappingAndOcclusion =
+					(_tonemappingType & 0xFFFF //lower 16 bits*
+						| _flareOcclusionSamples << 16); //higher 16 bits
+				displaySettValue = vec4(
+					*(float*)&packedTonemappingAndOcclusion, flareBrightness,
+					screenSpaceSun.x, screenSpaceSun.y
+				);
+			}
+			else
+			{
+				displaySettValue = vec4(0);
+			}
+
+			bgfx::setUniform(_displaySettingsHandle, &displaySettValue);
 		}
 
 		void updateScene()
@@ -894,10 +909,26 @@ namespace RealisticAtmosphere
 
 			// Set view 0 default viewport.
 			bgfx::setViewTransform(0, NULL, proj);
-			_tanFovY = bx::tan(_fovY * bx::acos(-1) / 180.f / 2.0f);
-
 			bgfx::setViewRect(0, 0, 0, _renderImageSize.width, _renderImageSize.height);
-			_tanFovX = (static_cast<float>(_renderImageSize.width) * _tanFovY) / static_cast<float>(_renderImageSize.height);
+
+			switch (_cameraType)
+			{
+			case 0:
+				// Perspective camera
+				_tanFovY = bx::tan(_fovY * bx::acos(-1) / 180.f / 2.0f);
+				_tanFovX = (static_cast<float>(_renderImageSize.width) * _tanFovY) / static_cast<float>(_renderImageSize.height);
+				break;
+			case 1:
+				// 360 Panoramatic camera
+				_tanFovY = 0;// Custom indicator combination of "panoramatic" cam
+				_tanFovX = 1;
+				break;
+			case 2:
+				// Fisheye cam
+				_tanFovY = 0;// Custom indicator combination of "fisheye" cam
+				_tanFovX = 0;
+				break;
+			}
 
 			glm::vec3 camPos = _person.Camera.GetPosition();
 			glm::vec3 camRot = _person.Camera.GetForward();
@@ -1074,7 +1105,10 @@ namespace RealisticAtmosphere
 			if (ImGui::TreeNodeEx("Camera", _pathTracingMode ? ImGuiTreeNodeFlags_None : ImGuiTreeNodeFlags_DefaultOpen))
 			{
 				ImGui::SetNextItemWidth(100);
-				if (ImGui::InputFloat("FOV", &_fovY))
+				static float previousFovY = 0;
+				const char* const cameraTypes[] = {"Perspective", "Panorama", "Fisheye"};
+				ImGui::Combo("Type", &_cameraType, cameraTypes, sizeof(cameraTypes) / sizeof(const char*));
+				if (_cameraType == 0 && ImGui::InputFloat("FOV", &_fovY))
 				{
 					updateVirtualCameraPerspective();
 				}
@@ -1202,19 +1236,22 @@ namespace RealisticAtmosphere
 				{
 					ImGui::SetTooltip("Offsets secondary rays a bit to prevent self-shadowing");
 				}
-				ImGui::Checkbox("Lens Flare", &_showFlare);
-				if (_showFlare)
+				if (_cameraType == 0)
 				{
-					ImGui::SliderFloat("Visibility", &_flareVisibility, 0, 2);
-					ImGui::PushItemWidth(90);
-					ImGui::InputInt("Occlusion samples", &_flareOcclusionSamples);
-					if (ImGui::IsItemHovered())
-						ImGui::SetTooltip("Creates screen-space light shafts."
-							"\n1 = only test for sun visibility."
-							"\n0 = always show flare"
-							"\nMultisampling is not applied to them because they are rendered after the whole image");
-					ImGui::PopItemWidth();
-					if (_flareOcclusionSamples < 0) _flareOcclusionSamples = 0;
+					ImGui::Checkbox("Lens Flare", &_showFlare);
+					if (_showFlare)
+					{
+						ImGui::SliderFloat("Visibility", &_flareVisibility, 0, 2);
+						ImGui::PushItemWidth(90);
+						ImGui::InputInt("Occlusion samples", &_flareOcclusionSamples);
+						if (ImGui::IsItemHovered())
+							ImGui::SetTooltip("Creates screen-space light shafts."
+								"\n1 = only test for sun visibility."
+								"\n0 = always show flare"
+								"\nMultisampling is not applied to them because they are rendered after the whole image");
+						ImGui::PopItemWidth();
+						if (_flareOcclusionSamples < 0) _flareOcclusionSamples = 0;
+					}
 				}
 
 				bool lum = SkyRadianceToLuminance.x != 10;

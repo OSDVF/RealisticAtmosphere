@@ -3,21 +3,67 @@
 #include "Planet.glsl"
 #include "Random.glsl"
 
+float deg2rad(float deg){
+    return deg*pi / 180.0;
+}
+
 // Create a primary ray for pixel x, y
 Ray createCameraRay(vec2 fromPixel)
 {
     float halfWidth = u_viewRect.z / 2.0f;
     float halfHeight = u_viewRect.w / 2.0f;
 
-    // Apply FOV = create perspective projection
-    float a = Camera_fovX * ((fromPixel.x - halfWidth) / halfWidth);
-    float b = Camera_fovY * ((halfHeight - fromPixel.y) / halfHeight);
+    float ndcX = ((fromPixel.x - halfWidth) / halfWidth);
+    float ndcY = ((halfHeight - fromPixel.y) / halfHeight);
+    if(Camera_fovY == 0)
+    {
+        vec3 dir;
+        if(Camera_fovX == 0)
+        {
+            // Create spherical "fisheye" cam
+            float zSquared = ndcX * ndcX + ndcY * ndcY;
+            float phi = atan(ndcY, ndcX);
+            float theta = acos(1 - zSquared);
 
-    vec3 dir = normalize(a * Camera_right + b * Camera_up + Camera_direction);
+            dir = normalize(
+                    sin(theta) * cos(phi) * Camera_right 
+                    - cos(theta) * Camera_up 
+                    + sin(theta) * sin(phi)*Camera_direction
+                );
+        
+        }
+        else
+        {
+             // Create equirectangular projection
+            float fovX = 2.*pi;
+            float fovY = pi;
+            float hOffset = (2.0*pi - fovX)*0.5;
+            float vOffset = (pi - fovY)*0.5;
 
-    return Ray(Camera_position, dir); /** The ray begins in camera posiiton
-                                            * and has the direction that corresponds to currently rendered pixel
-                                            */
+            vec2 interp = vec2(ndcX,ndcY)*0.5 + 0.5;
+            float hAngle = hOffset + interp.x * fovX;
+            float vAngle = vOffset + interp.y * fovY;
+            dir = vec3( 
+                    sin(vAngle) * sin(hAngle),
+                    -cos(vAngle),
+                    sin(vAngle) * cos(hAngle)
+                );
+        }
+    
+        return Ray(Camera_position, dir);
+    }
+    else
+    {
+        // Apply FOV = create perspective projection
+        float a = Camera_fovX * ndcX;
+        float b = Camera_fovY * ndcY;
+
+        vec3 dir = normalize(a * Camera_right + b * Camera_up + Camera_direction);
+
+        return Ray(Camera_position, dir); /** The ray begins in camera posiiton
+                                                * and has the direction that corresponds to currently rendered pixel
+                                                */
+    }
 }
 
 // https://www.shadertoy.com/view/4lfcDr
