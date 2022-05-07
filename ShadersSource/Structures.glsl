@@ -65,14 +65,12 @@ struct PointLight
     vec3 attenuation;
 };
 
-struct Sphere
+struct AnalyticalObject
 {
     vec3 position;
-    float radius;
+    uint type; //0 = sphere, 1 = cube
+    vec3 size;
     uint materialIndex;
-    float _pad1;/*std430 memory padding to multiplies of vec4 */
-    float _pad2;
-    float _pad3;
 };
 
 struct Planet

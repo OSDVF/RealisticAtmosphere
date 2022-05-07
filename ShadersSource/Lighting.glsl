@@ -64,7 +64,7 @@ vec3 planetIlluminance(Planet planet, Hit hit, out bool shadowedByTerrain)
         Ray shadowRay = Ray(hit.position, lDir);
         for (int k = 0; k < objects.length(); ++k) {
             float t0 = 0, t1 = 0;
-            if (materials[objects[k].materialIndex].albedo.a > 0 && raySphereIntersection(objects[k].position, objects[k].radius, shadowRay, t0, t1) && t1 > 0) {
+            if (materials[objects[k].materialIndex].albedo.a > 0 && rayObjectIntersection(objects[k], shadowRay, t0, t1) && t1 > 0) {
                 inShadow = true;
                 break;
             }
@@ -127,7 +127,7 @@ vec3 objectIlluminance(Hit hit)
                 continue;
             }
             float t0 = 0, t1 = 0;
-            if (raySphereIntersection(objects[k].position, objects[k].radius, shadowRay, t0, t1) && t1 > 0) {
+            if (rayObjectIntersection(objects[k], shadowRay, t0, t1) && t1 > 0) {
                 inShadow = true;
                 break;
             }

@@ -6,7 +6,7 @@
 #include "Debug.glsl"
 layout(std430, binding=3) readonly buffer ObjectBuffer
 {
-    Sphere objects[];
+    AnalyticalObject objects[];
 };
 
 layout(std430, binding=4) readonly buffer PlanetBuffer 

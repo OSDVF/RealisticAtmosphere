@@ -50,25 +50,29 @@ namespace DefaultScene
 	const float sunObjectDistance = 148500000; // Real sun distance is 148 500 000 km which would introduce errors in 32bit float computations
 	const float sunRadius = tan(sunAngularRadius) * sunObjectDistance;
 	const float moonRadius = tan(moonAngularRadiusMax) * sunObjectDistance;
-	Sphere objectBuffer[] = {
+	AnalyticalObject objectBuffer[] = {
 		{//Sun
 			{0, 0, sunObjectDistance}, //Position
-			{sunRadius}, //Radius
+			0, //type = sphere
+			{sunRadius, 0, 0}, //Radius
 			0 //Material index
 		},
 		{//Blue sphere
 			{22832, 2022, 13326}, //Position
-			{1}, //Radius
+			0, //sphere
+			{1, 0, 0}, //Radius
 			1, //Material index
 		},
-		{//White sphere
+		{//White box
 			{22832.2, 2022, 13326.7}, //Position
-			{1}, //Radius
+			1,
+			{1, 1, 1}, //Size
 			2, //Material index
 		},
-		{//Orange sphere - to be placed by user
+		{//Orange box - to be placed by user
 			{0, 0, 0},
-			{1},
+			1, // type = box
+			{1, 2, 0.5},
 			3
 		}
 	};

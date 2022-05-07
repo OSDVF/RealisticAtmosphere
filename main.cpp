@@ -846,7 +846,7 @@ namespace RealisticAtmosphere
 			auto& planet = DefaultScene::planetBuffer[0];
 			updateLight(DefaultScene::objectBuffer[0], planet, DefaultScene::directionalLightBuffer[0], _sunAngle, _secondSunAngle);
 		}
-		void updateLight(Sphere& lightObject, Planet& planet, DirectionalLight& light, float angle, float secondAngle)
+		void updateLight(AnalyticalObject& lightObject, Planet& planet, DirectionalLight& light, float angle, float secondAngle)
 		{
 			glm::quat rotQua(glm::vec3(angle, secondAngle, 0));
 			glm::vec3 pos(0, bx::length(bx::sub(lightObject.position, planet.center)), 0);

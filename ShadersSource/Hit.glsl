@@ -19,7 +19,7 @@ Hit findObjectHit(Ray ray, bool includeTranslucent)
         if(!includeTranslucent && materials[objects[k].materialIndex].albedo.a == 0)
             continue;
         float lastDistance;
-        if (getRaySphereIntersection(objects[k], ray, hitPosition, normalAtHit, lastDistance)) // Update hit position and normal
+        if (getRayObjectIntersection(objects[k], ray, hitPosition, normalAtHit, lastDistance)) // Update hit position and normal
         {
             if (lastDistance < closestDistance) {
                 hitObjectIndex = k;
