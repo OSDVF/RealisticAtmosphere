@@ -310,10 +310,10 @@ namespace RealisticAtmosphere
 			// Compute spectrum mapping functions
 			ColorMapping::FillSpectrum(SkyRadianceToLuminance, SunRadianceToLuminance, DefaultScene::planetBuffer[0], DefaultScene::directionalLightBuffer[0], _whitePoint);
 			DefaultScene::materialBuffer[0].emission = /*sun emission calcualation from its angular radius*/
-				bx::div(
+				vec4::fromVec3(bx::div(
 					DefaultScene::directionalLightBuffer[0].irradiance,
 					M_PI * DefaultScene::sunAngularRadius * DefaultScene::sunAngularRadius
-				);
+				));
 
 			// Render optical depth, transmittance and direct irradiance textures
 			precompute();
@@ -586,6 +586,9 @@ namespace RealisticAtmosphere
 				case 'r':
 					DefaultScene::objectBuffer[3].position = vec3(Camera[0].x, Camera[0].y, Camera[0].z);
 					break;
+				case 't':
+					DefaultScene::objectBuffer[4].position = vec3(Camera[0].x, Camera[0].y, Camera[0].z);
+					break;
 				default:
 					if (modifiers & entry::Modifier::LeftCtrl)
 					{
@@ -612,6 +615,18 @@ namespace RealisticAtmosphere
 						else if (inputGetKeyState(entry::Key::Key6))
 						{
 							applyPreset(5);
+						}
+						else if (inputGetKeyState(entry::Key::Key7))
+						{
+							applyPreset(6);
+						}
+						else if (inputGetKeyState(entry::Key::Key8))
+						{
+							applyPreset(7);
+						}
+						else if (inputGetKeyState(entry::Key::Key9))
+						{
+							applyPreset(8);
 						}
 					}
 					break;
@@ -1096,7 +1111,7 @@ namespace RealisticAtmosphere
 					"Sprint: Shift\n"
 					"GUI: F-Hide, G-Show\n"
 					"Presets: Ctrl + 1-9\n"
-					"Place sphere: R"
+					"Place object: R-Sphere, T-Cube"
 				);
 				ImGui::TreePop();
 			}
@@ -1574,7 +1589,7 @@ namespace RealisticAtmosphere
 			}
 			else
 			{
-				ImGui::Text("%d sampled", _currentSample);
+				ImGui::Text("%.0f sampled", _currentSample);
 			}
 			ImGui::PushItemWidth(90);
 

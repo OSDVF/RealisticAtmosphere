@@ -8,35 +8,41 @@
 namespace DefaultScene
 {
 	Material materialBuffer[] = {
-	{
+		{
 			//Sun material
 			{1,1,1,0},// White transparent
-			{0,0,0},// No Specular part
-			{0},// No Roughness
 			{1,1,1}, // Emission will be assigned
-			0
 		},
 		{
 			{1, 1, 1, 1},// White albedo
-			{0.5,0.5,0.5},// Half specular
-			{0.5},// Half Roughness
 			{0,0,0}, // No emission
-			0
 		},
 		{
 			{0, 0, 1, 1},// Blue albedo
-			{0.5,0.5,0.5},// Half specular
-			{0.5},// Half Roughness
 			{0,0,0}, // No emission
-			0
 		},
 		{
 			{1, 0.5, 0.15, 1},//Orange albedo
-			{0,0,0},
-			{0},
-			{0,0,0},
 			{0}
-		}
+		},
+		{	//Green
+			{0.1, 0.9, 0.1, 1},
+			{0}
+		},
+		{	//Red
+			{0.9, 0.1, 0.1, 1},
+			{0}
+		},
+		{
+			//Gray
+			{0.7, 0.7, 0.7, 1},
+			{0}
+		},
+		{
+			//Dark
+			{38.0/255.0, 25.0/255.0, 17.0/255.0, 1},
+			{0}
+		},
 	};
 
 	const float earthRadius = 6360000; // cit. E. Bruneton page 3
@@ -66,14 +72,70 @@ namespace DefaultScene
 		{//White box
 			{22832.2, 2022, 13326.7}, //Position
 			1,
-			{1, 1, 1}, //Size
+			{2, 2, 2}, //Size
 			2, //Material index
 		},
-		{//Orange box - to be placed by user
+		{//Orange sphere - to be placed by user
+			{0, 0, 0},
+			0, // type = sphere
+			{1, 0, 0},
+			3
+		},
+		{//White box - to be placed by user
 			{0, 0, 0},
 			1, // type = box
 			{1, 2, 0.5},
+			2
+		},
+		//Cornell box:
+		{
+			//Left red plane
+			{26630, 1336, 10749},
+			1,
+			{1,1,1},
+			5
+		},
+		{
+			//Right green plane
+			{26632, 1336, 10749},
+			1,
+			{1,1,1},
+			4
+		},
+		{
+			//Bottom gray plane
+			{26630, 1335, 10749},
+			1,
+			{3,1,1},
+			6
+		},
+		{
+			//Background gray plane
+			{26630, 1336, 10750},
+			1,
+			{3,1,1},
+			6
+		},
+		{
+			//Left dark ball
+			{26631.33, 1336.12, 10749.66},
+			0,
+			{0.12,0,0},
+			7
+		},
+		{
+			//Right orange ball
+			{26631.66, 1336.12, 10749.66},
+			0,
+			{0.12,0,0},
 			3
+		},
+		{
+			//Front white ball
+			{26631.5, 1336.12, 10749.33},
+			0,
+			{0.12,0,0},
+			1
 		}
 	};
 
@@ -160,45 +222,51 @@ namespace DefaultScene
 	};
 
 	const Preset presets[] = {
-		Preset
+		Preset//0
 		{
 			{23796, 2266, 16636},
 			{-4.962, -550, 0},
 			{3.648, 1.484},
 			150000
 		},
-		Preset
+		Preset//1
 		{
 			{22849, 2031, 13328},
 			{-14, -601, 0},
 			{3.648,  1.501}
 		},
-		Preset
+		Preset//2
 		{
 			{26632, 1337, 10748},
 			{-5, -575, 0},
 			{3.94,  1.46}
 		},
-		Preset
+		Preset//3
 		{
 			{0, 2000000, 0},
 			{-50, -601, 0},
 			{3.648,  1.501},
 			4900000
 		},
-		Preset
+		Preset//4
 		{
 			{61950, 42398, -83371},
 			{-34, -549, 0},
 			{0,  0.593},
 			200000
 		},
-		Preset
+		Preset//5
 		{
 			{25241, 29450, -104701},
 			{-33, -545, 0},
 			{0,  0.593},
 			200000
+		},
+		Preset//6
+		{
+			{26631.5, 1336.5, 10747.5},
+			{0, 0, 0},
+			{3.94,  1.46}
 		},
 	};
 };

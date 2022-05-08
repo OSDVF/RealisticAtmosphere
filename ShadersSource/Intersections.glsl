@@ -107,13 +107,13 @@ bool getRayBoxIntersection(AnalyticalObject box, Ray ray, out vec3 hitPosition, 
         vec3 center = box.position + box.size*0.5;
         vec3 difference = center - hitPosition;
         if (allMin == tmin.x) {
-            normalAtHit = vec3(1, 0, 0) * sign(difference.x);
+            normalAtHit = vec3(-1, 0, 0) * sign(difference.x);
         }
         else if (allMin == tmin.y) {
-            normalAtHit = vec3(0, 1, 0) * sign(difference.y);
+            normalAtHit = vec3(0, -1, 0) * sign(difference.y);
         }
         else if (allMin == tmin.z) {
-            normalAtHit = vec3(0, 0, 1) * sign(difference.z);
+            normalAtHit = vec3(0, 0, -1) * sign(difference.z);
         } 
         t0 = allMin;
         return true;

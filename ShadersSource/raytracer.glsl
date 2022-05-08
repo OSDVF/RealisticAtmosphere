@@ -100,10 +100,10 @@ construct_ONB_frisvad(vec3 normal)
 	return ret;
 }
 
-Ray createSecondaryRay(vec3 pos, vec3 normal)
+Ray createSecondaryRay(vec2 coord, vec3 pos, vec3 normal)
 {
-    float seed = time.x*pos.x*pos.z;
-    vec2 randomValues = vec2(random(seed),random(seed*pos.y));
+    float seed = time.x*pos.x*pos.y*pos.z*coord.x;
+    vec2 randomValues = vec2(random(seed),random(seed*coord.y));
     mat3 onb = construct_ONB_frisvad(normal);
     vec3 dir = normalize(onb * sample_cos_hemisphere(randomValues));
     Ray ray_next = Ray(pos, dir);
@@ -154,7 +154,7 @@ vec2 getSubpixelCoords(vec2 fromPixel, float directSampleNum)
     }
 }
 
-void raytraceSecondary(vec3 origin, vec3 normal, vec3 throughput, float invIndirectCount, inout vec3 colorOut)
+void raytraceSecondary(vec2 subpixelCoord, vec3 origin, vec3 normal, vec3 throughput, float invIndirectCount, inout vec3 colorOut)
 {
     // Switch to lower quality for secondary rays:
     HQSettings_earthShadows = false;
@@ -166,7 +166,7 @@ void raytraceSecondary(vec3 origin, vec3 normal, vec3 throughput, float invIndir
     // Create secondary rays
     for(int b = 0; b < bounces; b++)
     {
-        Ray secondaryRay = createSecondaryRay(origin, normal);
+        Ray secondaryRay = createSecondaryRay(subpixelCoord, origin, normal);
 
         Hit objectHit = findObjectHit(secondaryRay);
         Hit planetHit;
@@ -192,7 +192,7 @@ void raytraceSecondary(vec3 origin, vec3 normal, vec3 throughput, float invIndir
         {
             Material objMaterial = materials[objects[objectHit.hitObjectIndex].materialIndex];
             vec3 totalLightColor = objectIlluminance(objectHit);
-            colorOut += (objMaterial.emission + totalLightColor * objMaterial.albedo.rgb)  * objMaterial.albedo.a * throughput * invIndirectCount;
+            colorOut += (objMaterial.emission.rgb + totalLightColor * objMaterial.albedo.rgb)  * objMaterial.albedo.a * throughput * invIndirectCount;
             throughput *= objMaterial.albedo.rgb * objMaterial.albedo.a;
 
             origin = objectHit.position;
@@ -228,7 +228,7 @@ vec3 raytracePrimSec(vec2 subpixelCoord, float invIndirectCount, out vec3 normal
         normal = planetHit.normalAtHit;
         depth = planetHit.t;
 
-        raytraceSecondary(planetHit.position, normal, throughput, invIndirectCount, colorOut);
+        raytraceSecondary(subpixelCoord, planetHit.position, normal, throughput, invIndirectCount, colorOut);
     }
     if (objectHit.hitObjectIndex != -1 && objectHit.t <= planetHit.t)
     {
@@ -236,13 +236,13 @@ vec3 raytracePrimSec(vec2 subpixelCoord, float invIndirectCount, out vec3 normal
         Material objMaterial = materials[objects[objectHit.hitObjectIndex].materialIndex];
         vec3 totalLightColor = objectIlluminance(objectHit);
         
-        colorOut += (objMaterial.albedo.rgb * totalLightColor + objMaterial.emission.xyz) * throughput;
+        colorOut += (objMaterial.albedo.rgb * totalLightColor + objMaterial.emission.rgb) * throughput;
         throughput *= objMaterial.albedo.rgb;//Transparency is ignored here as it is not really implemented and only used to identify 'ghost' objects (e.g. sun)
         normal = objectHit.normalAtHit;
         if(objMaterial.albedo.a != 0) // Do not put transparent objects into depth buffer
             depth = objectHit.t;
 
-        raytraceSecondary(objectHit.position, normal, throughput, invIndirectCount, colorOut);
+        raytraceSecondary(subpixelCoord, objectHit.position, normal, throughput, invIndirectCount, colorOut);
     }
     return colorOut;
 }

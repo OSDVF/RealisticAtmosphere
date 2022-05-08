@@ -121,10 +121,7 @@ struct Hit
  */
 struct Material {
     vec4 albedo;
-    vec3 specular;
-    float smoothness;
-    vec3 emission;
-    float occlusion;
+    vec4 emission;
 };
 
 #endif
