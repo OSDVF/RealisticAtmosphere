@@ -148,9 +148,11 @@ namespace RealisticAtmosphere
 #pragma endregion Settings_Uniforms
 #pragma region Shaders_And_Buffers
 		bgfx::ProgramHandle _computeShaderProgram = BGFX_INVALID_HANDLE;
+		bgfx::ProgramHandle _postShaderProgram = BGFX_INVALID_HANDLE;
 		bgfx::ProgramHandle _displayingShaderProgram = BGFX_INVALID_HANDLE; /**< This program displays output from compute-shader raytracer */
 
 		bgfx::ShaderHandle _computeShaderHandle = BGFX_INVALID_HANDLE;
+		bgfx::ShaderHandle _postShaderHandle = BGFX_INVALID_HANDLE;
 		bgfx::ShaderHandle _heightmapShaderHandle = BGFX_INVALID_HANDLE;
 		bgfx::ProgramHandle _heightmapShaderProgram = BGFX_INVALID_HANDLE;
 
@@ -282,6 +284,10 @@ namespace RealisticAtmosphere
 			_displayingShaderProgram = loadProgram("rt_display.vert", "rt_display.frag");
 			_computeShaderHandle = loadShader("compute_render.comp");
 			_computeShaderProgram = bgfx::createProgram(_computeShaderHandle);
+
+			_postShaderHandle = loadShader("post_process.comp");
+			_postShaderProgram = bgfx::createProgram(_postShaderHandle);
+
 			_heightmapShaderHandle = loadShader("Heightmap.comp");
 			_heightmapShaderProgram = bgfx::createProgram(_heightmapShaderHandle);
 			tinystl::vector<std::string> textureFileNames(4);
@@ -409,7 +415,7 @@ namespace RealisticAtmosphere
 			bgfx::setBuffer(1, _atmosphereBufferHandle, bgfx::Access::Read);
 			bgfx::setBuffer(2, _directionalLightBufferHandle, bgfx::Access::Read);
 			bgfx::dispatch(0, transmittanceProgram, bx::ceil(256 / float(SHADER_LOCAL_GROUP_COUNT)), bx::ceil(64 / float(SHADER_LOCAL_GROUP_COUNT)));
- 
+
 			bgfx::ShaderHandle precomputeSingleScattering = loadShader("SingleScattering.comp");
 			bgfx::ProgramHandle scatteringProgram = bgfx::createProgram(precomputeSingleScattering);
 			constexpr int SCATTERING_TEXTURE_WIDTH =
@@ -509,6 +515,8 @@ namespace RealisticAtmosphere
 			bgfx::destroy(_terrainTexSampler);
 			bgfx::destroy(_computeShaderHandle);
 			bgfx::destroy(_computeShaderProgram);
+			bgfx::destroy(_postShaderProgram);
+			bgfx::destroy(_postShaderHandle);
 			bgfx::destroy(_displayingShaderProgram);
 			bgfx::destroy(_materialBufferHandle);
 			bgfx::destroy(_directionalLightBufferHandle);
@@ -641,7 +649,16 @@ namespace RealisticAtmosphere
 				_screenSpaceQuad.draw();//Draw screen space quad with our shader program
 				bgfx::setState(BGFX_STATE_WRITE_RGB);
 
-				setDisplaySettings();
+				if (lastScreenshotFilename.length() > 0)
+				{
+					// Post processing is already done
+					const vec4 allNull{ 1, 1, 1, 0 };
+					bgfx::setUniform(_hqSettingsHandle, &allNull);
+				}
+				else
+				{
+					setDisplaySettings();
+				}
 				bgfx::submit(0, _displayingShaderProgram);
 
 				int maxSamples = HQSettings_directSamples * Multisampling_indirect;
@@ -809,7 +826,16 @@ namespace RealisticAtmosphere
 			// Delayed screenshot request
 			else if (_screenshotFrame == SCREENSHOT_AFTER_RENDER)
 			{
-				_screenshotFrame = SCREENSHOT_AFTER_RENDER_PENDING;
+				//Do post-processing
+				if (tracingComplete)
+				{
+					bgfx::setImage(0, _raytracerColorOutput, 0, bgfx::Access::ReadWrite);
+					bgfx::setTexture(1, _depthBufferSampler, _raytracerDepthAlbedoBuffer);
+					setDisplaySettings();
+					bgfx::dispatch(0, _postShaderProgram, bx::ceil(_renderImageSize.width / float(SHADER_LOCAL_GROUP_COUNT)), bx::ceil(_renderImageSize.height / float(SHADER_LOCAL_GROUP_COUNT)));
+
+					_screenshotFrame = SCREENSHOT_AFTER_RENDER_PENDING;
+				}
 			}
 			else if (tracingComplete && _screenshotFrame == SCREENSHOT_AFTER_RENDER_PENDING)
 			{
@@ -1129,7 +1155,7 @@ namespace RealisticAtmosphere
 			{
 				ImGui::SetNextItemWidth(100);
 				static float previousFovY = 0;
-				const char* const cameraTypes[] = {"Perspective", "Panorama", "Fisheye"};
+				const char* const cameraTypes[] = { "Perspective", "Panorama", "Fisheye" };
 				ImGui::Combo("Type", &_cameraType, cameraTypes, sizeof(cameraTypes) / sizeof(const char*));
 				if (_cameraType == 0 && ImGui::InputFloat("FOV", &_fovY))
 				{
@@ -1186,7 +1212,7 @@ namespace RealisticAtmosphere
 					ImGui::InputFloat("Rayleigh ScatG", &singlePlanet.rayleighCoefficients.y, 0, 0, "%e");
 					ImGui::InputFloat("Rayleigh ScatB", &singlePlanet.rayleighCoefficients.z, 0, 0, "%e");
 					ImGui::InputFloat("Mie Scat", &singlePlanet.mieCoefficient, 0, 0, "%e");
-					ImGui::InputFloat("M.Asssymetry Factor", &singlePlanet.mieAsymmetryFactor);
+					ImGui::InputFloat("M.Asymmetry Factor", &singlePlanet.mieAsymmetryFactor);
 					ImGui::InputFloat("M.Scale Height", &singlePlanet.mieScaleHeight);
 					ImGui::InputFloat("R.Scale Height", &singlePlanet.rayleighScaleHeight);
 					if (ImGui::TreeNode("Ozone"))
@@ -1227,6 +1253,7 @@ namespace RealisticAtmosphere
 				ImGui::TreePop();
 
 				singlePlanet.atmosphereThickness = singlePlanet.atmosphereRadius - singlePlanet.surfaceRadius;
+				singlePlanet.mountainsHeight = singlePlanet.mountainsRadius - singlePlanet.surfaceRadius;
 			}
 		}
 
@@ -1537,6 +1564,7 @@ namespace RealisticAtmosphere
 			ImGui::Begin("Path Tracer");
 			if (ImGui::Button("Go RT Raytracing"))
 			{
+				lastScreenshotFilename.clear();
 				swapSettingsBackup();
 				_renderImageSize = { (uint16_t)_windowWidth, (uint16_t)_windowHeight };
 				_currentSample = 0;
@@ -1593,7 +1621,7 @@ namespace RealisticAtmosphere
 			}
 			ImGui::PushItemWidth(90);
 
-			ImGui::InputFloat("Primary rays", &HQSettings_directSamples, 1,1,"%.0f");
+			ImGui::InputFloat("Primary rays", &HQSettings_directSamples, 1, 1, "%.0f");
 			HQSettings_directSamples = bx::max(HQSettings_directSamples, 1.0f);
 			if (ImGui::IsItemHovered())
 				ImGui::SetTooltip("Number of rays cast from one pixel");
@@ -1680,20 +1708,9 @@ namespace RealisticAtmosphere
 			if (bx::open(&writer, lastScreenshotFilename.c_str(), false, &err))
 			{
 				float* converted = new float[_renderImageSize.width * _renderImageSize.height];
-				for (int x = 0; x < _renderImageSize.width * _renderImageSize.height * sizeof(float); x += sizeof(float))
+				for (int x = 0; x < _renderImageSize.width * _renderImageSize.height * 4; x += 4)
 				{
-					//Tonemapping
-					glm::vec3 tonemapped;
-					//Convert RGB16F to 32bit float
-					glm::vec3 rgb(
-						bx::halfToFloat(_readedTexture[x]) / HQSettings_directSamples,
-						bx::halfToFloat(_readedTexture[x + 1]) / HQSettings_directSamples,
-						bx::halfToFloat(_readedTexture[x + 2]) / HQSettings_directSamples);
-					tonemapped = Tonemapping::tmFunc(rgb, _tonemappingType);
-
-					_readedTexture[x] = bx::halfFromFloat(tonemapped.r);
-					_readedTexture[x + 1] = bx::halfFromFloat(tonemapped.g);
-					_readedTexture[x + 2] = bx::halfFromFloat(tonemapped.b);
+					//Set alpha to 1.0
 					_readedTexture[x + 3] = bx::halfFromFloat(1.0);
 				}
 				//Convert RGBA16F to RGBA8

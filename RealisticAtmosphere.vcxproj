@@ -380,6 +380,7 @@
     <None Include="ShadersSource\Clouds.glsl" />
     <None Include="ShadersSource\Common.glsl" />
     <None Include="ShadersSource\ComputeRender\compute_render.comp" />
+    <None Include="ShadersSource\ComputeRender\post_process.comp" />
     <None Include="ShadersSource\ComputeRender\Precompute\DirectIrradiance.comp" />
     <None Include="ShadersSource\ComputeRender\Precompute\Heightmap.comp" />
     <None Include="ShadersSource\ComputeRender\Precompute\IndirectIrradiance.comp" />
@@ -393,6 +394,7 @@
     <None Include="ShadersSource\Debug.glsl" />
     <None Include="ShadersSource\Hit.glsl" />
     <None Include="ShadersSource\Intersections.glsl" />
+    <None Include="ShadersSource\PostProcess.glsl" />
     <None Include="ShadersSource\Lighting.glsl" />
     <None Include="ShadersSource\Math.glsl" />
     <None Include="ShadersSource\Planet.glsl" />

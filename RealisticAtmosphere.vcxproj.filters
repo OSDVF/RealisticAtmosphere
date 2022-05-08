@@ -152,6 +152,12 @@
     <None Include="ShadersSource\Common.glsl">
       <Filter>Shader Programs</Filter>
     </None>
+    <None Include="ShadersSource\ComputeRender\post_process.comp">
+      <Filter>Shader Programs\Compute Render</Filter>
+    </None>
+    <None Include="ShadersSource\PostProcess.glsl">
+      <Filter>Shader Programs</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="PosVertex.h">
