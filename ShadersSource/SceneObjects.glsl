@@ -58,7 +58,7 @@ int lightTerrainDetectSteps = 40;
 vec4 LightSettings[] = {
                             vec4(2000, 0.03, 0.4, -0.09),
                             vec4(0.5, *(float*)&lightTerrainDetectSteps, 3, 0.6),
-                            vec4(2000, 500, 5e-2, 0.05),
+                            vec4(2000, 500, 5.1e-3, 0.05),
                             vec4(3, 0.1, 400)/*shadow hardness, de-banding coef, light shaft shadowed threshold*/
                         };
 vec4 PlanetMaterial = {1700, 2300, 2, .4};

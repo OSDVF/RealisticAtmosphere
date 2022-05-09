@@ -1445,8 +1445,8 @@ namespace RealisticAtmosphere
 						ImGui::InputFloat("Render Distance", &Clouds_farPlane);
 						if (ImGui::TreeNode("Cl. Lighting"))
 						{
-							ImGui::InputFloat("Maximum light", &Clouds_maximumLuminance);
-							ImGui::InputFloat("Cutoff smoothness", &Clouds_luminanceSmoothness);
+							ImGui::InputFloat("LimitLight", &Clouds_maximumLuminance);
+							ImGui::InputFloat("SmoothLimit", &Clouds_luminanceSmoothness);
 							ImGui::InputFloat("LightSteps", &Clouds_lightSteps, 1, 1, "%.0f");
 							ImGui::InputFloat("LightFarPlane", &Clouds_lightFarPlane);
 							if (flags & HQFlags_REDUCE_BANDING)
@@ -1504,6 +1504,27 @@ namespace RealisticAtmosphere
 						ImGui::PushItemWidth(120);
 						ImGui::InputFloat("Density", &cloudsLayer.density, 0, 0, "%e");
 
+						ImGui::InputFloat("Sharpness", &cloudsLayer.sharpness);
+						ImGui::InputFloat("Lower gradient", &cloudsLayer.lowerGradient);
+						ImGui::InputFloat("Upper gradient", &cloudsLayer.upperGradient);
+						ImGui::InputFloat("Gradient power", &Clouds_fadePower);
+						ImGui::InputFloat("Scattering", &cloudsLayer.scatteringCoef, 0, 0, "%e");
+						ImGui::InputFloat("Extinction", &cloudsLayer.extinctionCoef, 0, 0, "%e");
+						ImGui::InputFloat("Aerosols", &Clouds_aerosols, 0.05, .1);
+						if (Clouds_aerosols < 0)
+						{
+							Clouds_aerosols = 0;
+						}
+						else if (Clouds_aerosols > 1)
+						{
+							Clouds_aerosols = 1;
+						}
+						if (ImGui::IsItemHovered())
+						{
+							ImGui::SetTooltip("Fractional amount of aerosols which differ from overall DSD. Increasing it makes the atomospheric phenomena appear less noticeable."
+								"\nNote: When switching between Uniform and Disperse DSD, this number gets divided by 5 automatically to reflect the way how aerosols are actually present in clouds");
+						}
+
 						bool useMultScattApprox = Clouds_beerAmbient != 0;
 						static float prevBeerAmbient[2] = { 0.0f , 0.0f };
 						static float prevPowderDensity[2] = { 0.0f , 0.0f };
@@ -1531,26 +1552,6 @@ namespace RealisticAtmosphere
 							ImGui::InputFloat("Powder ambient", &Clouds_powderAmbient);
 							ImGui::PopItemWidth();
 							ImGui::TreePop();
-						}
-						ImGui::InputFloat("Sharpness", &cloudsLayer.sharpness);
-						ImGui::InputFloat("Lower gradient", &cloudsLayer.lowerGradient);
-						ImGui::InputFloat("Upper gradient", &cloudsLayer.upperGradient);
-						ImGui::InputFloat("Gradient power", &Clouds_fadePower);
-						ImGui::InputFloat("Scattering", &cloudsLayer.scatteringCoef, 0, 0, "%e");
-						ImGui::InputFloat("Extinction", &cloudsLayer.extinctionCoef, 0, 0, "%e");
-						ImGui::InputFloat("Aerosols", &Clouds_aerosols, 0.05, .1);
-						if (Clouds_aerosols < 0)
-						{
-							Clouds_aerosols = 0;
-						}
-						else if (Clouds_aerosols > 1)
-						{
-							Clouds_aerosols = 1;
-						}
-						if (ImGui::IsItemHovered())
-						{
-							ImGui::SetTooltip("Fractional amount of aerosols which differ from overall DSD. Increasing it makes the atomospheric phenomena appear less noticeable."
-								"\nNote: When switching between Uniform and Disperse DSD, this number gets divided by 5 automatically to reflect the way how aerosols are actually present in clouds");
 						}
 						ImGui::PopItemWidth();
 						ImGui::TreePop();

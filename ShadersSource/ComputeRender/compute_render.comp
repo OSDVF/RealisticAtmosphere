@@ -54,7 +54,7 @@ void main()
 
 				Ray cam = createCameraRay(subpixelCoord);
 				vec3 origin = cam.origin + depth * cam.direction;
-				raytraceSecondary(subpixelCoord, /*in*/ origin, /*in*/ normal, /*in*/ albedo, 1.0/indirectSamples, color);
+				raytraceSecondary(subpixelCoord, /*in*/ origin, /*in*/ normal, /*in*/ albedo, 1.0/indirectSamples, depth, color);
 				imageStore(colorOutput, coord, vec4(color, 0));
 			}
 		}

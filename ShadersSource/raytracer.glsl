@@ -100,14 +100,14 @@ construct_ONB_frisvad(vec3 normal)
 	return ret;
 }
 
-Ray createSecondaryRay(vec2 coord, vec3 pos, vec3 normal)
+Ray createSecondaryRay(vec2 coord, vec3 pos, vec3 normal, float distanceFromCam)
 {
     float seed = time.x*pos.x*pos.y*pos.z*coord.x;
     vec2 randomValues = vec2(random(seed),random(seed*coord.y));
     mat3 onb = construct_ONB_frisvad(normal);
     vec3 dir = normalize(onb * sample_cos_hemisphere(randomValues));
     Ray ray_next = Ray(pos, dir);
-	ray_next.origin += ray_next.direction * LightSettings_secondaryOffset;//Offset to prevent self-blocking
+	ray_next.origin += normal * LightSettings_secondaryOffset * distanceFromCam;//Offset to prevent self-blocking
     return ray_next;
 }
 
@@ -154,7 +154,7 @@ vec2 getSubpixelCoords(vec2 fromPixel, float directSampleNum)
     }
 }
 
-void raytraceSecondary(vec2 subpixelCoord, vec3 origin, vec3 normal, vec3 throughput, float invIndirectCount, inout vec3 colorOut)
+void raytraceSecondary(vec2 subpixelCoord, vec3 origin, vec3 normal, vec3 throughput, float invIndirectCount, float distanceFromCam, inout vec3 colorOut)
 {
     // Switch to lower quality for secondary rays:
     HQSettings_atmoCompute = false;
@@ -165,7 +165,7 @@ void raytraceSecondary(vec2 subpixelCoord, vec3 origin, vec3 normal, vec3 throug
     // Create secondary rays
     for(int b = 0; b < bounces; b++)
     {
-        Ray secondaryRay = createSecondaryRay(subpixelCoord, origin, normal);
+        Ray secondaryRay = createSecondaryRay(subpixelCoord, origin, normal, distanceFromCam);
 
         Hit objectHit = findObjectHit(secondaryRay);
         Hit planetHit;
@@ -230,7 +230,7 @@ vec3 raytracePrimSec(vec2 subpixelCoord, float invIndirectCount, out vec3 normal
         depth = planetHit.t;
 
         vec3 throughputForSecondary = throughput;//We don't want to capture the secondary ray's throughput into albedo buffer
-        raytraceSecondary(subpixelCoord, planetHit.position, normal, throughputForSecondary, invIndirectCount, colorOut);
+        raytraceSecondary(subpixelCoord, planetHit.position, normal, throughputForSecondary, invIndirectCount, depth, colorOut);
     }
     if (objectHit.hitObjectIndex != -1 && objectHit.t <= planetHit.t)
     {
@@ -246,7 +246,7 @@ vec3 raytracePrimSec(vec2 subpixelCoord, float invIndirectCount, out vec3 normal
             depth = objectHit.t;
 
         vec3 throughputForSecondary = throughput;
-        raytraceSecondary(subpixelCoord, objectHit.position, normal, throughputForSecondary, invIndirectCount, colorOut);
+        raytraceSecondary(subpixelCoord, objectHit.position, normal, throughputForSecondary, invIndirectCount, depth, colorOut);
     }
     else
     {
