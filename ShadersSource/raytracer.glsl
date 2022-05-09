@@ -225,6 +225,7 @@ vec3 raytracePrimSec(vec2 subpixelCoord, float invIndirectCount, out vec3 normal
     colorOut += atmColor;
     if(terrainWasHit)
     {
+        // Hit a terrain on planet
         normal = planetHit.normalAtHit;
         depth = planetHit.t;
 
@@ -232,6 +233,7 @@ vec3 raytracePrimSec(vec2 subpixelCoord, float invIndirectCount, out vec3 normal
     }
     if (objectHit.hitObjectIndex != -1 && objectHit.t <= planetHit.t)
     {
+        // Also hit an analytical object
         // Add color of the object at the hit
         Material objMaterial = materials[objects[objectHit.hitObjectIndex].materialIndex];
         vec3 totalLightColor = objectIlluminance(objectHit);
@@ -243,6 +245,19 @@ vec3 raytracePrimSec(vec2 subpixelCoord, float invIndirectCount, out vec3 normal
             depth = objectHit.t;
 
         raytraceSecondary(subpixelCoord, objectHit.position, normal, throughput, invIndirectCount, colorOut);
+    }
+    else
+    {
+        // Hit only atmosphere or spherical planet surface
+        if(planetHit.t == POSITIVE_INFINITY)
+        {
+            depth = 0;
+        }
+        else
+        {
+            depth = planetHit.t;
+        }
+
     }
     return colorOut;
 }

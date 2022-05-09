@@ -39,9 +39,9 @@ void main()
 		{
 			vec2 depthAndAlbedo = imageLoad(depthBuffer, coord).xy;
 			float depth = depthAndAlbedo.r;
-			if(depth != 0)
+			vec3 normal = imageLoad(normalsBuffer, coord).xyz;
+			if(depth != 0 && normal != vec3(0))
 			{
-				vec3 normal = imageLoad(normalsBuffer, coord).xyz;
 
 				// We will sample only secondary rays and use stored/prepared values from sample where[indirectSampleNum==0]
 

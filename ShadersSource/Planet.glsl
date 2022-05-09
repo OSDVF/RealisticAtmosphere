@@ -186,7 +186,7 @@ void precomputedAtmosphere(Planet p, Ray ray, float toT, bool terrainWasHit, boo
 }
 
 float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDistance, float cloudsDistance, bool terrainWasHit, bool shadowed, inout vec3 luminance, inout vec3 transmittance);
-bool terrainColorAndHit(Planet p, Ray ray, float fromDistance, inout float toDistance, inout vec3 throughput, inout vec3 luminance, out Hit terrainHit)
+bool terrainColorAndHit(Planet p, Ray ray, float fromDistance, inout float toDistance, inout vec3 throughput, inout vec3 luminance, inout Hit terrainHit)
 {
 	// Out parameters
 	vec2 normalMap;
@@ -256,7 +256,6 @@ bool terrainColorAndHit(Planet p, Ray ray, float fromDistance, inout float toDis
 		throughput *= planetAlbedo;
 		return true;
 	}
-	terrainHit.t = POSITIVE_INFINITY;
 	return false;
 }
 
