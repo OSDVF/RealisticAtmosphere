@@ -12,5 +12,5 @@ void main()
 	vec3 color = imageLoad(colorOutput, coord).rgb;
 	color = postProcess(color, coordNorm);
 	
-	imageStore(colorOutput, coord, vec4(color, 0));
+	imageStore(colorOutput, coord, vec4(color, 1));
 }

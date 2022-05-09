@@ -175,7 +175,7 @@ void precomputedAtmosphere(Planet p, Ray ray, float toT, bool terrainWasHit, boo
 	for(uint l = p.firstLight; l <= p.lastLight; l++)
 	{
 		DirectionalLight light = directionalLights[l];
-		float shadow = 0.0;//HQSettings_lightShafts ? raymarchOcclusion(p, ray, 0, toT, terrainWasHit, terrainShadowed, light) : 0.0;
+		float shadow = HQSettings_lightShafts ? raymarchOcclusion(p, ray, 0, toT, terrainWasHit, terrainShadowed, light) : 0.0;
 		luminance += GetSkyRadianceToPoint(p, transmittanceTable, singleScatteringTable,
 											planetSpaceCam, toT, ray.direction, shadow, 
 											light.direction, lightIndex, /*out*/ atmoTransmittance)
@@ -265,9 +265,8 @@ bool terrainColorAndHit(Planet p, Ray ray, float fromDistance, inout float toDis
   * @param tMax By tweaking the tMax parameter, you can limit the assumed ray length
   * This is useful when the ray was blocked by some objects
   */
-bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, out vec3 luminance, inout vec3 throughput, out Hit planetHit)
+bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, inout vec3 luminance, inout vec3 throughput, out Hit planetHit)
 {
-	luminance = vec3(0);
 	planetHit.t = POSITIVE_INFINITY;
 	for (int k = 0; k < planets.length(); ++k)
     {
@@ -424,8 +423,6 @@ float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDis
 				if(sunToNormalCos > LightSettings_noRayThres // Terrain is never above the viewer, so we can skip testing for shadowing in a conic area above the camera
 					|| currentDistance > QualitySettings_farPlane)
 				{
-					if(DEBUG_RM)
-						luminance = vec3(0,1,0);
 					noSureIfEclipse = false;
 				}
 
@@ -437,8 +434,6 @@ float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDis
 						if(dot(sunOnPlanetPlane,viewOnPlanetPlane) > 0 && terrainWasHit && currentDistance > maxDistance * LightSettings_cutoffDist)
 						{
 							// If the view ray has direction towards the center of the planet more than towards the sky
-							if(DEBUG_RM)
-								luminance = vec3(1,0,0);
 							// In all the later samples, the sun will be also occluded
 							break;//The later samples would all be occluded by the terrain
 						}

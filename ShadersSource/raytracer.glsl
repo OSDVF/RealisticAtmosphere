@@ -157,7 +157,6 @@ vec2 getSubpixelCoords(vec2 fromPixel, float directSampleNum)
 void raytraceSecondary(vec2 subpixelCoord, vec3 origin, vec3 normal, vec3 throughput, float invIndirectCount, inout vec3 colorOut)
 {
     // Switch to lower quality for secondary rays:
-    HQSettings_earthShadows = false;
     HQSettings_atmoCompute = false;
     HQSettings_lightShafts = false;
 
@@ -182,6 +181,7 @@ void raytraceSecondary(vec2 subpixelCoord, vec3 origin, vec3 normal, vec3 throug
         {
             terrainWasHit = planetsWithAtmospheres(secondaryRay, objectHit.t, /*out*/ atmColor, /*inout*/ throughput, /*out*/ planetHit);
         }
+        // atmColor has throughput applied
         colorOut += atmColor * invIndirectCount;
         if(terrainWasHit)
         {
@@ -220,7 +220,7 @@ vec3 raytracePrimSec(vec2 subpixelCoord, float invIndirectCount, out vec3 normal
     Hit objectHit = findObjectHit(primaryRay);
     Hit planetHit;
     // Add the atmosphere and planet color
-    vec3 atmColor;
+    vec3 atmColor = vec3(0);
     bool terrainWasHit = planetsWithAtmospheres(primaryRay, objectHit.t, /*out*/ atmColor, /*inout*/ throughput, /*out*/ planetHit);
     colorOut += atmColor;
     if(terrainWasHit)
@@ -229,7 +229,8 @@ vec3 raytracePrimSec(vec2 subpixelCoord, float invIndirectCount, out vec3 normal
         normal = planetHit.normalAtHit;
         depth = planetHit.t;
 
-        raytraceSecondary(subpixelCoord, planetHit.position, normal, throughput, invIndirectCount, colorOut);
+        vec3 throughputForSecondary = throughput;//We don't want to capture the secondary ray's throughput into albedo buffer
+        raytraceSecondary(subpixelCoord, planetHit.position, normal, throughputForSecondary, invIndirectCount, colorOut);
     }
     if (objectHit.hitObjectIndex != -1 && objectHit.t <= planetHit.t)
     {
@@ -244,7 +245,8 @@ vec3 raytracePrimSec(vec2 subpixelCoord, float invIndirectCount, out vec3 normal
         if(objMaterial.albedo.a != 0) // Do not put transparent objects into depth buffer
             depth = objectHit.t;
 
-        raytraceSecondary(subpixelCoord, objectHit.position, normal, throughput, invIndirectCount, colorOut);
+        vec3 throughputForSecondary = throughput;
+        raytraceSecondary(subpixelCoord, objectHit.position, normal, throughputForSecondary, invIndirectCount, colorOut);
     }
     else
     {

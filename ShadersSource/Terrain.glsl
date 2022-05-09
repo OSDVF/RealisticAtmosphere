@@ -33,7 +33,7 @@ vec3 triplanarSample(sampler2DArray sampl, vec4 pos, vec3 normal, float lod)
 	weights /= (weights.x + weights.y + weights.z);
 
 	vec4 color = texX * weights.x + texY * weights.y + texZ * weights.z;
-	return color.xyz * 0.9;//Terrain textures are too shiny to me
+	return color.xyz;
 }
 
 float terrainCoverage(vec2 uv)

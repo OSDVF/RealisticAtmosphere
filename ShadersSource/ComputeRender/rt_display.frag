@@ -15,6 +15,16 @@ void main()
     {
         fragColor.rgb = texelFetch(normalsBuffer, ivec2(texCoord * textureSize(normalsBuffer, 0)), 0).xyz * 0.5 + 0.5;
     }
+    else if(DEBUG_ALBEDO)
+    {
+        vec2 depthAndAlbedo = texelFetch(depthBuffer, ivec2(texCoord * textureSize(depthBuffer, 0)), 0).rg;
+        vec3 albedo;
+		uint packedAlbedo = floatBitsToUint(depthAndAlbedo.g);
+		albedo.x = float(packedAlbedo & 0xFF)/255;
+		albedo.y = float((packedAlbedo >> 8) & 0xFF)/255;
+		albedo.z = float((packedAlbedo >> 16) & 0xFF)/255;
+        fragColor.rgb = albedo;
+    }
     else
     {
 		fragColor.rgb = texelFetch(colorOutput, ivec2(texCoord * textureSize(colorOutput, 0)), 0).xyz;

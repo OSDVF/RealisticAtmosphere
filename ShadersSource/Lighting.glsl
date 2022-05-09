@@ -95,7 +95,7 @@ vec3 planetIlluminance(Planet planet, Hit hit, out bool shadowedByTerrain)
         }
         totalLightColor += thisPlanetLightColor;
     }
-    return totalLightColor;
+    return totalLightColor * 0.88;//Terrain textures are too shiny to me, so there is a compensation
 }
 
 vec3 objectIlluminance(Hit hit)

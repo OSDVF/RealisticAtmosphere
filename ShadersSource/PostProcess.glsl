@@ -100,7 +100,7 @@ vec3 lensFlareWithOcclusion(vec2 screenCoord)
 
 vec3 tonemapping(vec3 hdrColor)
 {
-    if(DEBUG_NORMALS || DEBUG_RM)
+    if(DEBUG_NORMALS || DEBUG_ALBEDO)
         return hdrColor;
 
     return tmFunc(hdrColor, TonemappingType);

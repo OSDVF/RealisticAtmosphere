@@ -71,7 +71,7 @@ vec4 CloudsSettings[] = {
                             vec4(50,  5, 0.001, 0.98),//Terrain steps, cheap downsamle, cheap thres, powder ambient
                             vec4(1e-4, 0.1, -6e-3, 2),//sampling thres, aerosol amount, powder density, fade power
                             vec4(40, 110000, 2.6, 0.08),// light shafts steps, light shafts far plane, occlusion power, beer ambient
-                            vec4(500, 3, 50, 0.04)//light optical depth de-banding mult, light de-banding cone, occlusion max, occlusion density
+                            vec4(500, 3, 3, 1)//light optical depth de-banding mult, light de-banding cone, luminance max, luminance smoothness
                         };
 #endif
 
@@ -141,8 +141,8 @@ vec4 CloudsSettings[] = {
 
 #define Clouds_deBanding CloudsSettings[4].x
 #define Clouds_cone CloudsSettings[4].y
-#define Clouds_occlusionMax CloudsSettings[4].z
-#define Clouds_occlusionDensity CloudsSettings[4].w
+#define Clouds_maximumLuminance CloudsSettings[4].z
+#define Clouds_luminanceSmoothness CloudsSettings[4].w
 
 
 #define CurrentChunk_x floatBitsToInt(SunRadianceToLuminance.w)

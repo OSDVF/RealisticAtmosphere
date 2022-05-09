@@ -100,9 +100,8 @@ namespace RealisticAtmosphere
 
 		ScreenSpaceQuad _screenSpaceQuad;/**< Output of raytracer (both the compute-shader variant and fragment-shader variant) */
 
-		bool _debugNormals = false;
+		int _debugOutput = 0;
 		bool _debugAtmoOff = false;
-		bool _debugRm = false;
 		bool _showGUI = true;
 		bool _pathTracingMode = true;
 		// TO "unlock" camera movement we must lock the mouse
@@ -899,7 +898,7 @@ namespace RealisticAtmosphere
 #if _DEBUG
 		void updateDebugUniforms()
 		{
-			_debugAttributesResult = vec4(_debugNormals ? 1 : 0, _debugRm ? 1 : 0, _debugAtmoOff ? 1 : 0, 0);
+			_debugAttributesResult = vec4(_debugOutput == 1 ? 1 : 0, _debugOutput == 2 ? 1 : 0, _debugAtmoOff ? 1 : 0, 0);
 			bgfx::setUniform(_debugAttributesHandle, &_debugAttributesResult);
 		}
 #endif
@@ -1100,12 +1099,16 @@ namespace RealisticAtmosphere
 				HQSettings_flags = *(float*)&flags;
 				ImGui::TreePop();
 			}
+#if _DEBUG
 			if (ImGui::TreeNode("Debug"))
 			{
-				ImGui::Checkbox("Debug Normals", &_debugNormals);
+				const char* const debugOutputTypes[] = { "Nothing", "Normals", "Albedo"};
+
+				ImGui::Combo("Debug Output", &_debugOutput, debugOutputTypes, sizeof(debugOutputTypes) / sizeof(const char*));
 				ImGui::Checkbox("Hide atmosphere", &_debugAtmoOff);
 				ImGui::TreePop();
 			}
+#endif
 		}
 
 		void drawSettingsDialogUI()
@@ -1383,7 +1386,6 @@ namespace RealisticAtmosphere
 				{
 					ImGui::InputFloat("Optimism", &QualitySettings_optimism, 0, 1);
 					ImGui::InputFloat("Far Plane", &QualitySettings_farPlane);
-					ImGui::InputFloat("MinStepSize", &QualitySettings_minStepSize);
 					ImGui::InputInt("Planet Steps", (int*)&RaymarchingSteps_terrain);
 					if (*(int*)&RaymarchingSteps_terrain < 1.0f)
 						*(int*)&RaymarchingSteps_terrain = 1.0f;//Prevent user to go below 1. This would break our "prevTerrainSteps" swap trick
@@ -1391,7 +1393,6 @@ namespace RealisticAtmosphere
 					ImGui::InputFloat("Precision", &RaymarchingSteps_precision, 0, 0, "%e");
 					ImGui::InputFloat("LOD A", &RaymarchingSteps_lodA);
 					ImGui::InputFloat("LOD B", &RaymarchingSteps_lodA);
-					ImGui::InputFloat("Normals", &QualitySettings_terrainNormals);
 					if (ImGui::TreeNode("Materials"))
 					{
 						ImGui::InputFloat("1", &PlanetMaterial.x);
@@ -1444,13 +1445,10 @@ namespace RealisticAtmosphere
 						ImGui::InputFloat("Render Distance", &Clouds_farPlane);
 						if (ImGui::TreeNode("Cl. Lighting"))
 						{
+							ImGui::InputFloat("Maximum light", &Clouds_maximumLuminance);
+							ImGui::InputFloat("Cutoff smoothness", &Clouds_luminanceSmoothness);
 							ImGui::InputFloat("LightSteps", &Clouds_lightSteps, 1, 1, "%.0f");
 							ImGui::InputFloat("LightFarPlane", &Clouds_lightFarPlane);
-							ImGui::InputFloat("OcclusionSteps", &Clouds_occlusionSteps, 1, 1, "%.0f");
-							ImGui::InputFloat("OcclusionPower", &Clouds_occlusionPower);
-							ImGui::InputFloat("OcclusionMax", &Clouds_occlusionMax);
-							ImGui::InputFloat("OcclusionDensity", &Clouds_occlusionDensity);
-							ImGui::InputFloat("OcclusionFarPlane", &Clouds_occlusionFarPlane);
 							if (flags & HQFlags_REDUCE_BANDING)
 							{
 								ImGui::Text("de-Banding enabled");
@@ -1595,6 +1593,7 @@ namespace RealisticAtmosphere
 			}
 			if (ImGui::Button("Save Image"))
 			{
+				lastScreenshotFilename.clear();
 				requestRenderAndScreenshot();
 			}
 			ImGui::SameLine();
@@ -1614,10 +1613,7 @@ namespace RealisticAtmosphere
 				{
 					ImGui::Text("Saved as %s", lastScreenshotFilename.c_str());
 				}
-				else
-				{
-					ImGui::Text("Rendered in %f ms", _renderTime);
-				}
+				ImGui::Text("Rendered in %f ms", _renderTime);
 			}
 			else
 			{
@@ -1630,17 +1626,18 @@ namespace RealisticAtmosphere
 			if (ImGui::IsItemHovered())
 				ImGui::SetTooltip("Number of rays cast from one pixel");
 
-			int secondary = Multisampling_indirect - 1;
-			ImGui::InputInt("Secondary rays", &secondary);
-			secondary = bx::max(secondary, 0);
-			Multisampling_indirect = secondary + 1;
-			if (ImGui::IsItemHovered())
-				ImGui::SetTooltip("Number of rays cast per one surface hit point\nTotal rays per pixel = primary * (1 + secondary)");
-
 			ImGui::InputInt("Bounces", (int*)&Multisampling_maxBounces);
 			*(int*)&Multisampling_maxBounces = bx::max(*(int*)&Multisampling_maxBounces, 0);
 			if (ImGui::IsItemHovered())
 				ImGui::SetTooltip("How many times can a secondary ray bounce from surface");
+
+			if (*(int*)&Multisampling_maxBounces > 0)
+			{
+				ImGui::InputFloat("Secondary rays", &Multisampling_indirect, 1, 1, "%.0f");
+				Multisampling_indirect = bx::max(Multisampling_indirect, 0.0f);
+				if (ImGui::IsItemHovered())
+					ImGui::SetTooltip("Number of rays cast per one surface hit point\nTotal rays per pixel = primary * (1 + secondary) * (1 + bounces)");
+			}
 
 			inputSlicesCount();
 			ImGui::PopItemWidth();
@@ -1712,11 +1709,6 @@ namespace RealisticAtmosphere
 			if (bx::open(&writer, lastScreenshotFilename.c_str(), false, &err))
 			{
 				float* converted = new float[_renderImageSize.width * _renderImageSize.height];
-				for (int x = 0; x < _renderImageSize.width * _renderImageSize.height * 4; x += 4)
-				{
-					//Set alpha to 1.0
-					_readedTexture[x + 3] = bx::halfFromFloat(1.0);
-				}
 				//Convert RGBA16F to RGBA8
 				bimg::imageConvert(entry::getAllocator(), converted, bimg::TextureFormat::RGBA8, _readedTexture, bimg::TextureFormat::RGBA16F, _renderImageSize.width, _renderImageSize.height, 1);
 				//Write to PNG file

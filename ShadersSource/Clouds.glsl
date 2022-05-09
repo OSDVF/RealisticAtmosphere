@@ -131,6 +131,13 @@ float sampleCloudCheap(CloudLayer c, vec3 cloudSpacePos)
     return clamp(cloudsCheap(c, cloudSpacePos * c.sizeMultiplier),0,1);
 }
 
+// https://iquilezles.org/articles/smin/
+float smin( float a, float b, float k )
+{
+    float h = max( k-abs(a-b), 0.0 )/k;
+    return min( a, b ) - h*h*k*(1.0/4.0);
+}
+
 float raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps, out vec3 transmittance, out vec3 luminance)
 {
     transmittance = vec3(1);
@@ -175,9 +182,9 @@ float raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps
                 {
                     if(density > Clouds_sampleThres)
                     {
-                        if(density > maxDensity)
+                        if(density > maxDensity && maxDensity != 1)
                         {
-                            maxDensity = density;
+                            maxDensity = 1;
                             placeWithMaxDensity = t;
                         }
 
@@ -250,8 +257,11 @@ float raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps
                     density = min(sampleCloudH(c, cloudSpacePos, height, /*out*/ cheapDensity), 1);
                 }
                 while(true /* real ending condition is in 'if'above */);
-            
-                luminance += scatteringSum * segmentLength * c.scatteringCoef;
+                vec3 luminanceRaw = scatteringSum * segmentLength * c.scatteringCoef;
+                luminance.r += smin(luminanceRaw.r, Clouds_maximumLuminance, Clouds_luminanceSmoothness);
+                luminance.g += smin(luminanceRaw.g, Clouds_maximumLuminance, Clouds_luminanceSmoothness);
+                luminance.b += smin(luminanceRaw.b, Clouds_maximumLuminance, Clouds_luminanceSmoothness);
+                maxDensity = 1;
             }
             else
             {
@@ -260,59 +270,6 @@ float raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps
 	    }
     }
     return placeWithMaxDensity;
-}
-
-//Returns accumulated density
-float raymarchCloudsL(Planet planet, Ray ray, float fromT, float toT, float steps)
-{
-    float t = fromT;
-	float segmentLength = (toT - fromT) / steps;
-    int iter = int(steps);
-
-    
-    float accumulatedDensity = 0;
-    CloudLayer c = planet.clouds;
-	for(int i = 0; i < iter ; i++)
-	{
-        if(t > toT)
-            break;
-        vec3 worldSpacePos = ray.origin + ray.direction * t;
-		vec3 cloudSpacePos = worldSpacePos + c.position;
-        float cheapDensity = sampleCloudCheap(c, cloudSpacePos);
-            
-        if(cheapDensity > Clouds_cheapThreshold)
-        {
-            t -= segmentLength * Clouds_cheapDownsample; //Return to the previous sample because we could lose some cloud material
-            worldSpacePos = ray.origin + ray.direction * t;
-            cloudSpacePos = worldSpacePos + c.position;
-            float height = distance(worldSpacePos, planet.center);
-            float density = min(sampleCloudL(c, cloudSpacePos, height, cheapDensity), 1);
-            do
-            {
-                if(density > Clouds_sampleThres)
-                {
-                    accumulatedDensity+=density * segmentLength;
-                }
-                if(accumulatedDensity >= Clouds_occlusionMax)
-                {
-                    return accumulatedDensity;
-                }
-
-                worldSpacePos = ray.origin + ray.direction * t;
-                cloudSpacePos = worldSpacePos + c.position;
-                height = distance(worldSpacePos, planet.center);
-                density = min(sampleCloudL(c, cloudSpacePos, height, /*out*/ cheapDensity), 1);
-                t += segmentLength;
-                i++;
-            }
-            while(i < iter && cheapDensity > Clouds_cheapThreshold);
-        }
-        else
-        {
-            t += segmentLength * Clouds_cheapDownsample;
-        }
-	}
-    return accumulatedDensity;
 }
 
 float cloudsForPlanet(Planet p, Ray ray, float fromDistance, float toDistance, float steps, out vec3 transmittance, out vec3 luminance)
