@@ -1411,13 +1411,13 @@ namespace RealisticAtmosphere
 			if (ImGui::TreeNode("Clouds"))
 			{
 				CloudLayer& cloudsLayer = DefaultScene::planetBuffer[0].clouds;
-				static float prevCloudsIter = 0.0f;
-				static float prevCloudsTerrIter = 0.0f;
+				static float prevCloudsIter[2] = { 0.0f , 0.0f };
+				static float prevCloudsTerrIter[2] = { 0.0f , 0.0f };
 				bool enableClouds = Clouds_iter != 0.0f;
 				if (ImGui::Checkbox("Enable Cl.", &enableClouds))
 				{
-					swap(prevCloudsIter, Clouds_iter);
-					swap(prevCloudsTerrIter, Clouds_terrainSteps);
+					swap(prevCloudsIter[_pathTracingMode ? 0 : 1], Clouds_iter);
+					swap(prevCloudsTerrIter[_pathTracingMode ? 0 : 1], Clouds_terrainSteps);
 				}
 				if (enableClouds)
 				{
@@ -1507,19 +1507,23 @@ namespace RealisticAtmosphere
 						ImGui::InputFloat("Density", &cloudsLayer.density, 0, 0, "%e");
 
 						bool useMultScattApprox = Clouds_beerAmbient != 0;
-						static float prevBeerAmbient = 0.f;
-						static float prevPowderDensity = 0.f;
-						static float prevPowderAmbient = 1.f;
+						static float prevBeerAmbient[2] = { 0.0f , 0.0f };
+						static float prevPowderDensity[2] = { 0.0f , 0.0f };
+						static float prevPowderAmbient[2] = { 1.0f , 1.0f };
 						if (ImGui::Checkbox("Multiple scat. approx", &useMultScattApprox))
 						{
-							swap(prevBeerAmbient, Clouds_beerAmbient);
-							swap(prevPowderDensity, Clouds_powderDensity);
-							swap(prevPowderAmbient, Clouds_powderAmbient);
+							swap(prevBeerAmbient[_pathTracingMode ? 0 : 1], Clouds_beerAmbient);
+							swap(prevPowderDensity[_pathTracingMode ? 0 : 1], Clouds_powderDensity);
+							swap(prevPowderAmbient[_pathTracingMode ? 0 : 1], Clouds_powderAmbient);
 						}
 						if (useMultScattApprox)
 						{
 							ImGui::TreePush();
 							ImGui::InputFloat("Ambient", &Clouds_beerAmbient);
+							if (Clouds_beerAmbient == 0.0f)
+							{
+								Clouds_beerAmbient = FLT_EPSILON;
+							}
 							ImGui::PushItemWidth(90);
 							ImGui::InputFloat("Powder density", &Clouds_powderDensity, 0, 0, "%e");
 							if (ImGui::IsItemHovered())

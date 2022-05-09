@@ -190,7 +190,7 @@ namespace DefaultScene
 			0,//padding
 			CloudLayer
 			{
-				{-110000, -2000, 0}, // position
+				{-110000, -1000, 0}, // position
 				//{-130000, 9701,-150000},//error check position
 				0.005,//coverage
 
@@ -267,6 +267,13 @@ namespace DefaultScene
 			{26631.5, 1336.5, 10747.5},
 			{0, 0, 0},
 			{3.94,  1.46}
+		},
+		Preset//7
+		{
+			{7866, 5837, -143910},
+			{-29, -535, 0},
+			{3.316,  1.379},
+			100000
 		},
 	};
 };
