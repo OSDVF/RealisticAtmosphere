@@ -90,8 +90,8 @@ bool rayBoxIntersection(vec3 position, vec3 size, Ray ray, out float tmin, out f
 // With normal
 bool getRayBoxIntersection(AnalyticalObject box, Ray ray, out vec3 hitPosition, out vec3 normalAtHit, out float t0)
 {
-    vec3 minPos = box.position;
-    vec3 maxPos = box.position + box.size;
+    vec3 minPos = box.position;//Lower left edge
+    vec3 maxPos = box.position + box.size;//Upper right edge
 
     vec3 t1 = (minPos - ray.origin)/ray.direction;
     vec3 t2 = (maxPos - ray.origin)/ray.direction;
@@ -117,13 +117,13 @@ bool getRayBoxIntersection(AnalyticalObject box, Ray ray, out vec3 hitPosition, 
         hitPosition = ray.origin + ray.direction * allMin;
         vec3 center = box.position + box.size*0.5;
         vec3 difference = center - hitPosition;
-        if (allMin == tmin.x) {
+        if (allMin == tmin.x) {// Ray hit the X plane
             normalAtHit = vec3(-1, 0, 0) * sign(difference.x);
         }
-        else if (allMin == tmin.y) {
+        else if (allMin == tmin.y) {// Ray hit the Y plane
             normalAtHit = vec3(0, -1, 0) * sign(difference.y);
         }
-        else if (allMin == tmin.z) {
+        else if (allMin == tmin.z) {// Ray hit the Z plane
             normalAtHit = vec3(0, 0, -1) * sign(difference.z);
         } 
         t0 = allMin;

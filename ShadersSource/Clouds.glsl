@@ -15,11 +15,13 @@
 #include "Lighting.glsl"
 uniform sampler2D cloudsMieLUT;
 
+// Coverage of planet by precipitation at large scale
 float Coverage(CloudLayer c, vec3 x)
 {
     return 1.0 - micro(x * c.coverage);
 }
 
+// Three-octave fBm substracted from Coverage value
 float cloudsMediumPrec(CloudLayer c, vec3 x) {
 	float level1 = 0.0;
     float v = 0.0;
@@ -33,6 +35,7 @@ float cloudsMediumPrec(CloudLayer c, vec3 x) {
 	return level1 - v;
 }
 
+// Three-octave fBm substracted from Coverage value. Also returns the coverage
 float cloudsMediumPrec(CloudLayer c, vec3 x, out float level1) {
 	level1 = 0.0;
     float v = 0.0;
@@ -46,6 +49,7 @@ float cloudsMediumPrec(CloudLayer c, vec3 x, out float level1) {
 	return level1 - v;
 }
 
+// Six-octave fBm substracted from Coverage value. Also returns the coverage
 float cloudsHighPrec(CloudLayer c, vec3 x, out float level1) {
 	level1 = 0.0;
     float v = 0.0;
@@ -59,6 +63,8 @@ float cloudsHighPrec(CloudLayer c, vec3 x, out float level1) {
 	return level1 - v;
 }
 
+// Returns only the second level of precipitation fractal:
+// the 6-octave fBm without Coverage applied
 float cloudsHigherOrders(vec3 x)
 {
     float v = 0.0;
@@ -71,17 +77,14 @@ float cloudsHigherOrders(vec3 x)
 	return v;
 }
 
-float cloudsCheap(CloudLayer c, vec3 x) {
-	return Coverage(c,x);
-}
-
+// Effective mie phase function for 3 different wavelengths stored in lookup table
 vec3 miePhaseFunction(float cosNu)
 {
     float angle = acos(cosNu);
 	return texture(cloudsMieLUT, vec2(angle/pi,0)).xyz;
 }
 
-// slightly cheaper phase function
+// Cheaper phase function approx for aerosols
 float henyey_greenstein_phase_function(float g, float nu) {
     float g2 = g * g;
     return (1.0 - g2) / pow(1.0 + g2 - 2.0 * g * nu, 1.5);
@@ -90,6 +93,7 @@ float henyey_greenstein_phase_function(float g, float nu) {
 const float FORWARD_MIE_SCATTERING_G = 0.8;
 const float BACKWARD_MIE_SCATTERING_G = -0.4;
 
+// Two-term Henyey-Greenstein phase function (TTHG)
 vec3 miePhaseFunctionLow(float cosPhi)
 {
     float forward_p = henyey_greenstein_phase_function(FORWARD_MIE_SCATTERING_G, cosPhi);
@@ -97,16 +101,21 @@ vec3 miePhaseFunctionLow(float cosPhi)
     return vec3((forward_p + backwards_p) / 2.0);
 }
 
+// Combine the real effective ph. f. with the TTHG approximation. Because not all droplets
+// have diameters according to DSD
 vec3 combinedPhaseFunction(float cosNu)
 {
     return mix(miePhaseFunction(cosNu), vec3(miePhaseFunctionLow(cosNu)), Clouds_aerosols);
 }
 
+// Empiric powder effect - approximation of multiple scattering by Schneider
+// http://advances.realtimerendering.com/s2015/The%20Real-time%20Volumetric%20Cloudscapes%20of%20Horizon%20-%20Zero%20Dawn%20-%20ARTR.pdf)
 float powder(float density, float nu) {
     float powderApprox = 1.0 - exp(density * Clouds_powderDensity);
     return clamp(powderApprox * nu, Clouds_powderAmbient, 1);
 }
 
+// Fade cloud density by height
 float heightFade(float cloudDensity, CloudLayer c, float height)
 {
     cloudDensity = mix(0, cloudDensity, pow(1-clamp((height - c.endRadius + c.upperGradient)/c.upperGradient, 0, 1), Clouds_fadePower));
@@ -114,6 +123,7 @@ float heightFade(float cloudDensity, CloudLayer c, float height)
     return cloudDensity;
 }
 
+// Sampling functions for different purposes
 float sampleCloudM(CloudLayer c, vec3 cloudSpacePos, float height)
 {
     float cloudDensity = pow(clamp(cloudsMediumPrec(c, cloudSpacePos * c.sizeMultiplier) * c.density, 0.0, 1.0), c.sharpness);
@@ -136,10 +146,12 @@ float sampleCloud(CloudLayer c, vec3 cloudSpacePos, float height, float level1)
 }
 float sampleCloudCheap(CloudLayer c, vec3 cloudSpacePos)
 {
-    return clamp(cloudsCheap(c, cloudSpacePos * c.sizeMultiplier),0,1);
+    return clamp(Coverage(c, cloudSpacePos * c.sizeMultiplier),0,1);
 }
 
 // https://iquilezles.org/articles/smin/
+// smooth minimum of two functions
+// k is starting point of the smoothing interpolation
 float smin( float a, float b, float k )
 {
     float h = max( k-abs(a-b), 0.0 )/k;
@@ -158,8 +170,8 @@ float raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps
     int iter = int(steps);
     
     if(HQSettings_reduceBanding)
-    //Reduce banding by offseting origin about random fraction
     {
+        //Reduce banding by offseting ray origin about random distance
         ray.origin += ray.direction * debandingNoise(ray.direction + time.x * HQSettings_sampleNum, LightSettings_deBanding);
     }
 

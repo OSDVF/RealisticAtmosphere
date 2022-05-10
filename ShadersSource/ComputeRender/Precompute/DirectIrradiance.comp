@@ -88,6 +88,7 @@ uniform uvec4 Indexes;
 vec2 texSize = vec2(gl_WorkGroupSize * gl_NumWorkGroups);
 vec2 uv = vec2(gl_GlobalInvocationID.xy) / texSize;
 
+// Precompute direct illuminance of the terrain by the sun for various angles. Not currently used in the program.
 void main()
 {
     Planet planet = planets[PrecomputeSettings_planetIndex];
@@ -111,5 +112,5 @@ void main()
         GetTransmittanceToTopAtmosphereBoundary(planet, transmittanceTable, r, mu_l) *
         average_cosine_factor;
 
-	imageStore(directIrradianceOutput, ivec2(gl_GlobalInvocationID.xy), vec4(delta_irradiance,0));
+	imageStore(directIrradianceOutput, ivec2(gl_GlobalInvocationID.xy), vec4(delta_irradiance, 0));
 }

@@ -55,6 +55,7 @@ vec3 cloudsIlluminance(Planet planet, vec3 point)
     return cloudsIlluminance(planet, point, vec3(1));
 }
 
+// For computing terrain lighting
 vec3 planetIlluminance(Planet planet, Hit hit, out bool shadowedByTerrain)
 {
     shadowedByTerrain = false;
@@ -108,6 +109,7 @@ vec3 planetIlluminance(Planet planet, Hit hit, out bool shadowedByTerrain)
     return totalLightColor * 0.88;//Terrain textures are too shiny to me, so there is a compensation
 }
 
+// Analytical object lighting
 vec3 objectIlluminance(Hit hit)
 {
     if(DEBUG_NORMALS)
@@ -117,7 +119,6 @@ vec3 objectIlluminance(Hit hit)
     vec3 totalLightColor = AMBIENT_LIGHT;// Initially the object is only lightened up by ambient light
     // Compute illumination by casting 'shadow rays' into lights
 
-    // TODO optimize for more planets
     float lightIndexInTexture = 0.0;
     vec3 sphericalPos = hit.position - planets[0].center;
     float r = length(sphericalPos);

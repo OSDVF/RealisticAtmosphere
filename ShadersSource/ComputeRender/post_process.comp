@@ -12,6 +12,7 @@ layout(rgba16f, binding=0) uniform restrict image2D colorOutput;
 
 #include "../PostProcess.glsl"
 
+// Executed right before saving a screenshot. Applies lens flare and tonemapping.
 void main()
 {
 	ivec2 coord = ivec2(gl_GlobalInvocationID.xy);

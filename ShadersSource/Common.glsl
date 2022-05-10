@@ -485,6 +485,7 @@ void GetRMuSFromIrradianceTextureUv(Planet planet,
   mu_s = ClampCosine(2.0 * x_mu_s - 1.0);
 }
 
+// Get relative ozone density by sample height - multipied by segmentLength
 float ozoneHF(float sampleHeight, Planet planet, float segmentLength)
 {
     float result;

@@ -13,7 +13,8 @@
 #include "Buffers.glsl"
 #define UINT_MAX 0xFFFFFFFFu
 
-Hit findObjectHit(Ray ray, bool includeTranslucent)
+// Brute force iterate through all objects
+Hit findObjectHit(Ray ray, bool includeTranslucent)//includeTranslucent -- ghost objects, e.g. sun. Set to false when testing for shadows
 {
     float closestDistance = POSITIVE_INFINITY;
     uint hitObjectIndex = UINT_MAX;

@@ -87,6 +87,7 @@ vec3 lensFlareWithOcclusion(vec2 screenCoord)
 	float occlusion = 0;
 	if(OcclusionSamples > 0)
 	{
+		// Sample the depth buffer for checking occlusion of the sun
 		ivec2 dbSize = textureSize(depthBuffer, 0);
 		vec2 occlusionStep = ((SunScreenPos/aspectRatio + 0.5)-screenCoord)/OcclusionSamples * dbSize;
 		vec2 occlusionSample = screenCoord * dbSize;

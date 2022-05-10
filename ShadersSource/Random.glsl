@@ -210,6 +210,8 @@ vec4 Value3D_Deriv( vec3 P )
 #define sepsize 2.0
 #define seplight 0.6
 #define sepanim 0.01
+
+// 9 octaves fBm
 vec4 cloud9(vec3 v)
 {
     vec4 outp = vec4(0.0);
@@ -236,6 +238,8 @@ vec4 cloud9(vec3 v)
     }
     return outp;
 }
+
+// same fBm, 2 octaves
 vec4 cloud2(vec3 v)
 {
     vec4 outp = vec4(0.0);
@@ -269,6 +273,7 @@ float micro(vec3 v)
     return dot(normalize(cloud9(v).xyz),vec3(normalize(cloud2(v).xy),0.));
 }
 
+// Create tangent vector from spherical coordinates
 vec3 tangentFromSpherical(float theta, float phi)
 {
     return vec3(
@@ -278,6 +283,7 @@ vec3 tangentFromSpherical(float theta, float phi)
         );
     }
 
+// Create sphere tangent vector from normal vector
 vec3 sphereTangent(vec3 normal)
 {
     float theta = acos(normal.z);
@@ -301,6 +307,7 @@ vec3 sphereTangent(vec3 normal)
 const mat2 m2 = mat2(  0.80,  0.60,
                       -0.60,  0.80 );
 
+// 9 octaves of fBm
 vec4 fbmTerrain (vec2 st) {
 	
     // Initial values

@@ -6,6 +6,8 @@
   * Uses ray tracing, path tracing and ray marching to create visually plausible outdoor scenes with atmosphere, terrain, clouds and analytical objects.
   */
 
+
+// Effective Mie phase functions computed by the MiePlot software
 #pragma once
 namespace PhaseFunctions {
 	// More uniform water droplet size distributions tend to create coronas and brocken spectre

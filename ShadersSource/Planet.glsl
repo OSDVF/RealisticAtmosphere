@@ -15,6 +15,8 @@
 #include "Clouds.glsl"
 
 int M_perAtmospherePixel = floatBitsToInt(Multisampling_perAtmospherePixel);
+
+// Test for light shafts
 float raymarchOcclusion(Planet planet, Ray ray, float fromT, float toT, bool viewTerrainHit, bool shadowed, DirectionalLight l)
 {
 	float t = fromT;
@@ -211,8 +213,8 @@ bool terrainColorAndHit(Planet p, Ray ray, float fromDistance, inout float toDis
 }
 
 /**
-  * Does a raymarching through the atmosphere and planet
-  * @returns 0 when only atmosphere or nothing was hit, else a number higher than 0 (when the planet was hit)
+  * Executes a raymarching through the atmosphere, clouds and terrian or returns the precomputed values.
+  * @returns false when only atmosphere or nothing was hit
   * @param tMax By tweaking the tMax parameter, you can limit the assumed ray length
   * This is useful when the ray was blocked by some objects
   */
@@ -296,6 +298,7 @@ bool planetsWithAtmospheres(Ray ray, float tMax/*some object distance*/, inout v
 	}
 }
 
+// Atmosphere raymarching process
 float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDistance, float cloudsDistance, bool terrainWasHit, bool shadowed, inout vec3 luminance, inout vec3 transmittance)
 {
 	float t0, t1;
@@ -309,7 +312,7 @@ float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDis
 	float opticalDepthR = 0, opticalDepthM = 0, opticalDepthO = 0; 
 
 	float currentDistance;
-	float i = 0.0;//float iterator
+	float i = 0.0;//float iterator for use in float operations
 	int iter = 0;
 	int toCloudsIterations = max(int(ceil((cloudsDistance - minDistance) / segmentLength)),1);
 

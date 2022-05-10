@@ -4,7 +4,11 @@
   * @date 2021-2022
   * Copyright 2022 Ondøej Sabela. All rights reserved.
   * Uses ray tracing, path tracing and ray marching to create visually plausible outdoor scenes with atmosphere, terrain, clouds and analytical objects.
+  * Tonemapping operators are taken from example at ShaderToy (link is in the source code)
+  * and BGFX shader library at https://github.com/bkaradzic/bgfx/blob/master/examples/common/shaderlib.sh
   */
+
+// This file can be included both in C++ and GLSL code
 
 #ifndef  TONEMAPPNG_H
 #ifndef BGFX_SHADER_LANGUAGE_GLSL
@@ -14,7 +18,9 @@ namespace Tonemapping {
 	using vec3 = glm::vec3;
 #endif
 #define TONEMAPPING_H
-
+	
+	// Tonemapping must be done in CIE XYZ space
+	// There are some conversion functions
 	vec3 convertRGB2XYZ(vec3 _rgb)
 	{
 		// Reference(s):
@@ -77,8 +83,8 @@ namespace Tonemapping {
 		return hdrColor < 1.4131 * HQSettings_exposure ? /*gamma correction*/ pow(hdrColor * 0.38317 * HQSettings_exposure, 1.0 / 2.2) : 1.0 - exp(-hdrColor * HQSettings_exposure)/*exposure tone mapping*/;
 	}
 
-	//https://www.shadertoy.com/view/WdjSW3
-
+	// Tonemapping operators are from
+	// https://www.shadertoy.com/view/WdjSW3
 	float Reinhard(float x) {
 		return x / (1.0 + x);
 	}

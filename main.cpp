@@ -1,10 +1,10 @@
-﻿ /**
-  * @author Ondřej Sabela
-  * @brief Realistic Atmosphere - Thesis implementation.
-  * @date 2021-2022
-  * Copyright 2022 Ondřej Sabela. All rights reserved.
-  * Uses ray tracing, path tracing and ray marching to create visually plausible outdoor scenes with atmosphere, terrain, clouds and analytical objects.
-  */
+﻿/**
+ * @author Ondřej Sabela
+ * @brief Realistic Atmosphere - Thesis implementation.
+ * @date 2021-2022
+ * Copyright 2022 Ondřej Sabela. All rights reserved.
+ * Uses ray tracing, path tracing and ray marching to create visually plausible outdoor scenes with atmosphere, terrain, clouds and analytical objects.
+ */
 
  //Comment out to not render the "Rendering in progress" text
 #define DRAW_RENDERING_PROGRESS
@@ -109,7 +109,7 @@ namespace RealisticAtmosphere
 		bool _debugAtmoOff = false;
 		bool _showGUI = true;
 		bool _pathTracingMode = true;
-		// TO "unlock" camera movement we must lock the mouse
+		// To "unlock" camera movement we must lock the mouse
 		bool _mouseLock = false;
 		float _tanFovY = 0;
 		float _tanFovX = 0;
@@ -182,7 +182,7 @@ namespace RealisticAtmosphere
 		bgfx::UniformHandle _cloudsPhaseSampler = BGFX_INVALID_HANDLE;
 #pragma endregion Textures_And_Samplers
 
-		// The Entry library will call this method after setting up window manager
+		// The Entry library will call this method once after setting up window manager
 		void init(int32_t argc, const char* const* argv, uint32_t width, uint32_t height) override
 		{
 			// Initial realtime raytracing settings values.
@@ -339,13 +339,14 @@ namespace RealisticAtmosphere
 
 		void heightMap()
 		{
+			// Precompute small-scale repeating terrain heightmap
 			_heightmapTextureHandle = bgfx::createTexture2D(8192, 8192, false, 1, bgfx::TextureFormat::RGBA32F, BGFX_TEXTURE_COMPUTE_WRITE);
 			bgfx::setImage(0, _heightmapTextureHandle, 0, bgfx::Access::Write);
 			bgfx::dispatch(0, _heightmapShaderProgram, bx::ceil(8192 / float(SHADER_LOCAL_GROUP_COUNT)), bx::ceil(8192 / float(SHADER_LOCAL_GROUP_COUNT)));
 		}
 		void cloudsMiePhaseFunction()
 		{
-			// Copy clouds Mie phase function lookup table into GPU texture
+			// Copy lookup table of effective Mie phase function of clouds into a GPU texture
 			auto cloudsMieData = new std::array<float, 1801 * 4>();
 			const float* red;
 			const float* green;
@@ -464,6 +465,7 @@ namespace RealisticAtmosphere
 			bgfx::destroy(precomputeSettingsHandle);
 		}
 
+		// Resize and clean render buffers
 		void cleanRenderedBuffers(uint16_t newWidth, uint16_t newHeight)
 		{
 			// Also resizes compute shader output buffer
@@ -815,6 +817,7 @@ namespace RealisticAtmosphere
 		{
 			if (_frame >= _screenshotFrame)
 			{
+				// Although this is the first branch, it is actually the last step of screenshot process.
 				// Save the taken screenshot
 				savePng();
 				if (_renderImageSize.width != _windowHeight && _renderImageSize.height != _windowHeight)
@@ -823,16 +826,18 @@ namespace RealisticAtmosphere
 					cleanRenderedBuffers(_windowWidth, _windowHeight);
 					_currentSample = INFINITY;//Do not render again
 					bgfx::reset(_windowWidth, _windowHeight);
+					bgfx::blit(0, _raytracerColorOutput, 0, 0, _stagingBuffer);
 				}
+				bgfx::destroy(_stagingBuffer);
 				// Return to normal rendering
 				_screenshotFrame = SCREENSHOT_NEVER;//Do not take any screenshot at next frame
 			}
 			// Delayed screenshot request
 			else if (_screenshotFrame == SCREENSHOT_AFTER_RENDER)
 			{
-				//Do post-processing
 				if (tracingComplete)
 				{
+					//Do post-processing
 					bgfx::setImage(0, _raytracerColorOutput, 0, bgfx::Access::ReadWrite);
 					bgfx::setTexture(1, _depthBufferSampler, _raytracerDepthAlbedoBuffer);
 					setDisplaySettings();
@@ -843,6 +848,7 @@ namespace RealisticAtmosphere
 			}
 			else if (tracingComplete && _screenshotFrame == SCREENSHOT_AFTER_RENDER_PENDING)
 			{
+				// Everything is prepared to do a screenshot
 				takeScreenshot();
 			}
 		}
@@ -862,12 +868,15 @@ namespace RealisticAtmosphere
 
 		void renderScene()
 		{
+			// Get corresponding chunk coords
 			int chunkSizeX = bx::ceil(_renderImageSize.width / (float)_slicesCount);
 			chunkSizeX = firstMultipleOfXGreaterThanY(SHADER_LOCAL_GROUP_COUNT, chunkSizeX);
 			int chunkSizeY = bx::ceil(_renderImageSize.height / (float)_slicesCount);
 			chunkSizeY = firstMultipleOfXGreaterThanY(SHADER_LOCAL_GROUP_COUNT, chunkSizeY);
 			int chunkXstart = chunkSizeX * (_currentChunk % _slicesCount);
 			int chunkYstart = chunkSizeY * (_currentChunk / _slicesCount);
+
+			// Save them into some GPU uniform variable
 			SunRadianceToLuminance.w = *(float*)&chunkXstart;
 			SkyRadianceToLuminance.w = *(float*)&chunkYstart;
 
@@ -888,11 +897,13 @@ namespace RealisticAtmosphere
 
 		void updateLights()
 		{
+			// Send the sun position to the GPU
 			auto& planet = DefaultScene::planetBuffer[0];
 			updateLight(DefaultScene::objectBuffer[0], planet, DefaultScene::directionalLightBuffer[0], _sunAngle, _secondSunAngle);
 		}
 		void updateLight(AnalyticalObject& lightObject, Planet& planet, DirectionalLight& light, float angle, float secondAngle)
 		{
+			// Update ghost sphere object position according to specified angles
 			glm::quat rotQua(glm::vec3(angle, secondAngle, 0));
 			glm::vec3 pos(0, bx::length(bx::sub(lightObject.position, planet.center)), 0);
 			pos = rotQua * pos;
@@ -909,6 +920,7 @@ namespace RealisticAtmosphere
 #endif
 		void computeShaderRaytracer(uint32_t numX, uint32_t numY)
 		{
+			// Bind buffers and dispatch the render program
 			bgfx::setImage(0, _raytracerColorOutput, 0, bgfx::Access::ReadWrite);
 			bgfx::setImage(1, _raytracerNormalsOutput, 0, bgfx::Access::ReadWrite);
 			bgfx::setImage(2, _raytracerDepthAlbedoBuffer, 0, bgfx::Access::ReadWrite);
@@ -917,6 +929,7 @@ namespace RealisticAtmosphere
 
 		void updateBuffers()
 		{
+			// Send CPU buffers to GPU
 			bgfx::update(_objectBufferHandle, 0, bgfx::makeRef((void*)DefaultScene::objectBuffer, sizeof(DefaultScene::objectBuffer)));
 			bgfx::update(_atmosphereBufferHandle, 0, bgfx::makeRef((void*)DefaultScene::planetBuffer.data(), sizeof(DefaultScene::planetBuffer)));
 			bgfx::update(_materialBufferHandle, 0, bgfx::makeRef((void*)DefaultScene::materialBuffer, sizeof(DefaultScene::materialBuffer)));
@@ -925,6 +938,7 @@ namespace RealisticAtmosphere
 
 		void setBuffersAndUniforms()
 		{
+			// Assign buffers to uniform handles
 			bgfx::setBuffer(3, _objectBufferHandle, bgfx::Access::Read);
 			bgfx::setBuffer(4, _atmosphereBufferHandle, bgfx::Access::Read);
 			bgfx::setBuffer(5, _materialBufferHandle, bgfx::Access::Read);
@@ -957,6 +971,9 @@ namespace RealisticAtmosphere
 
 		void viewportActions()
 		{
+			// 
+			// "Real" scene camera (displaying only the full-screen quad)
+			//
 			float proj[16];
 			bx::mtxOrtho(proj, 0.0f, 1.0f, 0.0f, 1.0f, -1.0f, 100.0f, 0.0f, bgfx::getCaps()->homogeneousDepth);
 
@@ -964,6 +981,9 @@ namespace RealisticAtmosphere
 			bgfx::setViewTransform(0, NULL, proj);
 			bgfx::setViewRect(0, 0, 0, _renderImageSize.width, _renderImageSize.height);
 
+			// 
+			// "Virtual" PT/RT camera
+			//
 			glm::vec3 prevRotation;
 			switch (_cameraType)
 			{
@@ -1005,6 +1025,7 @@ namespace RealisticAtmosphere
 
 		void swapSettingsBackup()
 		{
+			// Swap between settings sets (RT and PT mode has each its own set of settings)
 			swap(_settingsBackup[0], QualitySettings);
 			swap(_settingsBackup[1], MultisamplingSettings);
 			swap(_settingsBackup[2], RaymarchingSteps);
@@ -1708,12 +1729,12 @@ namespace RealisticAtmosphere
 				_currentChunk = 0; // When changing slices count, we must start rendering again from the first slice
 			}
 			if (ImGui::IsItemHovered())
-				ImGui::SetTooltip("Slices image rendering into X chunks on both directions.\nUse when application is crashing because of too long frame rendering time\nIntroduces tearing in realtime mode");
+				ImGui::SetTooltip("Slices the screen into X chunks on both directions.\nIncrease when application is crashing because of too long frame rendering time\nIntroduces tearing in realtime mode");
 			if (_slicesCount < 1)//Minimum is one chunk
 				_slicesCount = 1;
 		}
 
-		// Called when the picture is completely in CPU memory
+		// Saves the captured screenshot. Called when the picture is completely in CPU memory
 		void savePng()
 		{
 			bx::FileWriter writer;
@@ -1741,7 +1762,6 @@ namespace RealisticAtmosphere
 				}
 				delete[] converted;
 				delete[] _readedTexture;
-				bgfx::destroy(_stagingBuffer);
 			}
 			else
 			{
@@ -1749,6 +1769,7 @@ namespace RealisticAtmosphere
 			}
 		}
 
+		// Capture rendered image into CPU-readable texture
 		void takeScreenshot()
 		{
 			_readedTexture = new uint16_t[_renderImageSize.width * _renderImageSize.height * 4/*RGBA channels*/];
@@ -1781,4 +1802,3 @@ ENTRY_IMPLEMENT_MAIN(
 	, "https://github.com/OSDVF/RealisticAtmosphere"
 );
 // Declares main() function
-

@@ -20,13 +20,18 @@ void main()
 	float sampleNum = HQSettings_sampleNum;
 	float indirectSamples /*per every direct*/ = Multisampling_indirect;
 	float directSampleNum = sampleNum / indirectSamples;
+
+	// Cast different ray types according to current sample number.
+	// Ray types are kind of "interleaved"
+	// Some samples are primary/direct rays. Some are secondary/indirect rays.
 	if(sampleNum == 0)
 	{
+		// Cast primary ray from the center of pixels
 		vec3 normal;
-		vec3 albedo;//We call the initial throughput "albedo" because it consists only of first object albedo
+		vec3 albedo;//We call the initial throughput "albedo" because it consists only of first object albedo.
 		float depth;
 		vec3 color = raytracePrimSec(coord, 1.0/indirectSamples,/*out*/ normal, /*out*/ albedo, /*out*/ depth);
-		float packedAlbedo = uintBitsToFloat(//unlit
+		float packedAlbedo = uintBitsToFloat(
 			uint(albedo.x*255)
 			|
 			(uint(albedo.y*255) << 8)
@@ -39,19 +44,21 @@ void main()
 	}
 	else
 	{
+		// Cast some primary and some secondary rays from various subpixels
 		vec2 subpixelCoord = getSubpixelCoords(coord, directSampleNum);
 		float indirectSampleNum = mod(sampleNum, indirectSamples);
 
 		vec3 color = imageLoad(colorOutput, coord).xyz;
 		if(indirectSampleNum > 0)
 		{
+			// User selected more than 1 secondary rays per one primary ray
 			vec2 depthAndAlbedo = imageLoad(depthBuffer, coord).xy;
 			float depth = depthAndAlbedo.r;
 			vec3 normal = imageLoad(normalsBuffer, coord).xyz;
 			if(depth != 0 && normal != vec3(0))
 			{
 
-				// We will sample only secondary rays and use stored/prepared values from sample where[indirectSampleNum==0]
+				// We will sample only secondary rays and use stored/prepared values from sample where [indirectSampleNum==0]
 
 				// Unpack direct values
 				vec3 albedo;
@@ -60,6 +67,7 @@ void main()
 				albedo.y = float((packedAlbedo >> 8) & 0xFF)/255;
 				albedo.z = float((packedAlbedo >> 16) & 0xFF)/255;
 
+				// Cast secondary ray from the point where the primary ray hit something
 				Ray cam = createCameraRay(subpixelCoord);
 				vec3 origin = cam.origin + depth * cam.direction;
 				raytraceSecondary(subpixelCoord, /*in*/ origin, /*in*/ normal, /*in*/ albedo, 1.0/indirectSamples, depth, color);
@@ -68,6 +76,7 @@ void main()
 		}
 		else
 		{
+			// Every nth ray is primary
 			vec3 normal;
 			vec3 albedo;
 			float depth;

@@ -16,16 +16,20 @@
 float getSampleParameters(Planet planet, Ray ray, float currentDistance, out vec3 sphNormal, out vec3 worldSamplePos);
 vec2 mirrorTilingUV(vec2 uv);
 
+// Triplanar mapping. Each texture is also multiplied by larger size of itself to reduce tilling repetition effect.
 vec3 triplanarSample(sampler2DArray sampl, vec4 pos, vec3 normal, float lod)
 {
-	pos.xyz = pos.xyz / 5;
+	pos.xyz = pos.xyz / 5; // Artistic constant. Makes textures larger.
 	vec3 triUVx = vec3(pos.zy,pos.w);
 	vec3 triUVy = vec3(pos.xz,pos.w);
 	vec3 triUVz = vec3(pos.xy,pos.w);
-	float bigLod = lod-0.5;
-	float bigUvFrac = 10;
+
+	float bigLod = lod-0.5;//The larger texture has lower LOD
+
+	float bigUvFrac = 10;// Large version multiplier
 	vec3 biggerUV = triUVx;
 	biggerUV.xy /= bigUvFrac;
+
 	vec4 texX = textureLod(sampl, triUVx, lod);
 	texX *= textureLod(sampl, biggerUV, bigLod);
 
@@ -44,6 +48,7 @@ vec3 triplanarSample(sampler2DArray sampl, vec4 pos, vec3 normal, float lod)
 	return color.xyz;
 }
 
+// Coverage of surface by the terrain at planet-scale
 float terrainCoverage(vec2 uv)
 {
 	return clamp(
@@ -69,6 +74,8 @@ vec3 terrainColor(Planet planet, float T, vec3 pos, vec3 normal, float elev)
 	float gradHeight = PlanetMaterial.w;
 	float randomizedElev = elev * (gradParams.x+gradParams.w);
 	float firstRatio = clamp((elev - PlanetMaterial.x) / PlanetMaterial.y,0,1);
+
+	// Magical texture selection and blending function
 	return mix(
 				mix(
 					mix(
@@ -83,24 +90,14 @@ vec3 terrainColor(Planet planet, float T, vec3 pos, vec3 normal, float elev)
 		) * terrainCoverage(pos.xz);
 }
 
-float pow3(float f) {
-    return f * f * f;
-}
-
-vec3 biLerp(vec3 a, vec3 b, vec3 c, vec3 d, float s, float t)
-{
-  vec3 x = mix(a, b, t);
-  vec3 y = mix(c, d, t);
-  return mix(x, y, s);
-}
-
 vec3 terrainNormal(vec2 normalMap, vec3 sphNormal)
 {
 	// Compute normal in world space
 	vec2 map = (normalMap * 2 - 1) * QualitySettings_terrainNormals;
-	vec3 t = vec3(1,0,0);//sphereTangent(sphNormal);
-	vec3 bitangent = vec3(0,0,1);//sphNormal * t;
+	vec3 t = sphereTangent(sphNormal);
+	vec3 bitangent = sphNormal * t;
 	float normalZ = sqrt(1-dot(map.xy, map.xy));
+	// Normal mapping
 	return normalize(map.x * t + map.y * bitangent + normalZ * vec3(0,1,0));
 }
 
@@ -125,21 +122,6 @@ vec2 mirrorTilingUV(vec2 uv)
 float terrainSDF(Planet planet, float sampleHeight /*above sea level*/, vec2 uv, out vec2 outNormalMap)
 {
 	vec3 bump;
-	#if 0
-	// Perform hermite bilinear interpolation of texture
-	ivec2 mapSize = textureSize(heightmapTexture,0);
-	vec2 uvScaled = planetUV(uv) * mapSize;
-	ivec2 coords = ivec2(uvScaled);
-	vec2 coordDiff = uvScaled - coords;
-	vec3 bump1 = texelFetch(heightmapTexture, coords, 0).xyz;
-	vec3 bump2 = texelFetch(heightmapTexture, coords+ivec2(1,0), 0).xyz;
-	vec3 bump3 = texelFetch(heightmapTexture, coords+ivec2(0,1), 0).xyz;
-	vec3 bump4 = texelFetch(heightmapTexture, coords+ivec2(1,1), 0).xyz;
-	vec2 sm = smoothstep(0,1,coordDiff);
-
-	// Result interpolated texture
-	bump = biLerp(bump1,bump2,bump3,bump4,sm.y,sm.x);
-	#else
 	float coverage = terrainCoverage(uv);
 	bump = texture(heightmapTexture, planetUV(uv)).xyz;
 	bump.x *= coverage;

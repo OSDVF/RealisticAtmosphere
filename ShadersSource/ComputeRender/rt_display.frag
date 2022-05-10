@@ -17,8 +17,10 @@ layout(location = 0) out vec4 fragColor;
 
 #include "../PostProcess.glsl"
 
+// Renders path tracer / ray tracer output on the full-screen quad every frame
 void main()
 {
+    // Render debug output
     if(DEBUG_NORMALS)
     {
         fragColor.rgb = texelFetch(normalsBuffer, ivec2(texCoord * textureSize(normalsBuffer, 0)), 0).xyz * 0.5 + 0.5;
@@ -35,6 +37,7 @@ void main()
     }
     else
     {
+        // Render normal color output with post-processing
 		fragColor.rgb = texelFetch(colorOutput, ivec2(texCoord * textureSize(colorOutput, 0)), 0).xyz;
 
         if(HQSettings.w != 0)//Zero indicates no post-processing

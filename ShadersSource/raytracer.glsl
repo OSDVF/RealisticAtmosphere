@@ -113,7 +113,8 @@ construct_ONB_frisvad(vec3 normal)
 
 Ray createSecondaryRay(vec2 coord, vec3 pos, vec3 normal, float distanceFromCam)
 {
-    float seed = time.x*pos.x*pos.y*pos.z*coord.x;
+    float seed = time.x*pos.x*pos.y*pos.z*coord.x; // Create a seed. We need no correlation between position and time.
+
     vec2 randomValues = vec2(random(seed),random(seed*coord.y));
     mat3 onb = construct_ONB_frisvad(normal);
     vec3 dir = normalize(onb * sample_cos_hemisphere(randomValues));
@@ -127,9 +128,12 @@ vec2 getSubpixelCoords(vec2 fromPixel, float directSampleNum)
     fromPixel+= 0.5;//Center the ray
     float multisampling = HQSettings_directSamples;
     float x,y;
+    
+    // Various subpixel selection methods. Only #0 is selectable in GUI for now.
     switch(floatBitsToInt(Multisampling_type))
     {
     case 1:
+        // Combined stochastic/regular grid
         x = mod(directSampleNum, multisampling);
         y = directSampleNum / multisampling;
         if(directSampleNum == 0)
@@ -144,6 +148,7 @@ vec2 getSubpixelCoords(vec2 fromPixel, float directSampleNum)
             return fromPixel + mix(griddedOffset, randomOffset, 0.5);
         }
     case 2:
+        // Regular grid
         {
             x = mod(directSampleNum, multisampling);
             y = directSampleNum / multisampling;
@@ -152,6 +157,7 @@ vec2 getSubpixelCoords(vec2 fromPixel, float directSampleNum)
         }
 
     default:
+        // Stochastic
         if(directSampleNum == 0)
         {
             return fromPixel;
@@ -167,7 +173,7 @@ vec2 getSubpixelCoords(vec2 fromPixel, float directSampleNum)
 
 void raytraceSecondary(vec2 subpixelCoord, vec3 origin, vec3 normal, vec3 throughput, float invIndirectCount, float distanceFromCam, inout vec3 colorOut)
 {
-    // Switch to lower quality for secondary rays:
+    // Switch to lower physical quality for secondary rays:
     HQSettings_atmoCompute = false;
     HQSettings_lightShafts = false;
 
@@ -192,7 +198,7 @@ void raytraceSecondary(vec2 subpixelCoord, vec3 origin, vec3 normal, vec3 throug
         {
             terrainWasHit = planetsWithAtmospheres(secondaryRay, objectHit.t, /*out*/ atmColor, /*inout*/ throughput, /*out*/ planetHit);
         }
-        // atmColor has throughput applied
+        // atmColor has throughput already applied
         colorOut += atmColor * invIndirectCount;
         if(terrainWasHit)
         {
@@ -211,7 +217,7 @@ void raytraceSecondary(vec2 subpixelCoord, vec3 origin, vec3 normal, vec3 throug
         }
         else
         {
-            // No hit -> add atmosphere color end
+            // No hit -> add atmosphere color and end
             return;
         }
     }
@@ -261,7 +267,7 @@ vec3 raytracePrimSec(vec2 subpixelCoord, float invIndirectCount, out vec3 normal
     }
     else
     {
-        // Hit only atmosphere or spherical planet surface
+        // Ray hit only atmosphere or spherical planet surface
         if(planetHit.t == POSITIVE_INFINITY)
         {
             depth = 0;
