@@ -1,15 +1,29 @@
+/**
+ * @author Ondøej Sabela
+ * @brief Realistic Atmosphere - Thesis implementation.
+ * @date 2021-2022
+ * Copyright 2022 Ondøej Sabela. All rights reserved.
+ * Uses ray tracing, path tracing and ray marching to create visually plausible outdoor scenes with atmosphere, terrain, clouds and analytical objects.
+ * Reused work from:
+ * https://stackoverflow.com/questions/4200224/random-noise-functions-for-glsl
+ * and
+ * https://github.com/BrianSharpe/GPU-Noise-Lib/
+ * and various ShaderToy examples (links in source code).
+ */
+
 //?#version 430
+#ifndef TIME_H
+#define TIME_H
+#include "Math.glsl"
+// https://stackoverflow.com/questions/4200224/random-noise-functions-for-glsl
+// Link to answer: https://stackoverflow.com/a/17479300
 /*
-    https://stackoverflow.com/questions/4200224/random-noise-functions-for-glsl
     static.frag
     by Spatial
     05 July 2013
 */
-// A single iteration of Bob Jenkins' One-At-A-Time hashing algorithm.
-#ifndef TIME_H
-#define TIME_H
-#include "Math.glsl"
 uniform vec4 time;
+// A single iteration of Bob Jenkins' One-At-A-Time hashing algorithm.
 uint hash( uint x ) {
     x += ( x << 10u );
     x ^= ( x >>  6u );
@@ -191,6 +205,7 @@ vec4 Value3D_Deriv( vec3 P )
     vec2 res4 = mix( res3.xz, res3.yw, blend.x );
     return vec4( res1.x, 0.0, 0.0, 0.0 ) + ( vec4( res1.yyw, res4.y ) - vec4( res1.xxz, res4.x ) ) * vec4( blend.x, Interpolation_C2_Deriv( Pf ) );
 }
+
 // https://www.shadertoy.com/view/st2cWc
 #define sepsize 2.0
 #define seplight 0.6
@@ -247,6 +262,8 @@ vec4 cloud2(vec3 v)
     }
     return outp;
 }
+
+//https://www.shadertoy.com/view/st2cWc
 float micro(vec3 v)
 {
     return dot(normalize(cloud9(v).xyz),vec3(normalize(cloud2(v).xy),0.));

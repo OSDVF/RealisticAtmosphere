@@ -1,3 +1,12 @@
+/**
+ * @author Ondøej Sabela
+ * @brief Realistic Atmosphere - Thesis implementation.
+ * @date 2021-2022
+ * Copyright 2022 Ondøej Sabela. All rights reserved.
+ * Uses ray tracing, path tracing and ray marching to create visually plausible outdoor scenes with atmosphere, terrain, clouds and analytical objects.
+ * Procedural lens flare by mu6k on ShaderToy (link in source code).
+ */
+
 //?#version 430
 //!#define BGFX_SHADER_LANGUAGE_GLSL
 uniform sampler2D depthBuffer;

@@ -1,5 +1,22 @@
+/**
+  * @author Ondøej Sabela
+  * @brief Realistic Atmosphere - Thesis implementation.
+  * @date 2021-2022
+  * Copyright 2022 Ondøej Sabela. All rights reserved.
+  * Uses ray tracing, path tracing and ray marching to create visually plausible outdoor scenes with atmosphere, terrain, clouds and analytical objects.
+  */
+
 #pragma once
-//https://github.com/openblack/openblack/blob/5cda3b2f584701331a875cdb40b717f5a0241cab/src/3D/Camera.h
+// Code reused from
+// https://github.com/openblack/openblack/blob/5cda3b2f584701331a875cdb40b717f5a0241cab/src/3D/Camera.h
+/*****************************************************************************
+ * Copyright (c) 2018-2021 openblack developers
+ *
+ * For a complete list of all authors, please refer to contributors.md
+ * Interested in contributing? Visit https://github.com/openblack/openblack
+ *
+ * openblack is licensed under the GNU General Public License version 3.
+ *****************************************************************************/
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>

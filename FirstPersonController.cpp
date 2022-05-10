@@ -1,3 +1,10 @@
+/**
+ * @author Ondøej Sabela
+ * @brief Realistic Atmosphere - Thesis implementation.
+ * @date 2021-2022
+ * Copyright 2022 Ondøej Sabela. All rights reserved.
+ * Uses ray tracing, path tracing and ray marching to create visually plausible outdoor scenes with atmosphere, terrain, clouds and analytical objects
+ */
 #include "FirstPersonController.h"
 #include "entry/entry.h"
 #include <bx/math.h>
@@ -51,8 +58,4 @@ void FirstPersonController::Update(float deltaTime, bool mouseLocked, entry::Mou
 	velocity += moveForce * speed;
 
 	this->Camera.SetPosition(this->Camera.GetPosition() + glm::vec3(velocity.x, velocity.y, velocity.z));
-
-	/*if (isGrounded && CanJump && jump || isUnderWater) {
-		velocity += vec3(0,1,0) * JumpForce;
-	}*/
 }

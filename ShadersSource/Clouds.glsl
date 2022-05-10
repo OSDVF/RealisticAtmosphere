@@ -1,3 +1,11 @@
+/**
+ * @author Ondøej Sabela
+ * @brief Realistic Atmosphere - Thesis implementation.
+ * @date 2021-2022
+ * Copyright 2022 Ondøej Sabela. All rights reserved.
+ * Uses ray tracing, path tracing and ray marching to create visually plausible outdoor scenes with atmosphere, terrain, clouds and analytical objects.
+ */
+
 //?#version 440
 #ifndef CLOUDS_H
 #define CLOUDS_H
@@ -171,7 +179,7 @@ float raymarchClouds(Planet planet, Ray ray, float fromT, float toT, float steps
             
             if(cheapDensity > Clouds_cheapThreshold)
             {
-                if(i > 0) t -= segmentLength * Clouds_cheapDownsample*.8; //Return to the previo  us sample because we could lose some cloud material
+                if(i > 0) t -= segmentLength * Clouds_cheapDownsample; //Return to the previo  us sample because we could lose some cloud material
                 worldSpacePos = ray.origin + ray.direction * t;
                 cloudSpacePos = worldSpacePos + c.position;
                 float height = distance(worldSpacePos, planet.center);

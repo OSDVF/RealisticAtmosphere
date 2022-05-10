@@ -1,3 +1,11 @@
+/**
+ * @author Ondøej Sabela
+ * @brief Realistic Atmosphere - Thesis implementation.
+ * @date 2021-2022
+ * Copyright 2022 Ondøej Sabela. All rights reserved.
+ * Uses ray tracing, path tracing and ray marching to create visually plausible outdoor scenes with atmosphere, terrain, clouds and analytical objects.
+ */
+
 //?#version 450
 #include "Buffers.glsl"
 #include "Intersections.glsl"
@@ -5,70 +13,6 @@
 #include "Terrain.glsl"
 #include "Lighting.glsl"
 #include "Clouds.glsl"
-
-vec3 GetSkyRadiance(
-    Planet planet,
-    vec3 camera, vec3 view_ray, float shadow_length,
-    vec3 lightVector, float lightIndex, out vec3 transmittance) {
-  // Compute the distance to the top atmosphere boundary along the view ray,
-  // assuming the viewer is in space (or NaN if the view ray does not intersect
-  // the atmosphere).
-  float r = length(camera);
-  float rmu = dot(camera, view_ray);
-  float distance_to_top_atmosphere_boundary = -rmu -
-      sqrt(rmu * rmu - r * r + planet.atmosphereRadius * planet.atmosphereRadius);
-
-  // If the viewer is in space and the view ray intersects the atmosphere, move
-  // the viewer to the top atmosphere boundary (along the view ray):
-  if (distance_to_top_atmosphere_boundary > 0.0) {
-    camera = camera + view_ray * distance_to_top_atmosphere_boundary;
-    r = planet.atmosphereRadius;
-    rmu += distance_to_top_atmosphere_boundary;
-  } else if (r > planet.atmosphereRadius) {
-    // If the view ray does not intersect the atmosphere, simply return 0.
-    transmittance = vec3(1.0);
-    return vec3(0.0);
-  }
-  // Compute the r, mu, mu_l and nu parameters needed for the texture lookups.
-  float mu = rmu / r;
-  float mu_l = dot(camera, lightVector) / r;
-  float nu = dot(view_ray, lightVector);
-  bool ray_r_mu_intersects_ground = RayIntersectsGround(planet, r, mu);
-
-  transmittance = ray_r_mu_intersects_ground ? vec3(0.0) :
-      GetTransmittanceToTopAtmosphereBoundary(
-          planet, transmittanceTable, r, mu);
-  vec3 single_mie_scattering;
-  vec3 scattering;
-  if (shadow_length == 0.0) {
-    scattering = GetCombinedScattering(
-        planet, singleScatteringTable,
-        r, mu, mu_l, nu, ray_r_mu_intersects_ground, lightIndex,
-        single_mie_scattering);
-  } else {
-    // Case of light shafts (shadow_length is the total length noted l in our
-    // paper): we omit the scattering between the camera and the point at
-    // distance l, by implementing Eq. (18) of the paper (shadow_transmittance
-    // is the T(x,x_s) term, scattering is the S|x_s=x+lv term).
-    float d = shadow_length;
-    float r_p =
-        ClampRadius(planet, sqrt(d * d + 2.0 * r * mu * d + r * r));
-    float mu_p = (r * mu + d) / r_p;
-    float mu_l_p = (r * mu_l + d * nu) / r_p;
-
-    scattering = GetCombinedScattering(
-        planet, singleScatteringTable,
-        r_p, mu_p, mu_l_p, nu, ray_r_mu_intersects_ground, lightIndex,
-        single_mie_scattering);
-    vec3 shadow_transmittance =
-        GetTransmittance(planet, transmittanceTable,
-            r, mu, shadow_length, ray_r_mu_intersects_ground);
-    scattering = scattering * shadow_transmittance;
-    single_mie_scattering = single_mie_scattering * shadow_transmittance;
-  }
-  return (scattering * RayleighPhaseFunction(nu) + single_mie_scattering *
-      MiePhaseFunction(planet.mieAsymmetryFactor, nu)) * SkyRadianceToLuminance.rgb;
-}
 
 int M_perAtmospherePixel = floatBitsToInt(Multisampling_perAtmospherePixel);
 float raymarchOcclusion(Planet planet, Ray ray, float fromT, float toT, bool viewTerrainHit, bool shadowed, DirectionalLight l)
@@ -91,7 +35,7 @@ float raymarchOcclusion(Planet planet, Ray ray, float fromT, float toT, bool vie
 
 		if(HQSettings_lightShafts)
 		{
-			if(viewTerrainHit)
+			if(viewTerrainHit && LightSettings_rayAlsoShadowedThres != 0)
 			{
 				if(mu_s < LightSettings_viewThres || (shadowed && toT - t < LightSettings_rayAlsoShadowedThres))
 				{
@@ -103,8 +47,15 @@ float raymarchOcclusion(Planet planet, Ray ray, float fromT, float toT, bool vie
 				// But it whould sometimes create a visible seam, so we create a gradient here
 				if(diff < 0)
 				{
-					shadowLength += dx * abs(diff);
-					noSureIfEclipse = false;
+					float gradientFactor = clamp(abs(diff) / LightSettings_gradient, 0, 1);
+					if(gradientFactor > 0.999)
+					{
+						noSureIfEclipse = false;
+					}
+					else
+					{
+						shadowLength -= dx * gradientFactor;
+					}
 				}
 				else
 				{
@@ -401,7 +352,7 @@ float raymarchAtmosphere(Planet planet, Ray ray, float minDistance, float maxDis
 				vec3 sunOnPlanetPlane = light.direction - sunToNormalCos * sphNormal;
 
 				bool noSureIfEclipse = true;
-				if(terrainWasHit)
+				if(terrainWasHit && LightSettings_rayAlsoShadowedThres != 0)
 				{
 					if(sunToNormalCos < LightSettings_viewThres || (shadowed && maxDistance - currentDistance < LightSettings_rayAlsoShadowedThres))
 					{

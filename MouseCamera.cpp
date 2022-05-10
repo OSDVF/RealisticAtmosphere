@@ -1,3 +1,9 @@
+/**
+ * @author Ondøej Sabela
+ * @brief Realistic Atmosphere - Thesis implementation.
+ * @date 2021-2022
+ * Code reused and modified under GNU GPL v3
+ */
 #include "MouseCamera.h"
 #include <glm/glm.hpp>
 #include <glm/gtx/euler_angles.hpp>

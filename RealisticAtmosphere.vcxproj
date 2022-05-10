@@ -413,7 +413,6 @@
     <ClInclude Include="gl_utils.h" />
     <ClInclude Include="LUTs\PhaseFunctions.h" />
     <ClInclude Include="PosTexCoordVertex.h" />
-    <ClInclude Include="PosVertex.h" />
     <ClInclude Include="DefaultScene.h" />
     <ClInclude Include="ScreenSpaceQuad.h" />
     <ClInclude Include="SceneObjects.h" />

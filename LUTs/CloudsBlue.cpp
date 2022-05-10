@@ -1,3 +1,12 @@
+/**
+ * @author Ondøej Sabela
+ * @brief Realistic Atmosphere - Thesis implementation.
+ * @date 2021-2022
+ * Copyright 2022 Ondøej Sabela. All rights reserved.
+ * Uses ray tracing, path tracing and ray marching to create visually plausible outdoor scenes with atmosphere, terrain, clouds and analytical objects.
+ * DSDs generated in MiePlot software
+ */
+
 #include "PhaseFunctions.h"
 namespace PhaseFunctions {
 	const float CloudsBlueUniform[] = {

@@ -1,3 +1,12 @@
+/**
+ * @author Ondøej Sabela
+ * @brief Realistic Atmosphere - Thesis implementation.
+ * @date 2021-2022
+ * Copyright 2022 Ondøej Sabela. All rights reserved.
+ * Uses ray tracing, path tracing and ray marching to create visually plausible outdoor scenes with atmosphere, terrain, clouds and analytical objects.
+ * Reused some code from Scratchapixel (link in source code).
+ */
+
 //?#version 440
 #ifndef INTERSECTIONS
 #define INTERSECTIONS
@@ -8,6 +17,8 @@ struct Ray
 };
 
 #include "SceneObjects.glsl"
+
+//https://www.scratchapixel.com/lessons/3d-basic-rendering/minimal-ray-tracer-rendering-simple-shapes/ray-sphere-intersection
 bool solveQuadratic(float a, float b, float c, out float x1, out float x2) 
 { 
     if (b == 0) { 

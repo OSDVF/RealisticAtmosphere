@@ -1,3 +1,12 @@
+/**
+ * @author Ondøej Sabela
+ * @brief Realistic Atmosphere - Thesis implementation.
+ * @date 2021-2022
+ * Copyright 2022 Ondøej Sabela. All rights reserved.
+ * Uses ray tracing, path tracing and ray marching to create visually plausible outdoor scenes with atmosphere, terrain, clouds and analytical objects.
+ * Reused some work from examples at ShaderToy and Scratchapixel (links in source code).
+ */
+
 //?#version 440
 #include "Hit.glsl"
 #include "Planet.glsl"
@@ -21,6 +30,7 @@ Ray createCameraRay(vec2 fromPixel)
         if(Camera_fovX == 0)
         {
             // Create spherical "fisheye" cam
+            // https://www.scratchapixel.com/lessons/procedural-generation-virtual-worlds/simulating-sky
             float zSquared = ndcX * ndcX + ndcY * ndcY;
             float phi = atan(ndcY, ndcX);
             float theta = acos(1 - zSquared);
@@ -28,7 +38,7 @@ Ray createCameraRay(vec2 fromPixel)
             dir = normalize(
                     sin(theta) * cos(phi) * Camera_right 
                     - cos(theta) * Camera_up 
-                    + sin(theta) * sin(phi)*Camera_direction
+                    + sin(theta) * sin(phi) * Camera_direction
                 );
         
         }
@@ -75,6 +85,7 @@ sample_disk(vec2 uv)
 	return vec2(cos(theta), sin(theta)) * r;
 }
 
+// Cosine-weighted sampling.
 vec3
 sample_cos_hemisphere(vec2 uv)
 {

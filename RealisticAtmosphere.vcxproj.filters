@@ -160,9 +160,6 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="PosVertex.h">
-      <Filter>Header Files\Vertex Types</Filter>
-    </ClInclude>
     <ClInclude Include="PosTexCoordVertex.h">
       <Filter>Header Files\Vertex Types</Filter>
     </ClInclude>

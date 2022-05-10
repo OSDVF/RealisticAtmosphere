@@ -1,6 +1,11 @@
-﻿/*
- * Copyright 2021 Ondřej Sabela
- */
+﻿ /**
+  * @author Ondřej Sabela
+  * @brief Realistic Atmosphere - Thesis implementation.
+  * @date 2021-2022
+  * Copyright 2022 Ondřej Sabela. All rights reserved.
+  * Uses ray tracing, path tracing and ray marching to create visually plausible outdoor scenes with atmosphere, terrain, clouds and analytical objects.
+  */
+
  //Comment out to not render the "Rendering in progress" text
 #define DRAW_RENDERING_PROGRESS
 
@@ -782,7 +787,7 @@ namespace RealisticAtmosphere
 			}
 			else
 			{
-				displaySettValue = vec4(0);
+				displaySettValue = vec4(*(float*)&_tonemappingType, 0, 0, 0);
 			}
 
 			bgfx::setUniform(_displaySettingsHandle, &displaySettValue);
@@ -959,6 +964,7 @@ namespace RealisticAtmosphere
 			bgfx::setViewTransform(0, NULL, proj);
 			bgfx::setViewRect(0, 0, 0, _renderImageSize.width, _renderImageSize.height);
 
+			glm::vec3 prevRotation;
 			switch (_cameraType)
 			{
 			case 0:
@@ -975,6 +981,10 @@ namespace RealisticAtmosphere
 				// Fisheye cam
 				_tanFovY = 0;// Custom indicator combination of "fisheye" cam
 				_tanFovX = 0;
+
+				// Fisheye camera needs to be rotatex around X axis by 90 degrees
+				prevRotation = _person.Camera.GetRotation();
+				_person.Camera.SetRotation(glm::vec3(prevRotation.x + 90, prevRotation.y, prevRotation.z));
 				break;
 			}
 
@@ -982,6 +992,10 @@ namespace RealisticAtmosphere
 			glm::vec3 camRot = _person.Camera.GetForward();
 			glm::vec3 camUp = _person.Camera.GetUp();
 			glm::vec3 camRight = _person.Camera.GetRight();
+			if (_cameraType == 2)
+			{
+				_person.Camera.SetRotation(prevRotation);
+			}
 			Camera[0] = vec4(camPos.x, camPos.y, camPos.z, 1);
 			Camera[1] = vec4(camRot.x, camRot.y, camRot.z, 0);
 			Camera[2] = vec4(camUp.x, camUp.y, camUp.z, _tanFovY);
@@ -1013,7 +1027,7 @@ namespace RealisticAtmosphere
 				bool lightShafts = (flags & HQFlags_LIGHT_SHAFTS) != 0;
 				bool indirectApprox = (flags & HQFlags_INDIRECT_APPROX) != 0;
 				bool reduceBanding = (flags & HQFlags_REDUCE_BANDING) != 0;
-				ImGui::Checkbox("Precompute atmo", &usePrecomputed);
+				ImGui::Checkbox("Precompute atmo. scat.", &usePrecomputed);
 				if (usePrecomputed)
 				{
 					if (ImGui::SmallButton("Recompute"))
@@ -1021,11 +1035,12 @@ namespace RealisticAtmosphere
 						precompute();
 					}
 				}
-				else
+				ImGui::Checkbox("Light shafts", &lightShafts);
+				ImGui::PushItemWidth(95);
+				if (!usePrecomputed || lightShafts)
 				{
 					ImGui::InputInt("Samples", (int*)&Multisampling_perAtmospherePixel);
 				}
-				ImGui::Checkbox("Light shafts", &lightShafts);
 				ImGui::Checkbox("Approximate skylight", &indirectApprox);
 				if (indirectApprox)
 				{
@@ -1042,17 +1057,16 @@ namespace RealisticAtmosphere
 				}
 				if (reduceBanding)
 				{
-					ImGui::PushItemWidth(95);
 					ImGui::InputFloat("Primary factor", &LightSettings_deBanding);
 					ImGui::InputFloat("Light factor", &Clouds_deBanding);
 					ImGui::InputFloat("Cone width", &Clouds_cone);
-					ImGui::PopItemWidth();
 					flags |= HQFlags_REDUCE_BANDING;
 				}
 				else
 				{
 					flags &= ~HQFlags_REDUCE_BANDING;
 				}
+				ImGui::PopItemWidth();
 
 				if (usePrecomputed)
 				{
@@ -1073,7 +1087,7 @@ namespace RealisticAtmosphere
 					{
 						ImGui::SetTooltip("First cascade of shadows is more precise, second has lower quality (quite blocky)");
 					}
-					ImGui::InputFloat("Hardness", &LightSettings_shadowHardness);
+					ImGui::InputFloat("Sharpness", &LightSettings_shadowHardness);
 					ImGui::InputFloat("de-Banding coef", &LightSettings_shadowDeBanding);
 					if (ImGui::IsItemHovered())
 					{
@@ -1102,7 +1116,7 @@ namespace RealisticAtmosphere
 #if _DEBUG
 			if (ImGui::TreeNode("Debug"))
 			{
-				const char* const debugOutputTypes[] = { "Nothing", "Normals", "Albedo"};
+				const char* const debugOutputTypes[] = { "Nothing", "Normals", "Albedo" };
 
 				ImGui::Combo("Debug Output", &_debugOutput, debugOutputTypes, sizeof(debugOutputTypes) / sizeof(const char*));
 				ImGui::Checkbox("Hide atmosphere", &_debugAtmoOff);
@@ -1297,6 +1311,8 @@ namespace RealisticAtmosphere
 						ImGui::SliderFloat("Visibility", &_flareVisibility, 0, 2);
 						ImGui::PushItemWidth(90);
 						ImGui::InputInt("Occlusion samples", &_flareOcclusionSamples);
+						if (_flareOcclusionSamples > 255)
+							_flareOcclusionSamples = 255;
 						if (ImGui::IsItemHovered())
 							ImGui::SetTooltip("Creates screen-space light shafts."
 								"\n1 = only test for sun visibility."

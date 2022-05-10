@@ -1,3 +1,11 @@
+/**
+ * @author Ondøej Sabela
+ * @brief Realistic Atmosphere - Thesis implementation.
+ * @date 2021-2022
+ * Copyright 2022 Ondøej Sabela. All rights reserved.
+ * Uses ray tracing, path tracing and ray marching to create visually plausible outdoor scenes with atmosphere, terrain, clouds and analytical objects.
+ */
+
 //?#version 430
 //!#define BGFX_SHADER_LANGUAGE_GLSL
 // FOR SOME REASON ALL UNIFORMS MUST BE DEFINED FIRST TO BE RECOGNIZED BY BGFX ANNOYING SHADERC
@@ -57,7 +65,7 @@ vec4 HQSettings = {*(float*)&flags, 0, 1, 1};
 int lightTerrainDetectSteps = 40;
 vec4 LightSettings[] = {
                             vec4(2000, 0.03, 0.4, -0.09),
-                            vec4(0.5, *(float*)&lightTerrainDetectSteps, 3, 0.6),
+                            vec4(0.5, *(float*)&lightTerrainDetectSteps, 6, 0.6),
                             vec4(2000, 500, 5.1e-3, 0.05),
                             vec4(3, 0.1, 400)/*shadow hardness, de-banding coef, light shaft shadowed threshold*/
                         };

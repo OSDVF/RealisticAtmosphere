@@ -1,3 +1,13 @@
+/**
+ * @author Ondøej Sabela
+ * @brief Realistic Atmosphere - Thesis implementation.
+ * @date 2021-2022
+ * Copyright 2022 Ondøej Sabela. All rights reserved.
+ * Uses ray tracing, path tracing and ray marching to create visually plausible outdoor scenes with atmosphere, terrain, clouds and analytical objects.
+ * skyIndirect, planetLightDirect, cloudsIlluminance and planetIlluminance functions use concepts and code from Precomputed Atmospheric Scattering
+ * paper (https://hal.inria.fr/inria-00288758/en) by Eric Bruneton and Fabrice Neyret. Reference implementation at https://github.com/ebruneton/precomputed_atmospheric_scattering.
+ */
+
 //?#version 440
 #ifndef LIGHTING_H
 #define LIGHTING_H
