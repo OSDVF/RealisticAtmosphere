@@ -48,7 +48,7 @@ vec3 triplanarSample(sampler2DArray sampl, vec4 pos, vec3 normal, float lod)
 	return color.xyz;
 }
 
-// Coverage of surface by the terrain at planet-scale
+// Coverage of surface by the land at planet-scale
 float terrainCoverage(vec2 uv)
 {
 	return clamp(
@@ -101,10 +101,12 @@ vec3 terrainNormal(vec2 normalMap, vec3 sphNormal)
 	return normalize(map.x * t + map.y * bitangent + normalZ * vec3(0,1,0));
 }
 
+// Repeating UVs
 vec2 planetUV(vec2 uv)
 {
 	return mod(uv*0.00003, 1);
 }
+// Mirroring UVs - not currently used
 vec2 mirrorTilingUV(vec2 uv)
 {
 	vec2 scaled = mod(uv*0.00003,2);
@@ -122,13 +124,13 @@ vec2 mirrorTilingUV(vec2 uv)
 float terrainSDF(Planet planet, float sampleHeight /*above sea level*/, vec2 uv, out vec2 outNormalMap)
 {
 	vec3 bump;
-	float coverage = terrainCoverage(uv);
-	bump = texture(heightmapTexture, planetUV(uv)).xyz;
-	bump.x *= coverage;
-	bump.yz = mix(vec2(0.5), bump.yz, coverage);
-	#endif
+	float coverage = terrainCoverage(uv);//large-scale planet land coverage
+	bump = texture(heightmapTexture, planetUV(uv)).xyz;//small-scale mountains
 
-	float surfaceHeight = bump.x * planet.mountainsHeight;
+	bump.r *= coverage;//Apply coverage
+	bump.gb = mix(vec2(0.5), bump.yz, coverage);//Apply coverage also to the normal map
+
+	float surfaceHeight = bump.r * planet.mountainsHeight;
 	outNormalMap = bump.gb;
 	return sampleHeight - surfaceHeight;
 }

@@ -1679,13 +1679,16 @@ namespace RealisticAtmosphere
 
 			inputSlicesCount();
 			ImGui::PopItemWidth();
-			for (int i = 0; i < sizeof(DefaultScene::presets) / sizeof(DefaultScene::Preset); i++)
+			auto presetCount = sizeof(DefaultScene::presets) / sizeof(DefaultScene::Preset);
+			for (int i = 0; i < presetCount; i++)
 			{
 				drawPresetButton(i);
-				ImGui::SameLine();
+				if (i < presetCount - 1)
+				{
+					ImGui::SameLine();
+				}
 			}
 
-			ImGui::Text("View presets");
 			ImGui::Checkbox("Do not change sun angle", &_preserveSunPreset);
 			drawPlanetGUI();
 
@@ -1720,6 +1723,7 @@ namespace RealisticAtmosphere
 				_secondSunAngle = presetObj.sun.x;
 			}
 			Clouds_farPlane = presetObj.cloudsFarPlane;
+			QualitySettings_farPlane = presetObj.terrainFarPlane;
 		}
 
 		void inputSlicesCount()
