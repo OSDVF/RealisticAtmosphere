@@ -1,6 +1,6 @@
 [submodule "bgfx"]
 	path = bgfx
-	url = git@github.com:bkaradzic/bgfx.git
+	url = git@github.com:OSDVF/bgfx.git
 [submodule "bx"]
 	path = bx
 	url = git@github.com:bkaradzic/bx.git
