@@ -126,22 +126,26 @@ float heightFade(float cloudDensity, CloudLayer c, float height)
 // Sampling functions for different purposes
 float sampleCloudM(CloudLayer c, vec3 cloudSpacePos, float height)
 {
-    float cloudDensity = pow(clamp(cloudsMediumPrec(c, cloudSpacePos * c.sizeMultiplier) * c.density, 0.0, 1.0), c.sharpness);
+    float domainDist = cloudsMediumPrec(c, cloudSpacePos * Clouds_distortionSize) * Clouds_distortion;
+    float cloudDensity = pow(clamp(cloudsMediumPrec(c, cloudSpacePos * c.sizeMultiplier + domainDist) * c.density, 0.0, 1.0), c.sharpness);
     return heightFade(cloudDensity, c, height);
 }
 float sampleCloudL(CloudLayer c, vec3 cloudSpacePos, float height, out float cheapDensity)
 {
-    float cloudDensity = pow(clamp(cloudsMediumPrec(c, cloudSpacePos * c.sizeMultiplier, cheapDensity) * c.density, 0.0, 1.0), c.sharpness);
+    float domainDist = cloudsMediumPrec(c, cloudSpacePos * Clouds_distortionSize, cheapDensity) * Clouds_distortion;
+    float cloudDensity = pow(clamp(cloudsMediumPrec(c, cloudSpacePos * c.sizeMultiplier + domainDist, cheapDensity) * c.density, 0.0, 1.0), c.sharpness);
     return heightFade(cloudDensity, c, height);
 }
 float sampleCloudH(CloudLayer c, vec3 cloudSpacePos, float height, out float cheapDensity)
 {
-    float cloudDensity = pow(clamp(cloudsHighPrec(c, cloudSpacePos * c.sizeMultiplier, cheapDensity) * c.density, 0.0, 1.0), c.sharpness);
+    float domainDist = cloudsHighPrec(c, cloudSpacePos * Clouds_distortionSize, cheapDensity) * Clouds_distortion;
+    float cloudDensity = pow(clamp(cloudsHighPrec(c, cloudSpacePos * c.sizeMultiplier + domainDist, cheapDensity) * c.density, 0.0, 1.0), c.sharpness);
     return heightFade(cloudDensity, c, height);
 }
 float sampleCloud(CloudLayer c, vec3 cloudSpacePos, float height, float level1)
 {
-    float cloudDensity = pow(clamp((level1 - cloudsHigherOrders(cloudSpacePos * c.sizeMultiplier)) * c.density, 0.0, 1.0), c.sharpness);
+    float domainDist = cloudsHigherOrders(cloudSpacePos * Clouds_distortionSize) * Clouds_distortion;
+    float cloudDensity = pow(clamp((level1 - cloudsHigherOrders(cloudSpacePos * c.sizeMultiplier + domainDist)) * c.density, 0.0, 1.0), c.sharpness);
     return heightFade(cloudDensity, c, height);
 }
 float sampleCloudCheap(CloudLayer c, vec3 cloudSpacePos)

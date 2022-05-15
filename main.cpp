@@ -1503,6 +1503,8 @@ namespace RealisticAtmosphere
 						}
 
 						ImGui::InputFloat("Coverage", &cloudsLayer.coverage);
+						ImGui::InputFloat("Distortion", &Clouds_distortion);
+						ImGui::InputFloat("Dist Size", &Clouds_distortionSize, 0, 0, "%e");
 
 						if (ImGui::TreeNode("Downsampling"))
 						{
