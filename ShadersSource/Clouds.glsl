@@ -112,7 +112,7 @@ vec3 combinedPhaseFunction(float cosNu)
 // http://advances.realtimerendering.com/s2015/The%20Real-time%20Volumetric%20Cloudscapes%20of%20Horizon%20-%20Zero%20Dawn%20-%20ARTR.pdf)
 float powder(float density, float nu) {
     float powderApprox = 1.0 - exp(density * Clouds_powderDensity);
-    return clamp(powderApprox * nu, Clouds_powderAmbient, 1);
+    return clamp(powderApprox + nu, Clouds_powderAmbient, 1);
 }
 
 // Fade cloud density by height

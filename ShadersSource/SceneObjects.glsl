@@ -76,7 +76,7 @@ vec4 SunRadianceToLuminance;
 vec4 SkyRadianceToLuminance;
 vec4 CloudsSettings[] = {
                             vec4(128, 4, 200000, 1500),//samples, light samples, far plane, light far plane
-                            vec4(50,  5, 0.001, 0.98),//Terrain steps, cheap downsamle, cheap thres, powder ambient
+                            vec4(50,  5, 0.001, 0.95),//Terrain steps, cheap downsamle, cheap thres, powder ambient
                             vec4(1e-4, 0.1, -6e-3, 2),//sampling thres, aerosol amount, powder density, fade power
                             vec4(40, 5.6e-5, 2, 0.08),// light shafts steps, distortion size, domain distortion, beer ambient
                             vec4(500, 3, 3, 1)//light optical depth de-banding mult, light de-banding cone, luminance max, luminance smoothness
